@@ -1,0 +1,452 @@
+You are an expert senior backend engineer and Telegram bot architect.
+
+IMPORTANT:
+Use the latest production-grade technologies, best practices, and secure coding standards available up to 2026.
+Analyze the entire project architecture before coding.
+Write clean, scalable, optimized, secure, and maintainable code.
+The final project must be production-ready and deployable.
+
+Build a professional, high-performance Telegram Anonymous Dating & Chat Bot.
+
+Technology requirements:
+- Backend only (NO frontend required)
+- Use a modern and scalable architecture
+- Use latest stable libraries
+- Optimize for extremely high speed and low latency
+- Secure against common attacks
+- Write modular, clean, and expandable code
+- Add proper error handling everywhere
+- Review every file, folder, and line of code before final delivery
+
+
+=================================
+PROJECT FEATURES
+=================================
+
+Create an Anonymous Friendship / Dating Telegram Bot.
+
+After /start:
+
+Show language selection:
+
+Buttons:
+🇮🇷 فارسی
+🇬🇧 English
+
+The selected language must control:
+- All menus
+- Buttons
+- Messages
+- Help section
+- User experience
+
+Store user language preference.
+
+
+=================================
+USER PROFILE SYSTEM
+=================================
+
+On first start ask:
+
+- Gender
+- Age
+
+Save user profile permanently.
+
+User settings must be editable later.
+
+
+=================================
+MAIN MENU
+=================================
+
+Create a professional fixed Telegram Reply Keyboard menu.
+
+Main buttons:
+
+
+1) Connect me to an anonymous person
+
+Flow:
+
+Ask:
+
+"What gender do you prefer?"
+
+Buttons:
+
+- Female
+- Male
+- No preference (random)
+
+
+Rules:
+
+If user selects Female:
+- Deduct 1 coin
+- Find a female anonymous user
+
+If user selects Male:
+- Deduct 1 coin
+- Find a male anonymous user
+
+If user selects No preference:
+- Find a random user
+- Prefer matching gender when possible
+
+
+Requirements:
+
+- Smart matching algorithm
+- Queue system
+- Prevent duplicate matching
+- Prevent self matching
+- Handle busy users
+- Auto timeout
+
+
+After requesting:
+
+Show:
+
+"If you are not connected within 1 minute, try again."
+
+
+During chat:
+
+Users must have:
+
+- End chat button
+- Report user button
+- Block user button
+- Predefined block/report reasons
+- Safety controls
+
+
+=================================
+GROUP ANONYMOUS CHAT
+=================================
+
+Button:
+
+"Join anonymous group"
+
+
+Rules:
+
+- Cost: 1 coin
+- Create anonymous groups
+- Randomly connect users
+- Group size: 3 to 10 users
+- Dynamic group creation
+- Auto management
+
+
+=================================
+MY ANONYMOUS LINK
+=================================
+
+Create a unique anonymous link for every user.
+
+Features:
+
+Users can share their link.
+
+Other users can send anonymous messages.
+
+Receiver can:
+
+- Reply anonymously
+- Block sender
+- Report sender
+
+
+Messages must remain anonymous.
+
+
+=================================
+HELP SYSTEM
+=================================
+
+Create a complete default help section.
+
+Explain:
+
+- How bot works
+- Coins
+- Anonymous chat
+- Rules
+- Safety
+- Reports
+- Blocking
+
+
+=================================
+COIN SYSTEM
+=================================
+
+Implement full coin economy.
+
+
+Referral:
+
+Every user gets a unique referral link.
+
+When a new user successfully starts the bot using referral:
+
+Reward:
++5 coins
+
+
+Track:
+
+- Total referrals
+- Successful referrals
+- Referral history
+
+
+=================================
+BUY COINS SYSTEM
+=================================
+
+Allow buying coins.
+
+Payment methods:
+
+- Online payment gateway
+- Manual card payment
+- Cryptocurrency
+
+
+Admin must control:
+
+- Enable / disable payment methods
+- Set prices
+- Manage packages
+
+
+=================================
+ADMIN PANEL
+=================================
+
+Create a complete Telegram admin panel.
+
+No web frontend required.
+
+
+Admin features:
+
+
+Statistics:
+
+- Total users
+- Active users
+- Online users
+- Total chats
+- Referral statistics
+- Coin statistics
+
+
+=================================
+AUTOMATIC BACKUP SYSTEM
+=================================
+
+Backup system:
+
+Admin can set a Telegram group as backup destination.
+
+Bot generates a unique verification code.
+
+Admin adds bot as admin in group.
+
+Bot detects and verifies the group.
+
+Automatic backups:
+
+- Database
+- User data
+- Settings
+- Bot configuration
+
+
+Admin can set backup schedule:
+
+Example:
+Every hour
+Every day
+
+
+Send backups automatically.
+
+
+=================================
+BROADCAST SYSTEM
+=================================
+
+Admin can send messages to:
+
+- All users
+- Selected users
+
+
+Support:
+
+- Text
+- Buttons
+- Media
+
+
+=================================
+PAYMENT MANAGEMENT
+=================================
+
+Admin can configure:
+
+- Payment gateway
+- Card number
+- Crypto wallet
+
+
+Manual payments:
+
+Users upload payment receipt.
+
+System sends receipt to admin review group.
+
+
+In admin group:
+
+Show:
+
+Payment information
+
+Buttons:
+
+✅ Approve
+❌ Reject
+
+
+After clicking:
+
+Status becomes final and cannot be changed.
+
+
+=================================
+ADMIN USER MANAGEMENT
+=================================
+
+Admin can:
+
+- Add coins to users
+- Remove coins
+- Search users
+- View user information
+- View referral tree
+
+
+Referral tree:
+
+Show users invited by a user up to any depth.
+
+
+=================================
+CONTENT SAFETY
+=================================
+
+Implement anti-abuse system.
+
+Prevent:
+
+- Profanity
+- Offensive messages
+- Spam
+- Flooding
+- Harassment
+
+
+Add:
+
+- Bad word filter
+- Rate limiting
+- User warnings
+- Temporary restrictions
+
+
+=================================
+INSTALLATION SYSTEM
+=================================
+
+Create:
+
+README.md
+
+with complete installation guide.
+
+
+Create:
+
+install.sh
+
+
+Installation must be fully automatic.
+
+During installation ask ONLY:
+
+1. Telegram Bot Token
+2. Admin Numeric Telegram ID
+
+
+Then automatically:
+
+- Install dependencies
+- Setup environment
+- Configure database
+- Create required files
+- Start bot
+- Enable auto restart
+
+
+The bot must run successfully without manual configuration.
+
+
+=================================
+CODE QUALITY REQUIREMENTS
+=================================
+
+Before final delivery:
+
+Review the entire source code:
+
+- File by file
+- Folder by folder
+- Line by line
+
+
+Fix:
+
+- Bugs
+- Security issues
+- Performance problems
+- Logic errors
+
+
+Ensure:
+
+- Production ready
+- Easy future development
+- Clean architecture
+- High performance
+- Stable operation
+
+
+Add logging system.
+
+Add exception handling.
+
+Add database optimization.
+
+Add caching where needed.
+
+
+The final result must be a professional Telegram bot comparable to large commercial bots.

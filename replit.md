@@ -1,36 +1,53 @@
-# [Project name]
+# Telegram Anonymous Chat Bot
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A professional, high-performance Telegram Anonymous Dating & Chat Bot built with Grammy, TypeScript, PostgreSQL, and Drizzle ORM.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- `pnpm --filter @workspace/api-server run dev` — run the API server + Telegram bot (port 8080)
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Required env: `TELEGRAM_BOT_TOKEN`, `ADMIN_IDS`, `DATABASE_URL` (auto-provisioned), `BOT_USERNAME`
 
 ## Stack
 
 - pnpm workspaces, Node.js 24, TypeScript 5.9
+- Telegram Bot: Grammy v1, @grammyjs/conversations
 - API: Express 5
 - DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- Validation: Zod v4
+- Scheduling: node-cron
+- Logging: Pino
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/api-server/src/bot/` — All bot logic
+  - `handlers/` — Command and message handlers (start, matching, group, anonymous-link, coins, admin, help, settings)
+  - `services/` — Business logic (user, matching, coin, payment, backup, broadcast, safety)
+  - `keyboards/` — Telegram keyboards (main reply keyboard, inline keyboards)
+  - `middleware/` — Auth middleware and rate limiter
+  - `i18n/` — Persian (fa) and English (en) translations
+- `lib/db/src/schema/` — Drizzle ORM schema (users, chats, groups, coins, payments, reports, settings)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- Grammy bot runs inside the same Express process for simplicity and resource efficiency
+- Sessions stored in-memory (Grammy default); upgrading to DB storage is straightforward
+- All user identity protected — anonymous tokens, no partner ID leakage
+- Rate limiting in-memory for fast checks, DB for persistence
+- Admin panel is Telegram-based — no web frontend needed
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Anonymous 1-on-1 matching with gender preference and coin gating
+- Anonymous group chats (3–10 users) with coin gating
+- Anonymous link system for asynchronous anonymous messaging
+- Full coin economy (referral, purchase, admin management)
+- Payment system (card/crypto/gateway) with Telegram-based admin review
+- Scheduled automatic backups to a Telegram group
+- Broadcast system for admin mass messaging
+- Content safety (bad words, rate limiting, warnings, bans)
 
 ## User preferences
 
@@ -38,7 +55,10 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Run `pnpm run typecheck:libs` before `pnpm --filter @workspace/api-server run typecheck` — libs must be compiled first
+- DB schema must be pushed after schema changes: `pnpm --filter @workspace/db run push`
+- BOT_USERNAME must match the actual bot username (no @) for anonymous links to work correctly
+- Admin IDs: comma-separated list in ADMIN_IDS env var
 
 ## Pointers
 

@@ -16,6 +16,30 @@ import {
 } from "../keyboards/main.js";
 
 export function registerSettingsHandlers(bot: Bot<BotContext>) {
+  // ─── Cancel handler (setup step changes) ────────────────────────────────────
+  // Fires AFTER matching.ts and coins.ts cancel handlers (both call next() when not handled).
+  // Handles cancel during change_age / change_gender / change_language flows.
+  bot.hears([/^❌ لغو/, /^❌ Cancel/], async (ctx, next) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return next();
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const isSettingsStep =
+      user.setupStep === "change_age" ||
+      user.setupStep === "change_gender" ||
+      user.setupStep === "change_language";
+
+    if (isSettingsStep) {
+      await setUserSetupStep(tgId, null);
+      await ctx.reply(t(lang).cancelledAction, { reply_markup: mainMenuKeyboard(lang) });
+      return; // handled
+    }
+
+    // Final fallback: any other cancel → just show main menu
+    await ctx.reply(t(lang).cancelledAction, { reply_markup: mainMenuKeyboard(lang) });
+  });
+
   // ─── Open settings menu ──────────────────────────────────────────────────────
   bot.hears([/^⚙️ تنظیمات/, /^⚙️ Settings/], async (ctx) => {
     const tgId = ctx.from!.id;
@@ -24,11 +48,15 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     const genderLabel =
-      user.gender === "male" ? t(lang).male
+      user.gender === "male"   ? t(lang).male
       : user.gender === "female" ? t(lang).female
       : t(lang).other;
     const profileInfo = t(lang).currentProfile(genderLabel, user.age ?? 0);
-    await ctx.reply(`${t(lang).settingsMenu}\n\n${profileInfo}`, { reply_markup: settingsKeyboard(lang) });
+
+    await ctx.reply(`${t(lang).settingsMenu}\n\n${profileInfo}`, {
+      parse_mode: "Markdown",
+      reply_markup: settingsKeyboard(lang),
+    });
   });
 
   // ─── Initiate gender change ──────────────────────────────────────────────────
@@ -52,9 +80,9 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
   // ─── Initiate language change ────────────────────────────────────────────────
   bot.hears([/^🌐 تغییر زبان/, /^🌐 Change Language/], async (ctx) => {
     const tgId = ctx.from!.id;
-    await setUserSetupStep(tgId, "change_language");
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
+    await setUserSetupStep(tgId, "change_language");
     await ctx.reply(t(lang).changeLanguage, { reply_markup: languageKeyboard() });
   });
 
@@ -64,11 +92,13 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
     await setUserSetupStep(tgId, null);
-    await ctx.reply("🏠", { reply_markup: mainMenuKeyboard(lang) });
+    await ctx.reply(t(lang).profileUpdated.replace("✅ ", "🏠 ").replace(/.*/, "🏠"), {
+      reply_markup: mainMenuKeyboard(lang),
+    });
   });
 
-  // ─── Handle gender selection (change_gender step) ───────────────────────────
-  // Registered AFTER start.ts handler which defers via next() when setupStep !== "select_gender"
+  // ─── Handle gender selection (change_gender step) ────────────────────────────
+  // Registered AFTER start.ts hears handler which calls next() when step !== "select_gender"
   bot.hears(
     [/^(👦 مرد|👧 زن|🌈 سایر|👦 Male|👧 Female|🌈 Other)$/],
     async (ctx) => {
@@ -90,7 +120,7 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
   );
 
   // ─── Handle language selection (change_language step) ───────────────────────
-  // Registered AFTER start.ts handler which defers via next() when setupStep !== "select_language"
+  // Registered AFTER start.ts hears handler which calls next() when step !== "select_language"
   bot.hears(["🇮🇷 فارسی", "🇬🇧 English"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);

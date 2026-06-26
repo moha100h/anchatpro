@@ -1,0 +1,1 @@
+- [Drizzle null vs undefined](drizzle-null-vs-undefined.md) — `undefined` in `.set()` skips the column; use `null` to clear nullable fields. Also: Grammy `bot.hears` chain needs `return next()` in step-guards to reach later handlers.

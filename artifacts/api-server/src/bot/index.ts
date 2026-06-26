@@ -1,5 +1,4 @@
 import { Bot, session } from "grammy";
-import { conversations, createConversation } from "@grammyjs/conversations";
 import type { BotContext, SessionData } from "./context.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
@@ -15,6 +14,9 @@ import { ensureDefaultPackages } from "./services/payment.service.js";
 import { initDefaultBadWords } from "./services/safety.service.js";
 import { sendBackup, getBackupConfig } from "./services/backup.service.js";
 import { cleanupStaleQueue } from "./services/matching.service.js";
+import { getUserByTelegramId } from "./services/user.service.js";
+import { t } from "./i18n/index.js";
+import { mainMenuKeyboard } from "./keyboards/main.js";
 import { logger } from "../lib/logger.js";
 import cron from "node-cron";
 
@@ -23,55 +25,58 @@ export async function createBot(): Promise<Bot<BotContext>> {
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN environment variable is required");
 
   const adminIdsStr = process.env["ADMIN_IDS"] ?? "";
-  const adminIds = adminIdsStr.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+  const adminIds = adminIdsStr
+    .split(",")
+    .map((s) => parseInt(s.trim(), 10))
+    .filter((n) => !isNaN(n));
   setAdminIds(adminIds);
-
-  const botUsername = process.env["BOT_USERNAME"];
 
   const bot = new Bot<BotContext>(token);
 
-  // Session
-  bot.use(session<SessionData, BotContext>({
-    initial: (): SessionData => ({}),
-  }));
+  // In-memory session (sufficient for ephemeral state like pending payment step)
+  bot.use(
+    session<SessionData, BotContext>({
+      initial: (): SessionData => ({}),
+    })
+  );
 
-  // Auth middleware
+  // Global middleware: populate ctx.dbUser and enforce rate limits
   bot.use(authMiddleware);
   bot.use(rateLimitMiddleware);
 
-  // Register all handlers
-  registerStartHandler(bot);
-  registerMatchingHandlers(bot);
-  registerGroupHandlers(bot);
-  registerAnonLinkHandlers(bot);
-  registerCoinHandlers(bot);
-  registerHelpHandlers(bot);
-  registerSettingsHandlers(bot);
-  registerAdminHandlers(bot);
+  // Register handlers — ORDER MATTERS for overlapping hears/on patterns.
+  // start.ts hears handlers call next() when their step guard doesn't match,
+  // so settings.ts handlers are reached correctly.
+  registerStartHandler(bot);      // /start, language select, gender select (setup), age input (setup)
+  registerMatchingHandlers(bot);  // connect, gender pref, end chat, report, block, message forwarding
+  registerGroupHandlers(bot);     // join/leave group, group message forwarding
+  registerAnonLinkHandlers(bot);  // /start anon_ links, send/reply anon messages
+  registerCoinHandlers(bot);      // coins menu, buy, packages, payment methods, receipt upload
+  registerHelpHandlers(bot);      // help text
+  registerSettingsHandlers(bot);  // settings menu, change gender/age/language (registered AFTER start.ts!)
+  registerAdminHandlers(bot);     // /admin, callbacks, text inputs for admin actions
 
   // Global error handler
   bot.catch((err) => {
-    logger.error({ err: err.error, ctx: err.ctx?.update }, "Bot error");
+    logger.error({ err: err.error, update: err.ctx?.update }, "Unhandled bot error");
   });
 
-  // Init defaults
+  // Seed default data
   await ensureDefaultPackages();
   await initDefaultBadWords();
 
-  // Scheduled jobs
-  // Cleanup stale queue every 2 minutes
+  // ─── Scheduled jobs ──────────────────────────────────────────────────────────
+
+  // Cleanup stale matching queue every 2 minutes
   cron.schedule("*/2 * * * *", async () => {
     try {
       const staleIds = await cleanupStaleQueue(2);
-      if (staleIds.length > 0) {
-        for (const uid of staleIds) {
-          const { getUserByTelegramId } = await import("./services/user.service.js");
-          const { t } = await import("./i18n/index.js");
-          const { mainMenuKeyboard } = await import("./keyboards/main.js");
-          const user = await getUserByTelegramId(uid);
-          const lang = (user?.language as "fa" | "en") ?? "fa";
-          await bot.api.sendMessage(uid, t(lang).queueTimeout, { reply_markup: mainMenuKeyboard(lang) }).catch(() => {});
-        }
+      for (const uid of staleIds) {
+        const user = await getUserByTelegramId(uid);
+        const lang = (user?.language as "fa" | "en") ?? "fa";
+        await bot.api
+          .sendMessage(uid, t(lang).queueTimeout, { reply_markup: mainMenuKeyboard(lang) })
+          .catch(() => {});
       }
     } catch (e) {
       logger.error({ err: e }, "Queue cleanup error");
@@ -85,8 +90,10 @@ export async function createBot(): Promise<Bot<BotContext>> {
       if (!config?.isVerified || !config.chatId) return;
       const now = new Date();
       const lastBackup = config.lastBackupAt ? new Date(config.lastBackupAt) : null;
-      const hoursSinceLastBackup = lastBackup ? (now.getTime() - lastBackup.getTime()) / (1000 * 60 * 60) : Infinity;
-      if (hoursSinceLastBackup >= config.scheduleHours) {
+      const hoursSinceLast = lastBackup
+        ? (now.getTime() - lastBackup.getTime()) / (1000 * 60 * 60)
+        : Infinity;
+      if (hoursSinceLast >= config.scheduleHours) {
         await sendBackup(bot);
         logger.info("Scheduled backup sent");
       }

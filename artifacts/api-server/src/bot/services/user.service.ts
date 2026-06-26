@@ -1,14 +1,19 @@
 import { db } from "@workspace/db";
 import { usersTable, referralsTable, coinTransactionsTable } from "@workspace/db";
-import { eq, sql, and, gte, lte, desc, count } from "drizzle-orm";
+import { eq, gte, desc, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { User } from "@workspace/db";
 
 export async function getOrCreateUser(telegramId: number, firstName?: string, username?: string, referralCode?: string): Promise<User> {
   const existing = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
   if (existing[0]) {
-    await db.update(usersTable).set({ lastSeen: new Date(), firstName: firstName ?? existing[0].firstName, username: username ?? existing[0].username, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
-    return existing[0];
+    await db.update(usersTable).set({
+      lastSeen: new Date(),
+      firstName: firstName ?? existing[0].firstName,
+      username: username ?? existing[0].username,
+      updatedAt: new Date(),
+    }).where(eq(usersTable.telegramId, telegramId));
+    return { ...existing[0], lastSeen: new Date() };
   }
 
   const newReferralCode = nanoid(10);
@@ -32,7 +37,6 @@ export async function getOrCreateUser(telegramId: number, firstName?: string, us
     updatedAt: new Date(),
   }).returning();
 
-  // Handle referral
   if (referralCode) {
     const referrer = await db.select().from(usersTable).where(eq(usersTable.referralCode, referralCode)).limit(1);
     if (referrer[0] && referrer[0].telegramId !== telegramId) {
@@ -58,7 +62,7 @@ export async function getUserByAnonToken(token: string): Promise<User | null> {
   return user ?? null;
 }
 
-export async function updateUser(telegramId: number, data: Partial<User>): Promise<void> {
+export async function updateUser(telegramId: number, data: Partial<Omit<User, "telegramId">>): Promise<void> {
   await db.update(usersTable).set({ ...data, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
 }
 
@@ -66,8 +70,17 @@ export async function setUserLanguage(telegramId: number, lang: "fa" | "en"): Pr
   await db.update(usersTable).set({ language: lang, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
 }
 
+/**
+ * Set or CLEAR the setupStep for a user.
+ * Pass null to clear (sets the column to NULL in the database).
+ * IMPORTANT: Do NOT pass undefined — Drizzle skips undefined fields entirely.
+ */
 export async function setUserSetupStep(telegramId: number, step: string | null): Promise<void> {
-  await db.update(usersTable).set({ setupStep: step ?? undefined, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
+  // Drizzle treats `null` as SQL NULL (clearing the field).
+  // `undefined` would cause Drizzle to skip the column entirely — never pass undefined here.
+  await db.update(usersTable)
+    .set({ setupStep: step, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, telegramId));
 }
 
 export async function isUserBanned(telegramId: number): Promise<boolean> {
@@ -76,12 +89,16 @@ export async function isUserBanned(telegramId: number): Promise<boolean> {
 }
 
 export async function isUserRestricted(telegramId: number): Promise<boolean> {
-  const [user] = await db.select({ status: usersTable.status, restrictedUntil: usersTable.restrictedUntil }).from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+  const [user] = await db
+    .select({ status: usersTable.status, restrictedUntil: usersTable.restrictedUntil })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
   if (!user) return false;
   if (user.status === "banned") return true;
   if (user.status === "restricted" && user.restrictedUntil && new Date() < user.restrictedUntil) return true;
   if (user.status === "restricted" && (!user.restrictedUntil || new Date() >= user.restrictedUntil)) {
-    await db.update(usersTable).set({ status: "active", restrictedUntil: undefined, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
+    await db.update(usersTable).set({ status: "active", restrictedUntil: null, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
   }
   return false;
 }
@@ -99,8 +116,8 @@ export async function searchUser(id: number): Promise<User | null> {
   return getUserByTelegramId(id);
 }
 
-export async function getReferralTree(userId: number, depth = 3): Promise<any[]> {
-  const result: any[] = [];
+export async function getReferralTree(userId: number, depth = 3): Promise<Array<{ level: number; user: User }>> {
+  const result: Array<{ level: number; user: User }> = [];
   const visited = new Set<number>();
 
   async function traverse(uid: number, currentDepth: number) {

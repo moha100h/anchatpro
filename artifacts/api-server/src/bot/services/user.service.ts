@@ -17,7 +17,7 @@ export async function getOrCreateUser(telegramId: number, firstName?: string, us
   }
 
   const newReferralCode = nanoid(10);
-  const anonToken = nanoid(32);
+  const anonToken = nanoid(8);  // Short 8-char token for concise anonymous links
 
   const [user] = await db.insert(usersTable).values({
     telegramId,
@@ -38,7 +38,9 @@ export async function getOrCreateUser(telegramId: number, firstName?: string, us
   }).returning();
 
   if (referralCode) {
-    const referrer = await db.select().from(usersTable).where(eq(usersTable.referralCode, referralCode)).limit(1);
+    // Support both r_ and ref_ formats
+    const cleanCode = referralCode.startsWith("r_") ? referralCode.slice(2) : referralCode;
+    const referrer = await db.select().from(usersTable).where(eq(usersTable.referralCode, cleanCode)).limit(1);
     if (referrer[0] && referrer[0].telegramId !== telegramId) {
       await db.insert(referralsTable).values({
         referrerId: referrer[0].telegramId,
@@ -62,6 +64,20 @@ export async function getUserByAnonToken(token: string): Promise<User | null> {
   return user ?? null;
 }
 
+/**
+ * Ensures the user's anonymousToken is short (≤12 chars).
+ * Existing 32-char tokens (legacy) are regenerated to 8 chars on first use.
+ */
+export async function refreshAnonToken(telegramId: number): Promise<string> {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);
+  if (user?.anonymousToken && user.anonymousToken.length <= 12) {
+    return user.anonymousToken;
+  }
+  const shortToken = nanoid(8);
+  await db.update(usersTable).set({ anonymousToken: shortToken, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
+  return shortToken;
+}
+
 export async function updateUser(telegramId: number, data: Partial<Omit<User, "telegramId">>): Promise<void> {
   await db.update(usersTable).set({ ...data, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
 }
@@ -76,8 +92,6 @@ export async function setUserLanguage(telegramId: number, lang: "fa" | "en"): Pr
  * IMPORTANT: Do NOT pass undefined — Drizzle skips undefined fields entirely.
  */
 export async function setUserSetupStep(telegramId: number, step: string | null): Promise<void> {
-  // Drizzle treats `null` as SQL NULL (clearing the field).
-  // `undefined` would cause Drizzle to skip the column entirely — never pass undefined here.
   await db.update(usersTable)
     .set({ setupStep: step, updatedAt: new Date() })
     .where(eq(usersTable.telegramId, telegramId));

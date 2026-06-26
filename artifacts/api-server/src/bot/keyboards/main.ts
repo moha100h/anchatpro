@@ -5,9 +5,9 @@ export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
     .text(i.menuConnect).text(i.menuGroup).row()
-    .text(i.menuMyLink).text(i.menuCoins).row()
-    .text(i.menuReferral).text(i.menuHelp).row()
-    .text(i.menuSettings)
+    .text(i.menuCreateGroup).text(i.menuMyLink).row()
+    .text(i.menuCoins).text(i.menuReferral).row()
+    .text(i.menuHelp).text(i.menuSettings)
     .resized()
     .persistent();
 }
@@ -39,9 +39,20 @@ export function chatControlKeyboard(lang: Lang) {
     .persistent();
 }
 
+/** Regular group member keyboard */
 export function groupControlKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
+    .text(i.leaveGroup)
+    .resized()
+    .persistent();
+}
+
+/** Group creator keyboard — includes member management */
+export function groupCreatorKeyboard(lang: Lang) {
+  const i = t(lang);
+  return new Keyboard()
+    .text(i.manageMembers).row()
     .text(i.leaveGroup)
     .resized()
     .persistent();

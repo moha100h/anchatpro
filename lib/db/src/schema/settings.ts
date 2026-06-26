@@ -12,6 +12,16 @@ export const adminSettingsTable = pgTable("admin_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+/** Sub-admin permissions (super admins come from ADMIN_IDS env) */
+export const adminPermissionsTable = pgTable("admin_permissions", {
+  id: serial("id").primaryKey(),
+  telegramId: bigint("telegram_id", { mode: "number" }).notNull().unique(),
+  username: varchar("username", { length: 255 }),
+  level: varchar("level", { length: 20 }).default("moderator").notNull(), // "admin" | "moderator"
+  addedBy: bigint("added_by", { mode: "number" }).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const backupConfigTable = pgTable("backup_config", {
   id: serial("id").primaryKey(),
   chatId: bigint("chat_id", { mode: "number" }),
@@ -55,5 +65,6 @@ export const rateLimitsTable = pgTable("rate_limits", {
 export const insertAdminSettingSchema = createInsertSchema(adminSettingsTable).omit({ id: true });
 export type InsertAdminSetting = z.infer<typeof insertAdminSettingSchema>;
 export type AdminSetting = typeof adminSettingsTable.$inferSelect;
+export type AdminPermission = typeof adminPermissionsTable.$inferSelect;
 export type BackupConfig = typeof backupConfigTable.$inferSelect;
 export type BroadcastJob = typeof broadcastJobsTable.$inferSelect;

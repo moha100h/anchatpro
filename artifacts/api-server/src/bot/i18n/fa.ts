@@ -15,6 +15,7 @@ export const fa = {
   // ─── Main menu ───────────────────────────────────────────────────────────────
   menuConnect: "🔗 اتصال به کاربر ناشناس",
   menuGroup: "👥 گروه ناشناس",
+  menuCreateGroup: "🆕 ساخت گروه ناشناس",
   menuMyLink: "🔗 لینک ناشناس من",
   menuCoins: "💰 سکه‌های من",
   menuHelp: "❓ راهنما",
@@ -73,6 +74,26 @@ export const fa = {
   newGroupCreated: "🆕 گروه جدید ایجاد شد! منتظر سایر اعضا هستیم...",
   memberJoined: (id: string, count: number) => `👥 کاربر ${id} به گروه پیوست. (${count} نفر)`,
   memberLeft: (id: string, count: number) => `🚪 کاربر ${id} از گروه خارج شد. (${count} نفر)`,
+
+  // ─── Group creation (paid) ────────────────────────────────────────────────
+  createGroupInfo: (cost: number) =>
+    `🆕 **ساخت گروه ناشناس**\n\n` +
+    `💰 هزینه: **${cost} سکه**\n\n` +
+    `شما سازنده گروه خواهید بود و می‌توانید اعضا را اخراج یا مسدود کنید.\n\n` +
+    `آیا تأیید می‌کنید؟`,
+  groupCreatedSuccess: "🎉 گروه ناشناس شما ایجاد شد!\n\nمنتظر پیوستن اعضا هستیم...\nشما سازنده این گروه هستید.",
+  manageMembers: "👥 مدیریت اعضا",
+  memberListTitle: "👥 **اعضای فعلی گروه:**\n\n",
+  noMembersToManage: "❌ هیچ عضوی برای مدیریت وجود ندارد.",
+  kickBtn: "🚫 اخراج",
+  banBtn: "🔨 مسدود",
+  youWereKicked: "🚫 شما توسط سازنده از گروه اخراج شدید.",
+  youWereBanned: "🔨 شما توسط سازنده از این گروه مسدود شدید و نمی‌توانید دوباره وارد شوید.",
+  memberKickedNotif: (alias: string) => `✅ کاربر ${alias} از گروه اخراج شد.`,
+  memberBannedNotif: (alias: string) => `✅ کاربر ${alias} از گروه مسدود شد.`,
+  notGroupCreator: "❌ شما سازنده این گروه نیستید.",
+  cannotKickCreator: "❌ نمی‌توانید سازنده گروه را اخراج کنید.",
+  groupActiveNotif: (count: number) => `🎉 گروه شما فعال شد! **${count}** عضو دارد.`,
 
   // ─── Anonymous link ──────────────────────────────────────────────────────────
   myLink: "🔗 لینک ناشناس شما:",
@@ -146,11 +167,14 @@ export const fa = {
     `اتصال به جنسیت خاص = 1 سکه | هر کسی = رایگان\n\n` +
     `👥 **گروه ناشناس:**\n` +
     `به گروه‌های 3 تا 10 نفره وارد شوید. هزینه: 1 سکه\n\n` +
+    `🆕 **ساخت گروه:**\n` +
+    `گروه اختصاصی بسازید و اعضا را مدیریت کنید.\n\n` +
     `🔗 **لینک ناشناس:**\n` +
     `لینک اختصاصی برای دریافت پیام ناشناس از دیگران.\n\n` +
     `💰 **سکه‌ها:**\n` +
     `• اتصال به جنسیت خاص: 1 سکه\n` +
     `• ورود به گروه: 1 سکه\n` +
+    `• ساخت گروه: 3 سکه (پیش‌فرض)\n` +
     `• خرید سکه: از منوی 💰 سکه‌های من\n` +
     `• دریافت رایگان با دعوت دوستان\n\n` +
     `🎁 **دعوت دوستان:**\n` +
@@ -197,6 +221,26 @@ export const fa = {
   backupSent: "✅ بکاپ با موفقیت ارسال شد.",
   backupFailed: "❌ ارسال بکاپ با خطا مواجه شد.",
   backupConfigured: "✅ تنظیمات بکاپ ذخیره شد.",
+
+  // ─── Admin: sub-admin management ─────────────────────────────────────────────
+  adminManageAdmins: "👤 مدیریت ادمین‌ها",
+  adminWelcomeMsg: "📝 پیام خوشامد",
+  addSubAdmin: "➕ اضافه کردن ادمین",
+  removeSubAdmin: "➖ حذف ادمین",
+  currentSubAdmins: "👥 **ادمین‌های فعلی:**\n",
+  noSubAdmins: "❌ هیچ ادمین فرعی‌ای تنظیم نشده.",
+  adminLevelAdmin: "مدیر کامل",
+  adminLevelModerator: "ناظر",
+  enterAdminId: "آیدی عددی ادمین جدید را وارد کنید:",
+  selectAdminLevel: "سطح دسترسی ادمین را انتخاب کنید:",
+  adminAdded: (id: number, level: string) => `✅ ادمین ${id} با سطح «${level}» اضافه شد.`,
+  adminRemoved: (id: number) => `✅ ادمین ${id} حذف شد.`,
+  adminAlreadyExists: "⚠️ این کاربر قبلاً ادمین است.",
+  setWelcomeMsgPrompt: "📝 پیام خوشامد جدید را وارد کنید:\n\n(برای پاک کردن پیام، عدد 0 را ارسال کنید)",
+  welcomeMsgSet: "✅ پیام خوشامد تنظیم شد.",
+  welcomeMsgCleared: "✅ پیام خوشامد پاک شد.",
+  currentWelcomeMsg: (msg: string) => `📝 **پیام خوشامد فعلی:**\n\n${msg}`,
+  noWelcomeMsg: "📝 پیام خوشامد تنظیم نشده.",
 
   // ─── Payment review (admin group) ────────────────────────────────────────────
   paymentReviewMsg: (p: any) =>

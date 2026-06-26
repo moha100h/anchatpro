@@ -6,8 +6,10 @@ import {
   setUserSetupStep,
   setUserLanguage,
   getUserByTelegramId,
+  getUserByAnonToken,
 } from "../services/user.service.js";
 import { processReferralReward } from "../services/coin.service.js";
+import { getSetting } from "../services/payment.service.js";
 import { t } from "../i18n/index.js";
 import { languageKeyboard, genderKeyboard, mainMenuKeyboard } from "../keyboards/main.js";
 
@@ -22,35 +24,56 @@ export function registerStartHandler(bot: Bot<BotContext>) {
   // /start command
   bot.command("start", async (ctx) => {
     const tgId = ctx.from!.id;
-    const args = ctx.match?.trim();
-    let referralCode: string | undefined;
+    const arg = ctx.match?.trim() ?? "";
 
-    if (args?.startsWith("ref_")) {
-      referralCode = args.replace("ref_", "");
+    // ── 1. Handle anonymous link (a_ or anon_ prefix) ──────────────────────
+    if (arg.startsWith("a_") || arg.startsWith("anon_")) {
+      const token = arg.startsWith("a_") ? arg.slice(2) : arg.slice(5);
+      const receiver = await getUserByAnonToken(token);
+      if (receiver && receiver.telegramId !== tgId) {
+        const sender = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        if (!sender.gender || !sender.age) {
+          // New/incomplete user → save pending anon + start setup
+          ctx.session.step = `pending_anon:${receiver.telegramId}`;
+          await setUserLanguage(tgId, "fa");
+          await setUserSetupStep(tgId, "select_language");
+          const customWelcome = await getSetting("welcome_message");
+          if (customWelcome) await ctx.reply(customWelcome);
+          await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
+          return;
+        }
+        // Existing complete user → go directly to anon send
+        ctx.session.step = `anon_send:${receiver.telegramId}`;
+        const lang = (sender.language as "fa" | "en") ?? "fa";
+        await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+        return;
+      }
+      // Invalid token or self-link → fall through to normal /start
     }
 
+    // ── 2. Extract referral code (supports ref_ and r_ formats) ────────────
+    let referralCode: string | undefined;
+    if (arg.startsWith("ref_")) referralCode = arg.slice(4);
+    else if (arg.startsWith("r_")) referralCode = arg.slice(2);
+
+    // ── 3. Get or create user ───────────────────────────────────────────────
     const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username, referralCode);
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    // New user — start setup flow
+    // ── 4. New user → setup flow ────────────────────────────────────────────
     if (!user.gender || !user.age) {
       await setUserLanguage(tgId, "fa");
       await setUserSetupStep(tgId, "select_language");
+      const customWelcome = await getSetting("welcome_message");
+      if (customWelcome) await ctx.reply(customWelcome);
       await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
       return;
     }
 
-    // Existing user — clear any stuck setup state and show main menu
-    if (user.setupStep) {
-      await setUserSetupStep(tgId, null);
-    }
-
+    // ── 5. Existing user → clear stuck state + show main menu ──────────────
+    if (user.setupStep) await setUserSetupStep(tgId, null);
     await processReferralReward(tgId);
-
-    if (referralCode) {
-      await ctx.reply(t(lang).referralWelcome(user.firstName ?? "کاربر"));
-    }
-
+    if (referralCode) await ctx.reply(t(lang).referralWelcome(user.firstName ?? "کاربر"));
     await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
   });
 
@@ -112,6 +135,16 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     await updateUser(tgId, { age });
     await setUserSetupStep(tgId, null);
     await processReferralReward(tgId);
-    await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+
+    // Check for pending anon link (user clicked anon link before completing setup)
+    const pendingStep = ctx.session.step;
+    ctx.session.step = undefined;
+    if (pendingStep?.startsWith("pending_anon:")) {
+      const receiverId = pendingStep.slice(13);
+      ctx.session.step = `anon_send:${receiverId}`;
+      await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+    } else {
+      await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+    }
   });
 }

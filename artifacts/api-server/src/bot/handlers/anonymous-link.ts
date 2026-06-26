@@ -1,6 +1,6 @@
 import { Bot } from "grammy";
 import type { BotContext } from "../context.js";
-import { getUserByTelegramId, getUserByAnonToken } from "../services/user.service.js";
+import { getUserByTelegramId, getUserByAnonToken, refreshAnonToken } from "../services/user.service.js";
 import { db } from "@workspace/db";
 import { anonymousMessagesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -12,37 +12,24 @@ import { anonMsgActionsKeyboard } from "../keyboards/inline.js";
 export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
 
-  // My link button
+  // ─── My Anonymous Link button ───────────────────────────────────────────────
+  // Uses refreshAnonToken to shorten any legacy 32-char tokens to 8 chars on first use.
   bot.hears([/^🔗 لینک ناشناس من/, /^🔗 My Anonymous Link/], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    if (!user?.anonymousToken) return;
+    if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const link = `https://t.me/${BOT_USERNAME}?start=anon_${user.anonymousToken}`;
+    const token = await refreshAnonToken(tgId);
+    const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
     const msg = `${t(lang).myLink}\n\`${link}\`\n\n${t(lang).linkInfo}`;
     await ctx.reply(msg, { parse_mode: "Markdown" });
   });
 
-  // Handle /start anon_ deep links
-  bot.command("start", async (ctx, next) => {
-    const arg = ctx.match?.trim();
-    if (!arg?.startsWith("anon_")) return next();
+  // NOTE: /start with anon_ / a_ prefix is now handled in start.ts
+  // (This ensures proper setup flow for new users who click anon links)
 
-    const token = arg.replace("anon_", "");
-    const tgId = ctx.from!.id;
-    const sender = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    if (!sender) return;
-    const lang = (sender.language as "fa" | "en") ?? "fa";
-
-    const receiver = await getUserByAnonToken(token);
-    if (!receiver || receiver.telegramId === tgId) return;
-
-    ctx.session.step = `anon_send:${receiver.telegramId}`;
-    await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
-  });
-
-  // Receive anonymous message
+  // ─── Receive anonymous message ───────────────────────────────────────────────
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -81,23 +68,22 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     // Notify receiver
     const receiver = await getUserByTelegramId(receiverId);
     const rLang = (receiver?.language as "fa" | "en") ?? "fa";
-
     const notifyText = `${t(rLang).anonMsgReceived}`;
-    let sentMsg: any;
+
     if (content) {
-      sentMsg = await bot.api.sendMessage(receiverId, `${notifyText}\n\n${content}`, { reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api.sendMessage(receiverId, `${notifyText}\n\n${content}`, { reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
     } else if (fileId && fileType === "photo") {
-      sentMsg = await bot.api.sendPhoto(receiverId, fileId, { caption: notifyText, reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api.sendPhoto(receiverId, fileId, { caption: notifyText, reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
     } else if (fileId && fileType === "video") {
-      sentMsg = await bot.api.sendVideo(receiverId, fileId, { caption: notifyText, reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api.sendVideo(receiverId, fileId, { caption: notifyText, reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
     } else if (fileId && fileType === "voice") {
-      sentMsg = await bot.api.sendVoice(receiverId, fileId, { reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api.sendVoice(receiverId, fileId, { reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
     } else if (fileId && fileType === "sticker") {
-      sentMsg = await bot.api.sendSticker(receiverId, fileId).catch(() => null);
+      await bot.api.sendSticker(receiverId, fileId).catch(() => null);
     }
   });
 
-  // Reply to anonymous message
+  // ─── Reply to anonymous message ─────────────────────────────────────────────
   bot.callbackQuery(/^anon_reply:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
@@ -110,7 +96,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     await ctx.answerCallbackQuery();
   });
 
-  // Block anon sender
+  // ─── Block anon sender ───────────────────────────────────────────────────────
   bot.callbackQuery(/^anon_block:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
@@ -125,7 +111,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     await ctx.answerCallbackQuery();
   });
 
-  // Report anon sender
+  // ─── Report anon sender ──────────────────────────────────────────────────────
   bot.callbackQuery(/^anon_report:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
@@ -134,12 +120,13 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     const [msg] = await db.select().from(anonymousMessagesTable).where(eq(anonymousMessagesTable.id, msgId)).limit(1);
     if (msg?.senderId) await reportUser(tgId, msg.senderId, "Anonymous message report");
+    await db.update(anonymousMessagesTable).set({ status: "reported" }).where(eq(anonymousMessagesTable.id, msgId));
     await ctx.editMessageReplyMarkup();
     await ctx.reply(t(lang).reportSent);
     await ctx.answerCallbackQuery();
   });
 
-  // Handle reply text
+  // ─── Handle anon reply text ──────────────────────────────────────────────────
   bot.on("message:text", async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);

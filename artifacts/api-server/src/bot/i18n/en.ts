@@ -15,6 +15,7 @@ export const en = {
   // ─── Main menu ───────────────────────────────────────────────────────────────
   menuConnect: "🔗 Connect Anonymously",
   menuGroup: "👥 Anonymous Group",
+  menuCreateGroup: "🆕 Create Anonymous Group",
   menuMyLink: "🔗 My Anonymous Link",
   menuCoins: "💰 My Coins",
   menuHelp: "❓ Help",
@@ -73,6 +74,26 @@ export const en = {
   newGroupCreated: "🆕 New group created! Waiting for more members...",
   memberJoined: (id: string, count: number) => `👥 User ${id} joined the group. (${count} members)`,
   memberLeft: (id: string, count: number) => `🚪 User ${id} left the group. (${count} members)`,
+
+  // ─── Group creation (paid) ────────────────────────────────────────────────
+  createGroupInfo: (cost: number) =>
+    `🆕 **Create Anonymous Group**\n\n` +
+    `💰 Cost: **${cost} coins**\n\n` +
+    `As the creator, you can kick or ban members from your group.\n\n` +
+    `Confirm?`,
+  groupCreatedSuccess: "🎉 Your anonymous group has been created!\n\nWaiting for members to join...\nYou are the group creator.",
+  manageMembers: "👥 Manage Members",
+  memberListTitle: "👥 **Current Group Members:**\n\n",
+  noMembersToManage: "❌ No members to manage.",
+  kickBtn: "🚫 Kick",
+  banBtn: "🔨 Ban",
+  youWereKicked: "🚫 You were kicked from the group by the creator.",
+  youWereBanned: "🔨 You were banned from this group by the creator and cannot rejoin.",
+  memberKickedNotif: (alias: string) => `✅ User ${alias} has been kicked from the group.`,
+  memberBannedNotif: (alias: string) => `✅ User ${alias} has been banned from the group.`,
+  notGroupCreator: "❌ You are not the group creator.",
+  cannotKickCreator: "❌ You cannot kick the group creator.",
+  groupActiveNotif: (count: number) => `🎉 Your group is now active! **${count}** members.`,
 
   // ─── Anonymous link ──────────────────────────────────────────────────────────
   myLink: "🔗 Your Anonymous Link:",
@@ -146,11 +167,14 @@ export const en = {
     `Specific gender = 1 coin | Anyone = free\n\n` +
     `👥 **Anonymous Group:**\n` +
     `Join groups of 3-10 people. Cost: 1 coin\n\n` +
+    `🆕 **Create Group:**\n` +
+    `Create your own group and manage members.\n\n` +
     `🔗 **Anonymous Link:**\n` +
     `Your unique link for receiving anonymous messages from others.\n\n` +
     `💰 **Coins:**\n` +
     `• Connect to specific gender: 1 coin\n` +
     `• Join group: 1 coin\n` +
+    `• Create group: 3 coins (default)\n` +
     `• Buy coins: from 💰 My Coins menu\n` +
     `• Earn free coins by inviting friends\n\n` +
     `🎁 **Invite Friends:**\n` +
@@ -197,6 +221,26 @@ export const en = {
   backupSent: "✅ Backup sent successfully.",
   backupFailed: "❌ Backup failed.",
   backupConfigured: "✅ Backup settings saved.",
+
+  // ─── Admin: sub-admin management ─────────────────────────────────────────────
+  adminManageAdmins: "👤 Manage Admins",
+  adminWelcomeMsg: "📝 Welcome Message",
+  addSubAdmin: "➕ Add Admin",
+  removeSubAdmin: "➖ Remove Admin",
+  currentSubAdmins: "👥 **Current Sub-Admins:**\n",
+  noSubAdmins: "❌ No sub-admins configured.",
+  adminLevelAdmin: "Full Admin",
+  adminLevelModerator: "Moderator",
+  enterAdminId: "Enter the admin's numeric Telegram ID:",
+  selectAdminLevel: "Select the access level:",
+  adminAdded: (id: number, level: string) => `✅ Admin ${id} added with level "${level}".`,
+  adminRemoved: (id: number) => `✅ Admin ${id} removed.`,
+  adminAlreadyExists: "⚠️ This user is already an admin.",
+  setWelcomeMsgPrompt: "📝 Enter the new welcome message:\n\n(Send 0 to clear the message)",
+  welcomeMsgSet: "✅ Welcome message saved.",
+  welcomeMsgCleared: "✅ Welcome message cleared.",
+  currentWelcomeMsg: (msg: string) => `📝 **Current Welcome Message:**\n\n${msg}`,
+  noWelcomeMsg: "📝 No welcome message configured.",
 
   // ─── Payment review (admin group) ────────────────────────────────────────────
   paymentReviewMsg: (p: any) =>

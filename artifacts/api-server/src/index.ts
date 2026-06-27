@@ -1,3 +1,4 @@
+process.env["TZ"] = "Asia/Tehran";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { createBot } from "./bot/index.js";

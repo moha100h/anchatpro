@@ -38,6 +38,14 @@ export const en = {
   genderPrefMale: "👦 Male",
   genderPrefAny: "🎲 Anyone",
   insufficientCoins: "❌ Insufficient coins!\n\n💰 You need 1 coin to connect to a specific gender.\n\nBuy coins from the 💰 My Coins menu.",
+  matchCostGender: "💰 Connecting to a specific gender costs **1 coin**.\n\nConfirm?",
+  matchCostAny: "⚠️ You've used all 3 free chats today.\n\n💰 This connection costs **1 coin**.\n\nConfirm?",
+  matchFreeAny: (left: number) =>
+    left > 0
+      ? `✅ This connection is free — **${left}** free connection(s) remaining today.\n\n⏳ You've been added to the waiting queue!\n\nPress Cancel to leave the queue.`
+      : `✅ This connection is free — last free connection for today.\n\n⏳ You've been added to the waiting queue!\n\nPress Cancel to leave the queue.`,
+  matchConfirmBtn: "✅ Confirm & Connect",
+  matchCancelBtn: "❌ Cancel",
   addedToQueue: "⏳ You've been added to the waiting queue!\n\nPress Cancel to leave the queue.",
   connected: "🎉 Connected!\n\n⚠️ Your identity is completely protected.\nYou can send messages, photos, videos, voice notes, and stickers.",
 

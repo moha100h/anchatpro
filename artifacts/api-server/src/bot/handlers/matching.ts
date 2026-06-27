@@ -1,6 +1,7 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
+import { getRandomName } from "../lib/random-names.js";
 import { deductCoins } from "../services/coin.service.js";
 import {
   addToQueue,
@@ -20,6 +21,22 @@ import {
   cancelKeyboard,
 } from "../keyboards/main.js";
 import { reportReasonsKeyboard, blockReasonsKeyboard } from "../keyboards/inline.js";
+
+// ─── Daily free "any" chat counter (resets each calendar day) ────────────────
+const dailyFreeMap = new Map<number, { count: number; date: string }>();
+const FREE_ANY_DAILY = 3;
+
+function getTodayKey(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tehran" });
+}
+function getFreeChatCount(tgId: number): number {
+  const entry = dailyFreeMap.get(tgId);
+  if (!entry || entry.date !== getTodayKey()) return 0;
+  return entry.count;
+}
+function incrementFreeChat(tgId: number): void {
+  dailyFreeMap.set(tgId, { count: getFreeChatCount(tgId) + 1, date: getTodayKey() });
+}
 
 export function registerMatchingHandlers(bot: Bot<BotContext>) {
   // ─── Connect button ──────────────────────────────────────────────────────────
@@ -44,47 +61,116 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
       const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
       if (!user) return;
       const lang = (user.language as "fa" | "en") ?? "fa";
-
       if (user.isInChat || user.isInGroup) return;
 
       const text = ctx.message!.text ?? "";
       let pref: "male" | "female" | "any" = "any";
-      let needsCoin = false;
+      if (text.includes("👧")) pref = "female";
+      else if (text.includes("👦")) pref = "male";
+      else pref = "any";
 
-      if (text.includes("👧")) { pref = "female"; needsCoin = true; }
-      else if (text.includes("👦")) { pref = "male"; needsCoin = true; }
-      else { pref = "any"; }
-
-      if (needsCoin) {
-        const result = await deductCoins(tgId, 1, "chat_cost", `Connect to ${pref}`);
-        if (!result.success) {
-          await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
+      if (pref === "any") {
+        const used = getFreeChatCount(tgId);
+        if (used < FREE_ANY_DAILY) {
+          // Free — queue directly and show remaining
+          incrementFreeChat(tgId);
+          const left = FREE_ANY_DAILY - getFreeChatCount(tgId);
+          const matchId = await findMatch(tgId, "any", user.gender ?? "other");
+          if (matchId) {
+            await createChatSession(tgId, matchId);
+            const matchUser = await getUserByTelegramId(matchId);
+            const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
+            await ctx.reply(t(lang).connectedWith({ ...matchUser, firstName: getRandomName(matchUser?.gender) }), {
+              parse_mode: "Markdown",
+              reply_markup: chatControlKeyboard(lang),
+            });
+            await bot.api
+              .sendMessage(matchId, t(matchLang).connectedWith({ ...user, firstName: getRandomName(user.gender) }), {
+                parse_mode: "Markdown",
+                reply_markup: chatControlKeyboard(matchLang),
+              })
+              .catch(() => {});
+          } else {
+            await addToQueue(tgId, "any", user.gender ?? "other");
+            await ctx.reply(t(lang).matchFreeAny(left), { reply_markup: cancelKeyboard(lang) });
+            setTimeout(() => tryMatchFromQueue(bot, tgId, "any", user.gender ?? "other", lang), 3000);
+          }
           return;
         }
+        // Daily free exhausted → ask for coin confirmation
+        const kb = new InlineKeyboard()
+          .text(t(lang).matchConfirmBtn, "match:confirm:any")
+          .text(t(lang).matchCancelBtn, "match:cancel");
+        await ctx.reply(t(lang).matchCostAny, { parse_mode: "Markdown", reply_markup: kb });
+        return;
       }
 
-      const matchId = await findMatch(tgId, pref, user.gender ?? "other");
-      if (matchId) {
-        await createChatSession(tgId, matchId);
-        const matchUser = await getUserByTelegramId(matchId);
-        const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
-        await ctx.reply(t(lang).connectedWith(matchUser ?? {}), {
-          parse_mode: "Markdown",
-          reply_markup: chatControlKeyboard(lang),
-        });
-        await bot.api
-          .sendMessage(matchId, t(matchLang).connectedWith(user ?? {}), {
-            parse_mode: "Markdown",
-            reply_markup: chatControlKeyboard(matchLang),
-          })
-          .catch(() => {});
-      } else {
-        await addToQueue(tgId, pref, user.gender ?? "other");
-        await ctx.reply(t(lang).addedToQueue, { reply_markup: cancelKeyboard(lang) });
-        setTimeout(() => tryMatchFromQueue(bot, tgId, pref, user.gender ?? "other", lang), 3000);
-      }
+      // male / female — always costs 1 coin → confirm first
+      const kb = new InlineKeyboard()
+        .text(t(lang).matchConfirmBtn, `match:confirm:${pref}`)
+        .text(t(lang).matchCancelBtn, "match:cancel");
+      await ctx.reply(t(lang).matchCostGender, { parse_mode: "Markdown", reply_markup: kb });
     }
   );
+
+  // ─── Match confirm callback ────────────────────────────────────────────────
+  bot.callbackQuery(/^match:confirm:(male|female|any)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    if (user.isInChat || user.isInGroup) {
+      await ctx.editMessageText("❌").catch(() => {});
+      return;
+    }
+
+    const pref = ctx.match![1] as "male" | "female" | "any";
+    const result = await deductCoins(tgId, 1, "chat_cost", `Connect to ${pref}`);
+    if (!result.success) {
+      await ctx.editMessageText(t(lang).insufficientCoins).catch(() => {});
+      await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
+      return;
+    }
+
+    await ctx.editMessageText("⏳").catch(() => {});
+
+    const matchId = await findMatch(tgId, pref, user.gender ?? "other");
+    if (matchId) {
+      await createChatSession(tgId, matchId);
+      const matchUser = await getUserByTelegramId(matchId);
+      const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
+      await bot.api
+        .sendMessage(tgId, t(lang).connectedWith({ ...matchUser, firstName: getRandomName(matchUser?.gender) }), {
+          parse_mode: "Markdown",
+          reply_markup: chatControlKeyboard(lang),
+        })
+        .catch(() => {});
+      await bot.api
+        .sendMessage(matchId, t(matchLang).connectedWith({ ...user, firstName: getRandomName(user.gender) }), {
+          parse_mode: "Markdown",
+          reply_markup: chatControlKeyboard(matchLang),
+        })
+        .catch(() => {});
+    } else {
+      await addToQueue(tgId, pref, user.gender ?? "other");
+      await bot.api
+        .sendMessage(tgId, t(lang).addedToQueue, { reply_markup: cancelKeyboard(lang) })
+        .catch(() => {});
+      setTimeout(() => tryMatchFromQueue(bot, tgId, pref, user.gender ?? "other", lang), 3000);
+    }
+  });
+
+  // ─── Match cancel callback ────────────────────────────────────────────────
+  bot.callbackQuery("match:cancel", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await ctx.editMessageText("❌").catch(() => {});
+    await ctx.reply(t(lang).selectGenderPref, { reply_markup: genderPrefKeyboard(lang) });
+  });
 
   // ─── Cancel search / queue
   // IMPORTANT: calls next() when NOT in queue so subsequent cancel handlers can fire
@@ -303,13 +389,13 @@ async function tryMatchFromQueue(
     ]);
     const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
     await bot.api
-      .sendMessage(tgId, t(lang).connectedWith(matchUser ?? {}), {
+      .sendMessage(tgId, t(lang).connectedWith({ ...matchUser, firstName: getRandomName(matchUser?.gender) }), {
         parse_mode: "Markdown",
         reply_markup: chatControlKeyboard(lang),
       })
       .catch(() => {});
     await bot.api
-      .sendMessage(matchId, t(matchLang).connectedWith(myUser ?? {}), {
+      .sendMessage(matchId, t(matchLang).connectedWith({ ...myUser, firstName: getRandomName(myUser?.gender) }), {
         parse_mode: "Markdown",
         reply_markup: chatControlKeyboard(matchLang),
       })

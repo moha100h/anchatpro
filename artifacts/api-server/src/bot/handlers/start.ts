@@ -17,6 +17,8 @@ import {
   getGroupMembers,
   generateGroupUserId,
   isUserBannedFromGroup,
+  getExistingMembership,
+  reactivateAndGetRole,
 } from "../services/group.service.js";
 import { eq as eqDrizzle } from "drizzle-orm";
 import { t } from "../i18n/index.js";
@@ -38,61 +40,82 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     // ── 1a. Handle group invite link (g_ prefix) ────────────────────────────
     if (arg.startsWith("g_")) {
       const token = arg.slice(2);
+      // Named groups may have status="ended" in DB but are re-activatable, so don't filter by status here
       const group = await getGroupByInviteToken(token);
-      if (group && group.status !== "ended") {
-        const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
-        const lang = (user.language as "fa" | "en") ?? "fa";
+      if (group) {
+        // Anonymous groups that ended are gone; named groups are always joinable
+        const isAnonymousEnded = group.status === "ended" && !group.creatorId;
+        if (!isAnonymousEnded) {
+          const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+          const lang = (user.language as "fa" | "en") ?? "fa";
 
-        if (!user.gender || !user.age) {
-          // Incomplete user → normal setup (they can rejoin after setup)
-          await setUserLanguage(tgId, "fa");
-          await setUserSetupStep(tgId, "select_language");
-          const customWelcome = await getSetting("welcome_message");
-          if (customWelcome) await ctx.reply(customWelcome);
-          await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
-          return;
-        }
+          if (!user.gender || !user.age) {
+            // Incomplete user → normal setup
+            await setUserLanguage(tgId, "fa");
+            await setUserSetupStep(tgId, "select_language");
+            const customWelcome = await getSetting("welcome_message");
+            if (customWelcome) await ctx.reply(customWelcome);
+            await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
+            return;
+          }
 
-        if (user.isInGroup || user.isInChat) {
-          await ctx.reply(t(lang).alreadyInGroup, { reply_markup: mainMenuKeyboard(lang) });
-          return;
-        }
+          // Check if user is already a member of this specific group
+          const membership = await getExistingMembership(tgId, group.id);
+          if (membership.exists) {
+            // Re-enter the group they already belong to (no coin charge)
+            await reactivateAndGetRole(tgId, group.id);
+            const myAlias = await generateGroupUserId(tgId, group.id);
+            await ctx.reply(
+              lang === "fa"
+                ? `✅ به گروه بازگشتید.\n🆔 نام شما: ${myAlias}`
+                : `✅ Welcome back to the group.\n🆔 Your alias: ${myAlias}`,
+              { reply_markup: groupControlKeyboard(lang) }
+            );
+            return;
+          }
 
-        const isBanned = await isUserBannedFromGroup(tgId, group.id);
-        if (isBanned) {
-          await ctx.reply(t(lang).errorGeneral, { reply_markup: mainMenuKeyboard(lang) });
-          return;
-        }
+          // User not in this group — check if they're in another group/chat
+          if (user.isInGroup || user.isInChat) {
+            await ctx.reply(t(lang).alreadyInGroup, { reply_markup: mainMenuKeyboard(lang) });
+            return;
+          }
 
-        if (group.memberCount >= group.maxMembers) {
-          await ctx.reply(lang === "fa" ? "⚠️ این گروه پر است." : "⚠️ This group is full.", {
-            reply_markup: mainMenuKeyboard(lang),
+          const isBanned = await isUserBannedFromGroup(tgId, group.id);
+          if (isBanned) {
+            await ctx.reply(t(lang).errorGeneral, { reply_markup: mainMenuKeyboard(lang) });
+            return;
+          }
+
+          if (group.memberCount >= group.maxMembers) {
+            await ctx.reply(lang === "fa" ? "⚠️ این گروه پر است." : "⚠️ This group is full.", {
+              reply_markup: mainMenuKeyboard(lang),
+            });
+            return;
+          }
+
+          const cost = group.joinCost;
+          const deduct = await deductCoins(tgId, cost, "group_cost", "Join group via invite link");
+          if (!deduct.success) {
+            await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
+            return;
+          }
+
+          const { memberCount } = await joinGroupByInvite(tgId, group.id);
+          const myAlias = await generateGroupUserId(tgId, group.id);
+
+          await ctx.reply(t(lang).groupJoined.replace("{count}", memberCount.toString()), {
+            reply_markup: groupControlKeyboard(lang),
           });
+
+          const members = await getGroupMembers(group.id);
+          for (const memberId of members) {
+            if (memberId === tgId) continue;
+            const mUser = await getUserByTelegramId(memberId);
+            const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+            await bot.api.sendMessage(memberId, t(mLang).memberJoined(myAlias, memberCount)).catch(() => {});
+          }
           return;
         }
-
-        const cost = group.joinCost;
-        const deduct = await deductCoins(tgId, cost, "group_cost", "Join group via invite link");
-        if (!deduct.success) {
-          await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
-          return;
-        }
-
-        const { memberCount } = await joinGroupByInvite(tgId, group.id);
-        const myAlias = await generateGroupUserId(tgId, group.id);
-
-        await ctx.reply(t(lang).groupJoined.replace("{count}", memberCount.toString()), {
-          reply_markup: groupControlKeyboard(lang),
-        });
-
-        const members = await getGroupMembers(group.id);
-        for (const memberId of members) {
-          if (memberId === tgId) continue;
-          const mUser = await getUserByTelegramId(memberId);
-          const mLang = (mUser?.language as "fa" | "en") ?? "fa";
-          await bot.api.sendMessage(memberId, t(mLang).memberJoined(myAlias, memberCount)).catch(() => {});
-        }
-        return;
       }
       // Invalid/expired token → fall through to normal /start
     }

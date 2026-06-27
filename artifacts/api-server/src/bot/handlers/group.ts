@@ -30,6 +30,7 @@ import {
   updateGroupActivity,
   cleanupStaleAnonymousGroups,
   reactivateAndGetRole,
+  getGroupName,
 } from "../services/group.service.js";
 import { containsBadWord, issueWarning } from "../services/safety.service.js";
 import { t } from "../i18n/index.js";
@@ -215,7 +216,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
         kb.text(`🟢 ${name} — ${g.activeMemberCount}/${g.maxMembers} 👥`, `group:enter:${g.id}`).row();
         if (g.inviteToken) {
           const inviteUrl = `https://t.me/${BOT_USERNAME}?start=g_${g.inviteToken}`;
-          kb.url(`🔗 ${lang === "fa" ? "لینک دعوت" : "Invite Link"}`, inviteUrl).row();
+          kb.url(`🔗 ${lang === "fa" ? "لینک دعوت گروه" : "Group Invite Link"}`, inviteUrl).row();
         }
       } else {
         // Ended group: info + dismiss button
@@ -247,21 +248,16 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       return;
     }
     const kb = new InlineKeyboard();
-    const activeJoined = groups.filter(g => g.status !== "ended" && g.leftAt === null).length;
+    // All named groups are always active
     const header = lang === "fa"
-      ? `👤 **گروه‌های عضو شده**\n📊 فعال: ${activeJoined} از ${slots.maxJoined}`
-      : `👤 **Groups I Joined**\n📊 Active: ${activeJoined} of ${slots.maxJoined}`;
+      ? `👤 **گروه‌های عضو شده**\n📊 ${groups.length} گروه از ${slots.maxJoined}`
+      : `👤 **Groups I Joined**\n📊 ${groups.length} group(s) of ${slots.maxJoined}`;
 
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
-      const isActive = g.status !== "ended" && g.leftAt === null;
-      const roleIcon = g.isAdmin ? "⭐" : "";
-      if (isActive) {
-        kb.text(`🟢 ${roleIcon} ${name} — ${g.memberCount}/${g.maxMembers} 👥`.replace("  ", " "), `group:enter:${g.id}`).row();
-      } else {
-        kb.text(`🔴 ${name} — ${lang === "fa" ? "پایان یافته" : "Ended"}`, `group:noop`).row();
-        kb.text(t(lang).groupDismissBtn, `group:dismiss:joined:${g.id}`).row();
-      }
+      // Named groups are always active — user can always enter regardless of DB status
+      const roleIcon = g.isAdmin ? "⭐ " : "";
+      kb.text(`🟢 ${roleIcon}${name} — ${g.memberCount}/${g.maxMembers} 👥`, `group:enter:${g.id}`).row();
     }
     if (slots.maxJoined < 10) {
       const expandCostStr = await getSetting("group_slot_expand_cost");
@@ -809,15 +805,16 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
 
     await ctx.reply(t(lang).groupLeft, { reply_markup: mainMenuKeyboard(lang) });
 
-    if (result.remaining < 2) {
-      const members = await getGroupMembers(result.groupId);
+    const members = await getGroupMembers(result.groupId);
+    if (result.groupActuallyEnded) {
+      // Anonymous group truly ended — notify remaining members (if any) and clear their keyboard
       for (const memberId of members) {
         const mUser = await getUserByTelegramId(memberId);
         const mLang = (mUser?.language as "fa" | "en") ?? "fa";
         await bot.api.sendMessage(memberId, t(mLang).groupEnded, { reply_markup: mainMenuKeyboard(mLang) }).catch(() => {});
       }
     } else {
-      const members = await getGroupMembers(result.groupId);
+      // Group still active — just notify about the departure
       for (const memberId of members) {
         const mUser = await getUserByTelegramId(memberId);
         const mLang = (mUser?.language as "fa" | "en") ?? "fa";
@@ -836,9 +833,15 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const groupId = await getUserGroup(tgId);
     if (!groupId) return next();
 
-    const members = await getGroupMembers(groupId);
-    // Display name: "👑 FirstName ***" / "⭐ FirstName ***" / "FirstName ***"
-    const myDisplayName = await getGroupMemberDisplayName(tgId, groupId);
+    const [members, myDisplayName, groupName] = await Promise.all([
+      getGroupMembers(groupId),
+      getGroupMemberDisplayName(tgId, groupId),
+      getGroupName(groupId),
+    ]);
+    // Prefix: "[GroupName]" or "[گروه]" fallback
+    const groupLabel = groupName
+      ? (lang === "fa" ? `گروه ${groupName}` : `Group: ${groupName}`)
+      : (lang === "fa" ? "گروه" : "Group");
 
     // Update last activity timestamp for anonymous group cleanup
     void updateGroupActivity(groupId);
@@ -850,20 +853,20 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
         await issueWarning(tgId, "Bad word in group");
         return;
       }
-      const fwdText = `[${lang === "fa" ? "گروه" : "Group"}] ${myDisplayName}:\n${ctx.message.text}`;
+      const fwdText = `[${groupLabel}] ${myDisplayName}:\n${ctx.message.text}`;
       for (const memberId of members) {
         if (memberId === tgId) continue;
         await bot.api.sendMessage(memberId, fwdText).catch(() => {});
       }
     } else if (ctx.message.photo) {
       const photo = ctx.message.photo.at(-1)!;
-      const caption = `[${lang === "fa" ? "گروه" : "Group"}] ${myDisplayName}: ${ctx.message.caption ?? ""}`;
+      const caption = `[${groupLabel}] ${myDisplayName}: ${ctx.message.caption ?? ""}`;
       for (const memberId of members) {
         if (memberId === tgId) continue;
         await bot.api.sendPhoto(memberId, photo.file_id, { caption }).catch(() => {});
       }
     } else if (ctx.message.video) {
-      const caption = `[${lang === "fa" ? "گروه" : "Group"}] ${myDisplayName}: ${ctx.message.caption ?? ""}`;
+      const caption = `[${groupLabel}] ${myDisplayName}: ${ctx.message.caption ?? ""}`;
       for (const memberId of members) {
         if (memberId === tgId) continue;
         await bot.api.sendVideo(memberId, ctx.message.video.file_id, { caption }).catch(() => {});

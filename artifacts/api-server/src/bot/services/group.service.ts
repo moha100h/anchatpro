@@ -107,7 +107,17 @@ export async function reactivateAndGetRole(
     .from(groupChatsTable)
     .where(eq(groupChatsTable.id, groupId))
     .limit(1);
-  if (!group || group.status === "ended") return "none";
+  if (!group) return "none";
+
+  // Named groups (creatorId set) are NEVER permanently ended — re-activate if needed
+  if (group.status === "ended") {
+    if (group.creatorId === null) return "none"; // anonymous group ended → gone
+    // Named group: re-activate it
+    await db
+      .update(groupChatsTable)
+      .set({ status: "forming", endedAt: null })
+      .where(eq(groupChatsTable.id, groupId));
+  }
 
   // Find any member record for this user (active or previously left)
   const [member] = await db
@@ -128,27 +138,58 @@ export async function reactivateAndGetRole(
       .update(usersTable)
       .set({ isInGroup: true, updatedAt: new Date() })
       .where(eq(usersTable.telegramId, userId));
-    // Update group memberCount
-    const activeMembers = await db
-      .select({ id: groupMembersTable.id })
-      .from(groupMembersTable)
-      .where(and(eq(groupMembersTable.groupId, groupId), isNull(groupMembersTable.leftAt)));
-    await db
-      .update(groupChatsTable)
-      .set({ memberCount: activeMembers.length, status: activeMembers.length >= 3 ? "active" : "forming" })
-      .where(eq(groupChatsTable.id, groupId));
-  } else {
-    // Make sure isInGroup flag is set
-    await db
-      .update(usersTable)
-      .set({ isInGroup: true, updatedAt: new Date() })
-      .where(eq(usersTable.telegramId, userId));
   }
+
+  // Always ensure isInGroup flag is set
+  await db
+    .update(usersTable)
+    .set({ isInGroup: true, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, userId));
+
+  // Recalculate memberCount and status
+  const activeMembers = await db
+    .select({ id: groupMembersTable.id })
+    .from(groupMembersTable)
+    .where(and(eq(groupMembersTable.groupId, groupId), isNull(groupMembersTable.leftAt)));
+  await db
+    .update(groupChatsTable)
+    .set({ memberCount: activeMembers.length, status: activeMembers.length >= 3 ? "active" : "forming" })
+    .where(eq(groupChatsTable.id, groupId));
 
   const isCreator = group.creatorId === userId || member.isCreator;
   if (isCreator) return "creator";
   if (member.isAdmin) return "admin";
   return "member";
+}
+
+/** Returns the name of a group by its id, or null if not found. */
+export async function getGroupName(groupId: number): Promise<string | null> {
+  const [g] = await db
+    .select({ name: groupChatsTable.name })
+    .from(groupChatsTable)
+    .where(eq(groupChatsTable.id, groupId))
+    .limit(1);
+  return g?.name ?? null;
+}
+
+/** Checks if user already has an active or past (non-banned) membership in this group. */
+export async function getExistingMembership(
+  userId: number,
+  groupId: number
+): Promise<{ exists: boolean; isActive: boolean; isCreator: boolean; isAdmin: boolean }> {
+  const [member] = await db
+    .select()
+    .from(groupMembersTable)
+    .where(and(eq(groupMembersTable.userId, userId), eq(groupMembersTable.groupId, groupId)))
+    .orderBy(groupMembersTable.id)
+    .limit(1);
+  if (!member || member.isBanned) return { exists: false, isActive: false, isCreator: false, isAdmin: false };
+  return {
+    exists: true,
+    isActive: member.leftAt === null,
+    isCreator: member.isCreator,
+    isAdmin: member.isAdmin,
+  };
 }
 
 export async function isUserBannedFromGroup(userId: number, groupId: number): Promise<boolean> {
@@ -294,7 +335,7 @@ export async function joinOrCreateGroup(
 
 export async function leaveGroup(
   userId: number
-): Promise<{ groupId: number; remaining: number } | null> {
+): Promise<{ groupId: number; remaining: number; groupActuallyEnded: boolean } | null> {
   const [member] = await db
     .select()
     .from(groupMembersTable)
@@ -348,7 +389,15 @@ export async function leaveGroup(
     }
   }
 
-  return { groupId: member.groupId, remaining };
+  // Check if the group actually ended
+  const [updatedGroup] = await db
+    .select({ status: groupChatsTable.status, creatorId: groupChatsTable.creatorId })
+    .from(groupChatsTable)
+    .where(eq(groupChatsTable.id, member.groupId))
+    .limit(1);
+  const groupActuallyEnded = updatedGroup?.status === "ended";
+
+  return { groupId: member.groupId, remaining, groupActuallyEnded };
 }
 
 // ─── Creator: kick member ─────────────────────────────────────────────────────

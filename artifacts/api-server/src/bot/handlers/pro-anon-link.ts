@@ -81,7 +81,7 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
   const getBotUsername = () => bot.botInfo?.username ?? "anymschat_bot";
 
   // ─── Pro sub-menu (main menu button) ──────────────────────────────────────
-  bot.hears(["🔗 ساخت لینک ناشناس پرو", "🔗 Create Pro Anon Link"], async (ctx) => {
+  bot.hears(["💎 لینک ناشناس پرو", "💎 Pro Anonymous Link"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     if (!user) return;
@@ -761,8 +761,8 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
       }
     }
 
-    ctx.session.step = undefined;
-    await ctx.reply(t(lang).proMsgSentConfirm, { reply_markup: mainMenuKeyboard(lang) });
+    // Keep session alive — user can send multiple messages until they press Cancel
+    await ctx.reply(t(lang).proMsgSentConfirm, { reply_markup: cancelProSendKeyboard(lang) });
   });
 
   // ─── Text input handler: pro_reply, pro_set_welcome, pro_set_name, pro_set_alias

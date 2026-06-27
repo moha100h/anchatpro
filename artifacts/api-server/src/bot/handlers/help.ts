@@ -1,4 +1,4 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
 import { getSetting } from "../services/payment.service.js";
@@ -45,6 +45,12 @@ export function registerHelpHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).helpSectionLink, { parse_mode: "Markdown" });
   });
 
+  // ─── Section: Pro Anonymous Link ───────────────────────────────────────────
+  bot.hears(["💎 راهنمای لینک پرو", "💎 Pro Link Guide"], async (ctx) => {
+    const lang = getLang(ctx);
+    await ctx.reply(t(lang).helpSectionProLink, { parse_mode: "Markdown" });
+  });
+
   // ─── Section: Coins ────────────────────────────────────────────────────────
   bot.hears(["💰 راهنمای سکه‌ها", "💰 Coins Guide"], async (ctx) => {
     const lang = getLang(ctx);
@@ -63,7 +69,7 @@ export function registerHelpHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).helpSectionMagic, { parse_mode: "Markdown" });
   });
 
-  // ─── Section: Support contact ──────────────────────────────────────────────
+  // ─── Section: Support contact — opens direct chat via inline URL button ────
   bot.hears(["💬 پشتیبانی", "💬 Support"], async (ctx) => {
     const lang = getLang(ctx);
     const link = await getSetting("support_link");
@@ -71,7 +77,13 @@ export function registerHelpHandlers(bot: Bot<BotContext>) {
       await ctx.reply(t(lang).helpSupportNotSet, { parse_mode: "Markdown" });
       return;
     }
-    await ctx.reply(t(lang).helpSupportText(link), { parse_mode: "Markdown" });
+    // Normalize to a proper URL: @username → https://t.me/username
+    let url = link.trim();
+    if (url.startsWith("@")) url = `https://t.me/${url.slice(1)}`;
+    else if (!url.startsWith("http")) url = `https://t.me/${url}`;
+
+    const kb = new InlineKeyboard().url(t(lang).helpSupportBtnLabel, url);
+    await ctx.reply(t(lang).helpSupportTitle, { parse_mode: "Markdown", reply_markup: kb });
   });
 
   // ─── Back from help menu ──────────────────────────────────────────────────

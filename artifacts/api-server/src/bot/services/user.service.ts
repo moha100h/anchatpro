@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { usersTable, referralsTable, coinTransactionsTable, anonymousMessagesTable } from "@workspace/db";
-import { eq, gte, desc, count, and } from "drizzle-orm";
+import { eq, gte, desc, count, and, inArray } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { User } from "@workspace/db";
 
@@ -183,6 +183,25 @@ export async function getUsersWithUnreadAnonMessages(): Promise<Array<{ receiver
     .from(anonymousMessagesTable)
     .where(and(
       eq(anonymousMessagesTable.isRead, false),
+    ))
+    .groupBy(anonymousMessagesTable.receiverId);
+
+  return rows
+    .filter((r) => r.receiverId !== null)
+    .map((r) => ({ receiverId: r.receiverId as number, unreadCount: Number(r.cnt) }));
+}
+
+/**
+ * Returns users with unread Pro anonymous messages (linkType = pro_perm or pro_inapp).
+ * Used by the 23:00 Tehran cron to send daily pro inbox reminders.
+ */
+export async function getUsersWithUnreadProMessages(): Promise<Array<{ receiverId: number; unreadCount: number }>> {
+  const rows = await db
+    .select({ receiverId: anonymousMessagesTable.receiverId, cnt: count() })
+    .from(anonymousMessagesTable)
+    .where(and(
+      eq(anonymousMessagesTable.isRead, false),
+      inArray(anonymousMessagesTable.linkType, ["pro_perm", "pro_inapp"]),
     ))
     .groupBy(anonymousMessagesTable.receiverId);
 

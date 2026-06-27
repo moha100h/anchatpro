@@ -15,6 +15,8 @@ export interface SessionData {
   // 🌊 Magic features
   magicStep?: string;
   magicChainId?: number;
+  // 🎯 Same-age matching toggle
+  sameAgeMatch?: boolean;
 }
 
 export type BotContext = ConversationFlavor<Context & SessionFlavor<SessionData>> & {

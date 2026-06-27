@@ -42,11 +42,12 @@ export function genderKeyboard(lang: Lang) {
     .oneTime();
 }
 
-export function genderPrefKeyboard(lang: Lang) {
+export function genderPrefKeyboard(lang: Lang, sameAge: boolean = false) {
   const i = t(lang);
+  const sameAgeBtn = sameAge ? i.genderPrefSameAgeOn : i.genderPrefSameAgeOff;
   return new Keyboard()
     .text(i.genderPrefFemale).text(i.genderPrefMale).row()
-    .text(i.genderPrefAny).row()
+    .text(i.genderPrefAny).text(sameAgeBtn).row()
     .text(i.back)
     .resized()
     .persistent();
@@ -156,8 +157,9 @@ export function helpMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
     .text(i.helpBtnConnect).text(i.helpBtnGroup).row()
-    .text(i.helpBtnLink).text(i.helpBtnCoins).row()
-    .text(i.helpBtnRules).text(i.helpBtnMagic).row()
+    .text(i.helpBtnLink).text(i.helpBtnProLink).row()
+    .text(i.helpBtnCoins).text(i.helpBtnMagic).row()
+    .text(i.helpBtnRules).row()
     .text(i.helpBtnSupport).row()
     .text(i.back)
     .resized()
@@ -175,13 +177,16 @@ export function inviteMenuKeyboard(lang: Lang) {
     .persistent();
 }
 
-/** Persistent anonymous link sub-menu */
-export function myLinkMenuKeyboard(lang: Lang) {
+/** Persistent anonymous link sub-menu — shows unread count on inbox button when > 0 */
+export function myLinkMenuKeyboard(lang: Lang, unread: number = 0) {
   const i = t(lang);
+  const inboxBtn = unread > 0
+    ? (lang === "fa" ? `📬 صندوق پیام (${unread} جدید)` : `📬 Inbox (${unread} new)`)
+    : i.myLinkBtnInbox;
   return new Keyboard()
     .text(i.myLinkBtnPermanent).row()
     .text(i.myLinkBtnTimed).row()
-    .text(i.myLinkBtnInbox).row()
+    .text(inboxBtn).row()
     .text(i.back)
     .resized()
     .persistent();

@@ -34,7 +34,9 @@ export async function findMatch(
   userId: number,
   genderPreference: "male" | "female" | "any",
   userGender: string,
-  userLanguage?: string
+  userLanguage?: string,
+  ageMatch?: boolean,
+  userAge?: number
 ): Promise<number | null> {
   // Get users blocked by or blocking this user
   const blocks = await db
@@ -52,6 +54,7 @@ export async function findMatch(
       userGender: matchingQueueTable.userGender,
       createdAt: matchingQueueTable.createdAt,
       language: usersTable.language,
+      age: usersTable.age,
     })
     .from(matchingQueueTable)
     .innerJoin(usersTable, eq(matchingQueueTable.userId, usersTable.telegramId))
@@ -74,20 +77,29 @@ export async function findMatch(
   const sameLanguage = (c: (typeof candidates)[number]) =>
     !userLanguage || !c.language || c.language === userLanguage;
 
-  // Priority 1: mutual gender pref + same language
-  const best =
-    candidates.find((c) => matchesGenderPref(c) && sameLanguage(c)) ??
-    // Priority 2: mutual gender pref (any language)
-    candidates.find((c) => matchesGenderPref(c)) ??
-    // Priority 3: one-way gender pref match + same language
-    candidates.find((c) => {
-      const prefOk = genderPreference === "any" || c.userGender === genderPreference;
-      return prefOk && sameLanguage(c);
-    }) ??
-    // Priority 4: any match with gender pref satisfied
-    candidates.find((c) => genderPreference === "any" || c.userGender === genderPreference) ??
-    // Priority 5: any-any fallback
-    (genderPreference === "any" ? candidates[0] : null);
+  // Age proximity filter: within ±5 years
+  const nearAge = (c: (typeof candidates)[number]) =>
+    !ageMatch || !userAge || !c.age || Math.abs(c.age - userAge) <= 5;
+
+  // Helper: run all 5 priority levels with optional age filter
+  const findWithPriority = (useAgeFilter: boolean) => {
+    const af = useAgeFilter ? nearAge : () => true;
+    return (
+      candidates.find((c) => af(c) && matchesGenderPref(c) && sameLanguage(c)) ??
+      candidates.find((c) => af(c) && matchesGenderPref(c)) ??
+      candidates.find((c) => {
+        const prefOk = genderPreference === "any" || c.userGender === genderPreference;
+        return af(c) && prefOk && sameLanguage(c);
+      }) ??
+      candidates.find((c) => af(c) && (genderPreference === "any" || c.userGender === genderPreference)) ??
+      (genderPreference === "any" ? candidates.find((c) => af(c)) : null)
+    );
+  };
+
+  // When ageMatch is on: first try near-age candidates, then fall back to any age
+  const best = (ageMatch && userAge)
+    ? (findWithPriority(true) ?? findWithPriority(false))
+    : findWithPriority(false);
 
   return best?.userId ?? null;
 }

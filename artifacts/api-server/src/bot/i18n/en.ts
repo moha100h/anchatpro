@@ -18,7 +18,7 @@ export const en = {
   menuGroup: "👥 Anonymous Group",
   menuCreateGroup: "Create Anonymous Group 🆕",
   menuMyLink: "🔗 My Anonymous Link",
-  menuAnonProLink: "🔗 Create Pro Anon Link",
+  menuAnonProLink: "💎 Pro Anonymous Link",
   anonProLinkComingSoon: "🔗 **Create Pro Anon Link**\n\n✨ Coming soon...\n\nThis feature will let you create more powerful anonymous links.",
   menuCoins: "💰 My Coins",
   menuHelp: "📋 Help & Rules",
@@ -39,6 +39,8 @@ export const en = {
   genderPrefFemale: "👧 Female",
   genderPrefMale: "👦 Male",
   genderPrefAny: "🎲 Random",
+  genderPrefSameAgeOff: "🎯 Same Age",
+  genderPrefSameAgeOn: "✅ Same Age (On)",
   insufficientCoins: "❌ Insufficient coins!\n\n💰 You need 1 coin to connect to a specific gender.\n\nBuy coins from the 💰 My Coins menu.",
   matchCostGender: "💰 Connecting to a specific gender costs **1 coin**.\n\nConfirm?",
   matchCostAny: "⚠️ You've used all 3 free chats today.\n\n💰 This connection costs **1 coin**.\n\nConfirm?",
@@ -281,19 +283,11 @@ export const en = {
   helpBtnConnect: "🔗 Connect Guide",
   helpBtnGroup: "👥 Group Guide",
   helpBtnLink: "🔗 Anonymous Link Guide",
+  helpBtnProLink: "💎 Pro Link Guide",
   helpBtnCoins: "💰 Coins Guide",
   helpBtnRules: "🚫 Rules & Regulations",
   helpBtnMagic: "🔮 Strangers Like Us Guide",
   helpBtnSupport: "💬 Support",
-  helpSectionConnect:
-    `🔗 **Anonymous Connect**\n\n` +
-    `Click "🔗 Connect Anonymously" to enter the queue.\n` +
-    `You'll be connected as soon as a suitable user is found.\n\n` +
-    `💡 Specific gender: **1 coin** | Random: **free**\n\n` +
-    `After connecting you can:\n` +
-    `• Send text, photos, videos, voice and stickers\n` +
-    `• Report or block the user\n` +
-    `• End the chat at any time`,
   helpSectionGroup:
     `👥 **Anonymous Group**\n\n` +
     `Join multi-person anonymous groups!\n\n` +
@@ -342,11 +336,41 @@ export const en = {
     `✉️ **Letter to the Future** — write a letter to yourself in the future\n` +
     `📡 **Anonymous Frequency** — connect with someone feeling the same\n\n` +
     `For feature guides, go to 🔮 Strangers Like Us → 📖 Help Guide.`,
-  helpSupportText: (link: string) =>
-    `💬 **Contact Support**\n\n` +
-    `For any questions, issues or feedback, reach us here:\n\n` +
-    `${link}`,
+  helpSectionProLink:
+    `💎 **Pro Anonymous Link**\n\n` +
+    `The most powerful way to receive anonymous messages!\n\n` +
+    `🔷 **Permanent Pro Link:**\n` +
+    `  • Buy once, own forever\n` +
+    `  • Custom display name + welcome message\n` +
+    `  • Full message stats\n\n` +
+    `⚡ **In-App Link:**\n` +
+    `  • Active for 1 hour to 7 days\n` +
+    `  • Reveal sender identity (costs coins)\n` +
+    `  • Anonymous replies to messages\n\n` +
+    `📬 **Pro Inbox:**\n` +
+    `  • Full message history\n` +
+    `  • Enable/disable your link anytime\n` +
+    `  • Manage all your links in one place`,
+  helpSectionConnect:
+    `🔗 **Anonymous Connect**\n\n` +
+    `Click "🔗 Connect Anonymously" to enter the queue.\n` +
+    `You'll be connected as soon as a suitable user is found.\n\n` +
+    `💡 **Costs:**\n` +
+    `• Specific gender: **1 coin**\n` +
+    `• Random: 3 free daily (then: 1 coin)\n\n` +
+    `🎯 **Same Age button:**\n` +
+    `When enabled, the system tries to find a user your age.\n` +
+    `If none found, you'll be connected to the closest match.\n\n` +
+    `After connecting you can:\n` +
+    `• Send text, photos, videos, voice and stickers\n` +
+    `• Report or block the user\n` +
+    `• End the chat at any time`,
+  helpSupportTitle: "💬 **Support**",
+  helpSupportBtnLabel: "📩 Message Support",
   helpSupportNotSet: "⚠️ Support link has not been configured by the admin yet.",
+  proInboxDailyReminder: (n: number) =>
+    `💎 **${n} unread Pro anonymous message(s)** are waiting in your Pro inbox!\n\n` +
+    `Go to «💎 Pro Anonymous Link» to read them.`,
 
   // ─── Safety ──────────────────────────────────────────────────────────────────
   warningIssued: (n: number) =>

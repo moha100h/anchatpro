@@ -108,7 +108,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     await ctx.reply(t(lang).myLinkMenuTitle(unread), {
       parse_mode: "HTML",
-      reply_markup: myLinkMenuKeyboard(lang),
+      reply_markup: myLinkMenuKeyboard(lang, unread),
     });
   });
 

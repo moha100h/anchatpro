@@ -59,8 +59,33 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
       // Fall through — stale flag cleared
     }
 
-    await ctx.reply(t(lang).selectGenderPref, { reply_markup: genderPrefKeyboard(lang) });
+    ctx.session.sameAgeMatch = ctx.session.sameAgeMatch ?? false;
+    await ctx.reply(t(lang).selectGenderPref, { reply_markup: genderPrefKeyboard(lang, ctx.session.sameAgeMatch) });
   });
+
+  // ─── Same-age toggle button ────────────────────────────────────────────────
+  bot.hears(
+    ["🎯 هم‌سن", "🎯 Same Age", "✅ هم‌سن (فعال)", "✅ Same Age (On)"],
+    async (ctx) => {
+      const tgId = ctx.from!.id;
+      const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+      if (!user) return;
+      const lang = (user.language as "fa" | "en") ?? "fa";
+      // Only handle if user is idle
+      if (user.isInChat || user.isInGroup || user.isInQueue) return;
+
+      ctx.session.sameAgeMatch = !ctx.session.sameAgeMatch;
+      const msg = ctx.session.sameAgeMatch
+        ? (lang === "fa"
+            ? "🎯 **هم‌سن فعال** شد\n\nسیستم سعی می‌کند کاربری هم‌سن شما پیدا کند.\nاگر هم‌سن پیدا نشد، به نزدیک‌ترین سن متصل می‌شوید."
+            : "🎯 **Same Age enabled**\n\nThe system will try to find someone your age.\nIf none found, you'll be matched with the closest age.")
+        : (lang === "fa" ? "🎯 هم‌سن **غیرفعال** شد." : "🎯 Same Age **disabled**.");
+      await ctx.reply(msg, {
+        parse_mode: "Markdown",
+        reply_markup: genderPrefKeyboard(lang, ctx.session.sameAgeMatch),
+      });
+    }
+  );
 
   // ─── Gender preference selection ─────────────────────────────────────────────
   bot.hears(
@@ -78,15 +103,19 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
       else if (text.includes("👦")) pref = "male";
       else pref = "any";
 
+      const ageMatch = ctx.session.sameAgeMatch ?? false;
+      const userAge = user.age ?? undefined;
+
       if (pref === "any") {
         const used = getFreeChatCount(tgId);
         if (used < FREE_ANY_DAILY) {
           // Free — queue directly and show remaining
           incrementFreeChat(tgId);
           const left = FREE_ANY_DAILY - getFreeChatCount(tgId);
-          const matchId = await findMatch(tgId, "any", user.gender ?? "other");
+          const matchId = await findMatch(tgId, "any", user.gender ?? "other", user.language ?? undefined, ageMatch, userAge);
           if (matchId) {
             await createChatSession(tgId, matchId);
+            ctx.session.sameAgeMatch = false;
             const matchUser = await getUserByTelegramId(matchId);
             const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
             await ctx.reply(t(lang).connectedWith(matchUser ?? {}), {
@@ -145,9 +174,12 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
 
     await ctx.editMessageText("⏳").catch(() => {});
 
-    const matchId = await findMatch(tgId, pref, user.gender ?? "other");
+    const ageMatch = ctx.session.sameAgeMatch ?? false;
+    const userAge = user.age ?? undefined;
+    const matchId = await findMatch(tgId, pref, user.gender ?? "other", user.language ?? undefined, ageMatch, userAge);
     if (matchId) {
       await createChatSession(tgId, matchId);
+      ctx.session.sameAgeMatch = false;
       const matchUser = await getUserByTelegramId(matchId);
       const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
       await bot.api
@@ -189,7 +221,7 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
     await ctx.editMessageText("❌").catch(() => {});
-    await ctx.reply(t(lang).selectGenderPref, { reply_markup: genderPrefKeyboard(lang) });
+    await ctx.reply(t(lang).selectGenderPref, { reply_markup: genderPrefKeyboard(lang, ctx.session.sameAgeMatch ?? false) });
   });
 
   // ─── Cancel search / queue

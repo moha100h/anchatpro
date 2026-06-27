@@ -161,6 +161,17 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     }
   });
 
+  // ─── Back from gender-pref screen → main menu ───────────────────────────────
+  bot.hears(["🔙 برگشت", "🔙 Back"], async (ctx, next) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return next();
+    // Only handle here when user is completely idle (not in chat/queue/group)
+    if (user.isInChat || user.isInQueue || user.isInGroup) return next();
+    const lang = (user.language as "fa" | "en") ?? "fa";
+    await ctx.reply("📋", { reply_markup: mainMenuKeyboard(lang) });
+  });
+
   // ─── Match cancel callback ────────────────────────────────────────────────
   bot.callbackQuery("match:cancel", async (ctx) => {
     await ctx.answerCallbackQuery();

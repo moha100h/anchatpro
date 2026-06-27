@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { groupChatsTable, groupMembersTable, usersTable } from "@workspace/db";
-import { eq, and, isNull, isNotNull, ne } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, ne, or } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 const MIN_MEMBERS = 3;
@@ -370,11 +370,43 @@ export async function getJoinedGroups(
       and(
         eq(groupMembersTable.userId, userId),
         isNull(groupMembersTable.leftAt),
-        ne(groupChatsTable.creatorId, userId),
+        // creatorId can be NULL for public groups — ne() returns NULL for NULLs, so use OR
+        or(isNull(groupChatsTable.creatorId), ne(groupChatsTable.creatorId, userId)),
         ne(groupChatsTable.status, "ended")
       )
     );
   return rows;
+}
+
+/** Returns the user's current group slot limits and usage counts */
+export async function getUserGroupSlots(tgId: number): Promise<{
+  maxCreated: number; maxJoined: number; createdCount: number; joinedCount: number;
+}> {
+  const [user] = await db
+    .select({ maxGroupsCreated: usersTable.maxGroupsCreated, maxGroupsJoined: usersTable.maxGroupsJoined })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, tgId));
+  const maxCreated = user?.maxGroupsCreated ?? 5;
+  const maxJoined  = user?.maxGroupsJoined  ?? 5;
+  const [cc, jc] = await Promise.all([getCreatorGroups(tgId), getJoinedGroups(tgId)]);
+  return { maxCreated, maxJoined, createdCount: cc.length, joinedCount: jc.length };
+}
+
+/** Expand user's group slot limit from 5 → 10 for the given section. Returns false if already maxed. */
+export async function expandGroupSlots(tgId: number, section: "created" | "joined"): Promise<boolean> {
+  const [user] = await db
+    .select({ maxGroupsCreated: usersTable.maxGroupsCreated, maxGroupsJoined: usersTable.maxGroupsJoined })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, tgId));
+  const current = section === "created" ? (user?.maxGroupsCreated ?? 5) : (user?.maxGroupsJoined ?? 5);
+  if (current >= 10) return false;
+  await db
+    .update(usersTable)
+    .set(section === "created"
+      ? { maxGroupsCreated: 10, updatedAt: new Date() }
+      : { maxGroupsJoined: 10, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, tgId));
+  return true;
 }
 
 /** Count of promoted admins (isAdmin=true, non-creator, currently in group) */

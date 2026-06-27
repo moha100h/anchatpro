@@ -16,7 +16,7 @@ export const en = {
   // ─── Main menu ───────────────────────────────────────────────────────────────
   menuConnect: "🔗 Connect Anonymously",
   menuGroup: "👥 Anonymous Group",
-  menuCreateGroup: "🆕 Create Anonymous Group",
+  menuCreateGroup: "Create Anonymous Group 🆕",
   menuMyLink: "🔗 My Anonymous Link",
   menuAnonProLink: "🔗 Create Pro Anon Link",
   anonProLinkComingSoon: "🔗 **Create Pro Anon Link**\n\n✨ Coming soon...\n\nThis feature will let you create more powerful anonymous links.",
@@ -524,12 +524,25 @@ export const en = {
   myGroupsTitle: "📋 **My Groups:**\n\n",
   myGroupsCreatedTitle: "🏗️ **Groups I Created:**\n\n",
   myGroupsJoinedTitle: "👤 **Groups I Joined:**\n\n",
-  myGroupsCreatedEmpty: "🏗️ You haven't created any groups yet.\n\nUse «🆕 Create Anonymous Group» to create one.",
+  myGroupsCreatedEmpty: "🏗️ You haven't created any groups yet.\n\nUse «Create Anonymous Group 🆕» to create one.",
   myGroupsJoinedEmpty: "👤 You haven't joined any groups yet.\n\nUse «👥 Join Anonymous Groups» to join one.",
   groupInfoLineJoined: (name: string, count: number, max: number, role: string) =>
     `📌 **${name}**\n👥 ${count}/${max} members | Role: ${role}\n`,
   groupJoinCostInfo: (cost: number) =>
     `👥 **Join Anonymous Group**\n\n💰 Cost: **${cost} coins**\n\nYou'll be matched with an anonymous group.\n\nConfirm?`,
+  groupLimitCreatedReached: (max: number, cost: number) =>
+    `⚠️ **Group Limit**\n\nYou've reached the maximum of **${max} created groups**.\n\nLeave one of your groups, or pay **${cost} coins** to expand your limit to 10.`,
+  groupLimitJoinedReached: (max: number, cost: number) =>
+    `⚠️ **Membership Limit**\n\nYou've reached the maximum of **${max} joined groups**.\n\nLeave one, or pay **${cost} coins** to expand your limit to 10.`,
+  groupExpandCreatedConfirm: (cost: number) =>
+    `⬆️ **Expand Created Groups Limit**\n\nPay **${cost} coins** to increase your max created groups from 5 to **10**.\n\nConfirm?`,
+  groupExpandJoinedConfirm: (cost: number) =>
+    `⬆️ **Expand Joined Groups Limit**\n\nPay **${cost} coins** to increase your max joined groups from 5 to **10**.\n\nConfirm?`,
+  groupExpandSuccess: "✅ Limit successfully increased to **10 groups**!",
+  groupExpandAlreadyMax: "✅ Your limit is already at the maximum (10 groups).",
+  groupEnterBtn: "🚪 Enter Group",
+  groupExpandCreatedBtn: "⬆️ Expand created limit (30 coins)",
+  groupExpandJoinedBtn: "⬆️ Expand joined limit (30 coins)",
   groupNoName: "No name",
   groupInviteLinkBtn: "🔗 Group Invite Link",
   groupAdminPromoteBtn: "⭐ Promote to Admin",

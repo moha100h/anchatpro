@@ -16,7 +16,7 @@ export const fa = {
   // ─── Main menu ───────────────────────────────────────────────────────────────
   menuConnect: "🔗 اتصال به کاربر ناشناس",
   menuGroup: "👥 گروه ناشناس",
-  menuCreateGroup: "🆕 ساخت گروه ناشناس",
+  menuCreateGroup: "ساخت گروه ناشناس 🆕",
   menuMyLink: "🔗 لینک ناشناس من",
   menuAnonProLink: "🔗 ساخت لینک ناشناس پرو",
   anonProLinkComingSoon: "🔗 **ساخت لینک ناشناس پرو**\n\n✨ به زودی...\n\nبا این امکان می‌توانید لینک‌های ناشناس ویژه و قدرتمندتری بسازید.",
@@ -538,12 +538,25 @@ export const fa = {
   myGroupsTitle: "📋 **گروه‌های من:**\n\n",
   myGroupsCreatedTitle: "🏗️ **گروه‌های ساخته‌ام:**\n\n",
   myGroupsJoinedTitle: "👤 **گروه‌های عضو شده:**\n\n",
-  myGroupsCreatedEmpty: "🏗️ هنوز هیچ گروهی نساخته‌اید.\n\nاز «🆕 ساخت گروه ناشناس» گروه بسازید.",
+  myGroupsCreatedEmpty: "🏗️ هنوز هیچ گروهی نساخته‌اید.\n\nاز «ساخت گروه ناشناس 🆕» گروه بسازید.",
   myGroupsJoinedEmpty: "👤 هنوز عضو هیچ گروهی نیستید.\n\nاز «👥 پیوستن به گروه‌های ناشناس» وارد گروه شوید.",
   groupInfoLineJoined: (name: string, count: number, max: number, role: string) =>
     `📌 **${name}**\n👥 ${count}/${max} عضو | نقش: ${role}\n`,
   groupJoinCostInfo: (cost: number) =>
     `👥 **پیوستن به گروه ناشناس**\n\n💰 هزینه: **${cost} سکه**\n\nبا پرداخت سکه وارد یک گروه ناشناس می‌شوید.\n\nتأیید می‌کنید؟`,
+  groupLimitCreatedReached: (max: number, cost: number) =>
+    `⚠️ **سقف گروه‌ها**\n\nشما به حداکثر **${max} گروه** ساخته‌ای رسیده‌اید.\n\nبرای ساخت گروه جدید، از یکی از گروه‌های ساخته‌ام خارج شوید.\n\n✨ یا با **${cost} سکه** ظرفیت را به ۱۰ گروه افزایش دهید.`,
+  groupLimitJoinedReached: (max: number, cost: number) =>
+    `⚠️ **سقف عضویت‌ها**\n\nشما به حداکثر **${max} گروه** عضو هستید.\n\nبرای عضویت در گروه جدید، از یکی از گروه‌های عضو شده خارج شوید.\n\n✨ یا با **${cost} سکه** ظرفیت را به ۱۰ گروه افزایش دهید.`,
+  groupExpandCreatedConfirm: (cost: number) =>
+    `⬆️ **افزایش ظرفیت گروه‌های ساخته‌ام**\n\nبا پرداخت **${cost} سکه**، حداکثر گروه‌های ساخته‌ام از ۵ به **۱۰** افزایش می‌یابد.\n\nتأیید می‌کنید؟`,
+  groupExpandJoinedConfirm: (cost: number) =>
+    `⬆️ **افزایش ظرفیت عضویت گروه‌ها**\n\nبا پرداخت **${cost} سکه**، حداکثر گروه‌های عضو شده از ۵ به **۱۰** افزایش می‌یابد.\n\nتأیید می‌کنید؟`,
+  groupExpandSuccess: "✅ ظرفیت با موفقیت به **۱۰ گروه** افزایش یافت!",
+  groupExpandAlreadyMax: "✅ ظرفیت شما قبلاً به حداکثر (۱۰ گروه) رسیده است.",
+  groupEnterBtn: "🚪 ورود به گروه",
+  groupExpandCreatedBtn: "⬆️ افزایش ظرفیت ساخت (۳۰ سکه)",
+  groupExpandJoinedBtn: "⬆️ افزایش ظرفیت عضویت (۳۰ سکه)",
   groupNoName: "بدون نام",
   groupInviteLinkBtn: "🔗 لینک دعوت گروه",
   groupAdminPromoteBtn: "⭐ ارتقا به ادمین",

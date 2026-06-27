@@ -23,6 +23,8 @@ export const usersTable = pgTable("users", {
   isInQueue: boolean("is_in_queue").default(false).notNull(),
   isInChat: boolean("is_in_chat").default(false).notNull(),
   isInGroup: boolean("is_in_group").default(false).notNull(),
+  maxGroupsCreated: integer("max_groups_created").default(5).notNull(),
+  maxGroupsJoined: integer("max_groups_joined").default(5).notNull(),
   setupStep: varchar("setup_step", { length: 50 }),
   anonymousToken: varchar("anonymous_token", { length: 64 }).unique(),
   restrictedUntil: timestamp("restricted_until"),

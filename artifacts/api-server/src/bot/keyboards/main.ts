@@ -46,9 +46,10 @@ export function genderPrefKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
     .text(i.genderPrefFemale).text(i.genderPrefMale).row()
-    .text(i.genderPrefAny)
+    .text(i.genderPrefAny).row()
+    .text(i.back)
     .resized()
-    .oneTime();
+    .persistent();
 }
 
 export function chatControlKeyboard(lang: Lang) {

@@ -17,6 +17,8 @@ import {
   banMember,
   getCreatorGroups,
   getJoinedGroups,
+  getUserGroupSlots,
+  expandGroupSlots,
   promoteToAdmin,
   getGroupAdminCount,
   expandGroupLimit,
@@ -114,6 +116,15 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (user.isInChat)  { await ctx.editMessageText(t(lang).alreadyInChat).catch(() => {}); return; }
     if (user.isInGroup) { await ctx.editMessageText(t(lang).alreadyInGroup).catch(() => {}); return; }
 
+    // Check joined group slot limit
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.joinedCount >= slots.maxJoined) {
+      const expandCostStr = await getSetting("group_slot_expand_cost");
+      const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+      await ctx.editMessageText(t(lang).groupLimitJoinedReached(slots.maxJoined, expandCost), { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+
     const costStr = await getSetting("group_join_cost");
     const cost = costStr ? parseInt(costStr, 10) : 3;
 
@@ -179,20 +190,40 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const groups = await getCreatorGroups(tgId);
-    if (groups.length === 0) {
-      await ctx.reply(t(lang).myGroupsCreatedEmpty, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.createdCount === 0) {
+      const kb = new InlineKeyboard();
+      if (slots.maxCreated < 10) {
+        const expandCostStr = await getSetting("group_slot_expand_cost");
+        const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+        kb.text(t(lang).groupExpandCreatedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:created");
+      }
+      await ctx.reply(t(lang).myGroupsCreatedEmpty, {
+        parse_mode: "Markdown",
+        reply_markup: slots.maxCreated < 10 ? kb : undefined,
+      });
       return;
     }
 
+    const groups = await getCreatorGroups(tgId);
     const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+    const kb = new InlineKeyboard();
     let msg = t(lang).myGroupsCreatedTitle;
+    msg += lang === "fa"
+      ? `📊 ${slots.createdCount}/${slots.maxCreated} گروه\n\n`
+      : `📊 ${slots.createdCount}/${slots.maxCreated} groups\n\n`;
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
       const link = g.inviteToken ? `https://t.me/${BOT_USERNAME}?start=g_${g.inviteToken}` : "—";
       msg += t(lang).groupInfoLine(name, g.memberCount, g.maxMembers, link);
+      kb.text(`🚪 ${name}`, `group:enter:${g.id}`).row();
     }
-    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+    if (slots.maxCreated < 10) {
+      const expandCostStr = await getSetting("group_slot_expand_cost");
+      const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+      kb.text(t(lang).groupExpandCreatedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:created");
+    }
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: kb });
   });
 
   // ─── My Joined Groups ─────────────────────────────────────────────────────────
@@ -202,21 +233,151 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const groups = await getJoinedGroups(tgId);
-    if (groups.length === 0) {
-      await ctx.reply(t(lang).myGroupsJoinedEmpty, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.joinedCount === 0) {
+      const kb = new InlineKeyboard();
+      if (slots.maxJoined < 10) {
+        const expandCostStr = await getSetting("group_slot_expand_cost");
+        const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+        kb.text(t(lang).groupExpandJoinedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:joined");
+      }
+      await ctx.reply(t(lang).myGroupsJoinedEmpty, {
+        parse_mode: "Markdown",
+        reply_markup: slots.maxJoined < 10 ? kb : undefined,
+      });
       return;
     }
 
+    const groups = await getJoinedGroups(tgId);
+    const kb = new InlineKeyboard();
     let msg = t(lang).myGroupsJoinedTitle;
+    msg += lang === "fa"
+      ? `📊 ${slots.joinedCount}/${slots.maxJoined} گروه\n\n`
+      : `📊 ${slots.joinedCount}/${slots.maxJoined} groups\n\n`;
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
       const role = g.isAdmin
         ? (lang === "fa" ? "⭐ ادمین" : "⭐ Admin")
         : (lang === "fa" ? "👤 عضو"   : "👤 Member");
       msg += t(lang).groupInfoLineJoined(name, g.memberCount, g.maxMembers, role);
+      kb.text(`🚪 ${name}`, `group:enter:${g.id}`).row();
     }
-    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+    if (slots.maxJoined < 10) {
+      const expandCostStr = await getSetting("group_slot_expand_cost");
+      const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+      kb.text(t(lang).groupExpandJoinedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:joined");
+    }
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: kb });
+  });
+
+  // ─── Enter group callback ─────────────────────────────────────────────────────
+  bot.callbackQuery(/^group:enter:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const groupId = parseInt(ctx.match[1]);
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const [creator, admin] = await Promise.all([
+      isGroupCreator(tgId, groupId),
+      isGroupAdmin(tgId, groupId),
+    ]);
+
+    let kb;
+    if (creator)    kb = groupCreatorKeyboard(lang);
+    else if (admin) kb = groupAdminKeyboard(lang);
+    else            kb = groupControlKeyboard(lang);
+
+    const groupMembers = await getGroupMembers(groupId);
+    const memberCount = groupMembers.length;
+    const enterMsg = lang === "fa"
+      ? `🚪 وارد گروه شدید (${memberCount} نفر)`
+      : `🚪 Entered group (${memberCount} members)`;
+    await ctx.reply(enterMsg, { reply_markup: kb });
+  });
+
+  // ─── Expand group slots callbacks ─────────────────────────────────────────────
+  bot.callbackQuery("group:expand:created", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const expandCostStr = await getSetting("group_slot_expand_cost");
+    const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+    const kb = new InlineKeyboard()
+      .text(t(lang).confirm, "group:expand:created:confirm")
+      .text(t(lang).cancel, "group:expand:created:cancel");
+    await ctx.reply(t(lang).groupExpandCreatedConfirm(expandCost), { parse_mode: "Markdown", reply_markup: kb });
+  });
+
+  bot.callbackQuery("group:expand:created:confirm", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const expandCostStr = await getSetting("group_slot_expand_cost");
+    const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+    // Check already maxed
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.maxCreated >= 10) {
+      await ctx.editMessageText(t(lang).groupExpandAlreadyMax, { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+    // Deduct coins FIRST
+    const result = await deductCoins(tgId, expandCost, "group_cost", "Expand group created slots");
+    if (!result.success) {
+      await ctx.editMessageText(t(lang).insufficientCoins, { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+    await expandGroupSlots(tgId, "created");
+    await ctx.editMessageText(t(lang).groupExpandSuccess, { parse_mode: "Markdown" }).catch(() => {});
+  });
+
+  bot.callbackQuery("group:expand:created:cancel", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("❌").catch(() => {});
+  });
+
+  bot.callbackQuery("group:expand:joined", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const expandCostStr = await getSetting("group_slot_expand_cost");
+    const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+    const kb = new InlineKeyboard()
+      .text(t(lang).confirm, "group:expand:joined:confirm")
+      .text(t(lang).cancel, "group:expand:joined:cancel");
+    await ctx.reply(t(lang).groupExpandJoinedConfirm(expandCost), { parse_mode: "Markdown", reply_markup: kb });
+  });
+
+  bot.callbackQuery("group:expand:joined:confirm", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const expandCostStr = await getSetting("group_slot_expand_cost");
+    const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+    // Check already maxed
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.maxJoined >= 10) {
+      await ctx.editMessageText(t(lang).groupExpandAlreadyMax, { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+    // Deduct coins FIRST
+    const result = await deductCoins(tgId, expandCost, "group_cost", "Expand group joined slots");
+    if (!result.success) {
+      await ctx.editMessageText(t(lang).insufficientCoins, { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+    await expandGroupSlots(tgId, "joined");
+    await ctx.editMessageText(t(lang).groupExpandSuccess, { parse_mode: "Markdown" }).catch(() => {});
+  });
+
+  bot.callbackQuery("group:expand:joined:cancel", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("❌").catch(() => {});
   });
 
   // ─── Anon Pro Link placeholder ────────────────────────────────────────────────
@@ -228,7 +389,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
   });
 
   // ─── Create group (paid, with creator privileges) ────────────────────────────
-  bot.hears([/^🆕 ساخت گروه/, /^🆕 Create Anonymous Group/], async (ctx) => {
+  bot.hears([/^ساخت گروه ناشناس/, /^Create Anonymous Group/], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
@@ -237,6 +398,22 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (user.isInChat)  { await ctx.reply(t(lang).alreadyInChat);  return; }
     if (user.isInGroup) { await ctx.reply(t(lang).alreadyInGroup); return; }
     if (user.isInQueue) { await ctx.reply(t(lang).alreadyInQueue); return; }
+
+    // Check slot limit
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.createdCount >= slots.maxCreated) {
+      const expandCostStr = await getSetting("group_slot_expand_cost");
+      const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+      const kb = new InlineKeyboard();
+      if (slots.maxCreated < 10) {
+        kb.text(t(lang).groupExpandCreatedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:created");
+      }
+      await ctx.reply(t(lang).groupLimitCreatedReached(slots.maxCreated, expandCost), {
+        parse_mode: "Markdown",
+        reply_markup: slots.maxCreated < 10 ? kb : undefined,
+      });
+      return;
+    }
 
     const costStr = await getSetting("group_create_cost");
     const cost = costStr ? parseInt(costStr, 10) : 3;
@@ -256,6 +433,16 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
 
     if (user?.isInGroup || user?.isInChat) {
       await ctx.editMessageText(t(lang).alreadyInGroup);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    // Re-check slot limit at confirm time
+    const slots = await getUserGroupSlots(tgId);
+    if (slots.createdCount >= slots.maxCreated) {
+      const expandCostStr = await getSetting("group_slot_expand_cost");
+      const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
+      await ctx.editMessageText(t(lang).groupLimitCreatedReached(slots.maxCreated, expandCost), { parse_mode: "Markdown" }).catch(() => {});
       await ctx.answerCallbackQuery();
       return;
     }

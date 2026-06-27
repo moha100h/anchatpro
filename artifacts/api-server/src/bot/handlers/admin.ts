@@ -169,15 +169,17 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const cardNo = await getSetting("card_number") ?? "تنظیم نشده";
     const wallet = await getSetting("crypto_wallet") ?? "تنظیم نشده";
     const reviewGroup = await getSetting("payment_review_group") ?? "تنظیم نشده";
-    const createCost = await getSetting("group_create_cost") ?? "3";
-    const joinCost   = await getSetting("group_join_cost")   ?? "3";
+    const createCost  = await getSetting("group_create_cost")      ?? "3";
+    const joinCost    = await getSetting("group_join_cost")         ?? "3";
+    const expandCost  = await getSetting("group_slot_expand_cost")  ?? "30";
     await ctx.reply(
       `💳 **تنظیمات پرداخت**\n\n` +
       `شماره کارت: ${cardNo}\n` +
       `کیف ارز دیجیتال: ${wallet}\n` +
       `گروه بررسی: ${reviewGroup}\n` +
       `هزینه ساخت گروه: ${createCost} سکه\n` +
-      `هزینه پیوستن به گروه: ${joinCost} سکه`,
+      `هزینه پیوستن به گروه: ${joinCost} سکه\n` +
+      `هزینه افزایش ظرفیت گروه: ${expandCost} سکه`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -187,6 +189,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "تنظیم گروه بررسی", callback_data: "pay_set:payment_review_group" }],
             [{ text: "تنظیم هزینه ساخت گروه", callback_data: "pay_set:group_create_cost" }],
             [{ text: "تنظیم هزینه پیوستن به گروه", callback_data: "pay_set:group_join_cost" }],
+            [{ text: "تنظیم هزینه افزایش ظرفیت گروه", callback_data: "pay_set:group_slot_expand_cost" }],
             [{ text: "غیرفعال/فعال کارت", callback_data: "pay_toggle:card" }],
             [{ text: "غیرفعال/فعال کریپتو", callback_data: "pay_toggle:crypto" }],
           ]
@@ -380,6 +383,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       payment_review_group: "آیدی گروه بررسی",
       group_create_cost: "هزینه ساخت گروه (سکه)",
       group_join_cost: "هزینه پیوستن به گروه (سکه)",
+      group_slot_expand_cost: "هزینه افزایش ظرفیت گروه (سکه)",
     };
     await ctx.reply(`${labels[key] ?? key} را وارد کنید:`);
     await ctx.answerCallbackQuery();

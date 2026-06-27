@@ -1,7 +1,6 @@
 import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
-import { getRandomName } from "../lib/random-names.js";
 import { deductCoins } from "../services/coin.service.js";
 import {
   addToQueue,
@@ -55,7 +54,7 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
 
   // ─── Gender preference selection ─────────────────────────────────────────────
   bot.hears(
-    [/^👧 (دختر|زن)$/, /^👦 (پسر|مرد)$/, /^🎲 هر کسی$/, /^👧 Female$/, /^👦 Male$/, /^🎲 Anyone$/],
+    [/^👧 (دختر|زن)$/, /^👦 (پسر|مرد)$/, /^🎲 شانسی$/, /^👧 Female$/, /^👦 Male$/, /^🎲 Random$/],
     async (ctx) => {
       const tgId = ctx.from!.id;
       const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -80,12 +79,12 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
             await createChatSession(tgId, matchId);
             const matchUser = await getUserByTelegramId(matchId);
             const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
-            await ctx.reply(t(lang).connectedWith({ ...matchUser, firstName: getRandomName(matchUser?.gender) }), {
+            await ctx.reply(t(lang).connectedWith(matchUser ?? {}), {
               parse_mode: "Markdown",
               reply_markup: chatControlKeyboard(lang),
             });
             await bot.api
-              .sendMessage(matchId, t(matchLang).connectedWith({ ...user, firstName: getRandomName(user.gender) }), {
+              .sendMessage(matchId, t(matchLang).connectedWith(user), {
                 parse_mode: "Markdown",
                 reply_markup: chatControlKeyboard(matchLang),
               })
@@ -142,13 +141,13 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
       const matchUser = await getUserByTelegramId(matchId);
       const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
       await bot.api
-        .sendMessage(tgId, t(lang).connectedWith({ ...matchUser, firstName: getRandomName(matchUser?.gender) }), {
+        .sendMessage(tgId, t(lang).connectedWith(matchUser ?? {}), {
           parse_mode: "Markdown",
           reply_markup: chatControlKeyboard(lang),
         })
         .catch(() => {});
       await bot.api
-        .sendMessage(matchId, t(matchLang).connectedWith({ ...user, firstName: getRandomName(user.gender) }), {
+        .sendMessage(matchId, t(matchLang).connectedWith(user), {
           parse_mode: "Markdown",
           reply_markup: chatControlKeyboard(matchLang),
         })
@@ -389,13 +388,13 @@ async function tryMatchFromQueue(
     ]);
     const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
     await bot.api
-      .sendMessage(tgId, t(lang).connectedWith({ ...matchUser, firstName: getRandomName(matchUser?.gender) }), {
+      .sendMessage(tgId, t(lang).connectedWith(matchUser ?? {}), {
         parse_mode: "Markdown",
         reply_markup: chatControlKeyboard(lang),
       })
       .catch(() => {});
     await bot.api
-      .sendMessage(matchId, t(matchLang).connectedWith({ ...myUser, firstName: getRandomName(myUser?.gender) }), {
+      .sendMessage(matchId, t(matchLang).connectedWith(myUser ?? {}), {
         parse_mode: "Markdown",
         reply_markup: chatControlKeyboard(matchLang),
       })

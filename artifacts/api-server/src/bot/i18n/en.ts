@@ -22,7 +22,7 @@ export const en = {
   menuHelp: "📋 Help & Rules",
   menuSettings: "⚙️ Settings",
   menuReferral: "🎁 Invite Friends",
-  menuMagic: "🔮 Mystery World",
+  menuMagic: "🔮 Strangers Like Us",
 
   // ─── Magic sub-menu button labels ────────────────────────────────────────────
   magicBtnBottle:  "🍾 Message in a Bottle",
@@ -30,13 +30,13 @@ export const en = {
   magicBtnLetter:  "✉️ Letter to the Future",
   magicBtnFreq:    "📡 Anonymous Frequency",
   magicBtnHelp:    "📖 Help Guide",
-  magicSubTitle:   "🔮 Mystery World\n\nChoose a feature:",
+  magicSubTitle:   "🔮 Strangers Like Us\n\nChoose a feature:",
 
   // ─── Matching ────────────────────────────────────────────────────────────────
   selectGenderPref: "Which gender would you like to talk to?",
   genderPrefFemale: "👧 Female",
   genderPrefMale: "👦 Male",
-  genderPrefAny: "🎲 Anyone",
+  genderPrefAny: "🎲 Random",
   insufficientCoins: "❌ Insufficient coins!\n\n💰 You need 1 coin to connect to a specific gender.\n\nBuy coins from the 💰 My Coins menu.",
   matchCostGender: "💰 Connecting to a specific gender costs **1 coin**.\n\nConfirm?",
   matchCostAny: "⚠️ You've used all 3 free chats today.\n\n💰 This connection costs **1 coin**.\n\nConfirm?",
@@ -239,13 +239,13 @@ export const en = {
   helpBtnLink: "🔗 Anonymous Link Guide",
   helpBtnCoins: "💰 Coins Guide",
   helpBtnRules: "🚫 Rules & Regulations",
-  helpBtnMagic: "🔮 Mystery World Guide",
+  helpBtnMagic: "🔮 Strangers Like Us Guide",
   helpBtnSupport: "💬 Support",
   helpSectionConnect:
     `🔗 **Anonymous Connect**\n\n` +
     `Click "🔗 Connect Anonymously" to enter the queue.\n` +
     `You'll be connected as soon as a suitable user is found.\n\n` +
-    `💡 Specific gender: **1 coin** | Anyone: **free**\n\n` +
+    `💡 Specific gender: **1 coin** | Random: **free**\n\n` +
     `After connecting you can:\n` +
     `• Send text, photos, videos, voice and stickers\n` +
     `• Report or block the user\n` +
@@ -275,7 +275,7 @@ export const en = {
     `• Connect to specific gender: 1 coin\n` +
     `• Join group: 1 coin\n` +
     `• Create group: 3 coins (default)\n` +
-    `• Mystery World features: varies\n\n` +
+    `• Strangers Like Us features: varies\n\n` +
     `💡 **Earn free coins:**\n` +
     `• Invite friends → bonus coins\n\n` +
     `🛒 **Buy coins:** from 💰 My Coins menu`,
@@ -291,13 +291,13 @@ export const en = {
     `🛡️ Your identity is fully protected at all times.\n` +
     `You can report or block problematic users.`,
   helpSectionMagic:
-    `🔮 **Mystery World**\n\n` +
+    `🔮 **Strangers Like Us**\n\n` +
     `Four unique experiences:\n\n` +
     `🍾 **Message in a Bottle** — release a message, maybe someone finds it\n` +
     `🔗 **Emotion Chain** — 10 anonymous people build a story together\n` +
     `✉️ **Letter to the Future** — write a letter to yourself in the future\n` +
     `📡 **Anonymous Frequency** — connect with someone feeling the same\n\n` +
-    `For feature guides, go to 🔮 Mystery World → 📖 Help Guide.`,
+    `For feature guides, go to 🔮 Strangers Like Us → 📖 Help Guide.`,
   helpSupportText: (link: string) =>
     `💬 **Contact Support**\n\n` +
     `For any questions, issues or feedback, reach us here:\n\n` +
@@ -390,9 +390,9 @@ export const en = {
   rejectPayment: "❌ Reject",
   paymentAlreadyProcessed: "⚠️ This payment has already been processed.",
 
-  // ─── 🔮 Mystery World ────────────────────────────────────────────────────────
+  // ─── 🔮 Strangers Like Us ────────────────────────────────────────────────────────
   magicMenu: (cfg: { bottleCost: number; chainCost: number; letterCost: number; freqCost: number }) =>
-    `🔮 **Mystery World**\n\n` +
+    `🔮 **Strangers Like Us**\n\n` +
     `Four unique experiences found nowhere else:\n\n` +
     `🍾 *Message in a Bottle* — ${cfg.bottleCost} coins\n` +
     `Release your message into the ocean. Maybe someone finds it...\n\n` +
@@ -495,7 +495,7 @@ export const en = {
   magicLimitReached: (limit: number) => `⏳ You've used this feature ${limit} times today. Come back tomorrow!`,
   magicNotEnoughCoins: (cost: number) => `💰 You need ${cost} coins for this feature.\n\nBuy coins from the menu!`,
   adminMagicPanel: (cfgs: Record<string, { enabled: boolean; cost: number; daily: number }>) =>
-    `🔮 **Mystery World Settings**\n\n` +
+    `🔮 **Strangers Like Us Settings**\n\n` +
     Object.entries(cfgs).map(([k, v]) =>
       `${v.enabled ? "✅" : "❌"} **${k}** — Cost: ${v.cost} coins | Daily: ${v.daily}`
     ).join("\n"),
@@ -511,7 +511,7 @@ export const en = {
   magicHelpBtnChain: "🔗 Chain Guide",
   magicHelpBtnLetter: "✉️ Letter Guide",
   magicHelpBtnFreq: "📡 Frequency Guide",
-  magicHelpMenuTitle: "📖 **Mystery World Help**\n\nChoose a feature for its guide:",
+  magicHelpMenuTitle: "📖 **Strangers Like Us Help**\n\nChoose a feature for its guide:",
 
   // ─── Group sub-menu & management ─────────────────────────────────────────────
   groupSubMenuJoin: "👥 Join Anonymous Group",

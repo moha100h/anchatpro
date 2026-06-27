@@ -549,35 +549,31 @@ async function showInboxPage(
   const user = await getUserByTelegramId(tgId);
   const lang = (user?.language as "fa" | "en") ?? "fa";
 
-  // Count totals
-  const [totalRow] = await db
-    .select({ cnt: countFn() })
-    .from(anonymousMessagesTable)
-    .where(eq(anonymousMessagesTable.receiverId, tgId));
-  const total = Number(totalRow?.cnt ?? 0);
+  // Only show unread messages
+  const unreadFilter = and(
+    eq(anonymousMessagesTable.receiverId, tgId),
+    eq(anonymousMessagesTable.isRead, false),
+  );
 
   const [unreadRow] = await db
     .select({ cnt: countFn() })
     .from(anonymousMessagesTable)
-    .where(and(
-      eq(anonymousMessagesTable.receiverId, tgId),
-      eq(anonymousMessagesTable.isRead, false),
-    ));
+    .where(unreadFilter);
   const unread = Number(unreadRow?.cnt ?? 0);
 
-  if (total === 0) {
+  if (unread === 0) {
     await ctx.reply(t(lang).anonInboxEmpty, { reply_markup: myLinkMenuKeyboard(lang) });
     return;
   }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const totalPages = Math.ceil(unread / PAGE_SIZE);
   const offset = page * PAGE_SIZE;
 
-  // Fetch page
+  // Fetch page — unread only
   const messages = await db
     .select()
     .from(anonymousMessagesTable)
-    .where(eq(anonymousMessagesTable.receiverId, tgId))
+    .where(unreadFilter)
     .orderBy(desc(anonymousMessagesTable.createdAt))
     .limit(PAGE_SIZE)
     .offset(offset);
@@ -592,7 +588,7 @@ async function showInboxPage(
   }
 
   // Send header
-  const header = t(lang).anonInboxHeader(total, unread, page + 1, totalPages);
+  const header = t(lang).anonInboxHeader(unread, unread, page + 1, totalPages);
   await bot.api.sendMessage(tgId, header, { parse_mode: "HTML" }).catch(() => null);
 
   // Send each message

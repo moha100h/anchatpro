@@ -620,8 +620,8 @@ export const fa = {
     `نوع لینک را انتخاب کنید:`,
   anonMsgSentKeep: "✅ پیام ارسال شد!\n\nمی‌توانید پیام دیگری بفرستید یا از دکمه انصراف استفاده کنید.",
   anonInboxEmpty: "📭 صندوق پیام ناشناس شما خالی است.",
-  anonInboxHeader: (total: number, unread: number, page: number, totalPages: number) =>
-    `📬 <b>صندوق پیام ناشناس</b>\n\n📨 ${total} پیام | 🔴 ${unread} خوانده‌نشده\n📄 صفحه ${page} از ${totalPages}:`,
+  anonInboxHeader: (_total: number, unread: number, page: number, totalPages: number) =>
+    `📬 <b>صندوق پیام ناشناس</b>\n\n🔴 ${unread} پیام خوانده‌نشده\n📄 صفحه ${page} از ${totalPages}:`,
   anonInboxMsgText: (num: number, date: string, content: string) =>
     `📩 <b>پیام #${num}</b>\n🕐 ${date}\n\n${content}`,
   anonInboxNextBtn: (page: number) => `صفحه بعد (${page}) ←`,

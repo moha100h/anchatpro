@@ -606,8 +606,8 @@ export const en = {
     `Choose link type:`,
   anonMsgSentKeep: "✅ Message sent!\n\nYou can send another message or press cancel to go back.",
   anonInboxEmpty: "📭 Your anonymous inbox is empty.",
-  anonInboxHeader: (total: number, unread: number, page: number, totalPages: number) =>
-    `📬 <b>Anonymous Inbox</b>\n\n📨 ${total} messages | 🔴 ${unread} unread\n📄 Page ${page} of ${totalPages}:`,
+  anonInboxHeader: (_total: number, unread: number, page: number, totalPages: number) =>
+    `📬 <b>Anonymous Inbox</b>\n\n🔴 ${unread} unread messages\n📄 Page ${page} of ${totalPages}:`,
   anonInboxMsgText: (num: number, date: string, content: string) =>
     `📩 <b>Message #${num}</b>\n🕐 ${date}\n\n${content}`,
   anonInboxNextBtn: (page: number) => `Next page (${page}) →`,

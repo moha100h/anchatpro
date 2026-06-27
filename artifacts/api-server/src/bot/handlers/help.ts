@@ -58,7 +58,7 @@ export function registerHelpHandlers(bot: Bot<BotContext>) {
   });
 
   // ─── Section: Magic World ──────────────────────────────────────────────────
-  bot.hears(["🔮 راهنمای دنیای اسرار", "🔮 Mystery World Guide"], async (ctx) => {
+  bot.hears(["🔮 راهنمای ناشناس از ما بهترون", "🔮 Strangers Like Us Guide"], async (ctx) => {
     const lang = getLang(ctx);
     await ctx.reply(t(lang).helpSectionMagic, { parse_mode: "Markdown" });
   });

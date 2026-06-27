@@ -390,44 +390,48 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       reply_markup: cancelAnonKeyboard(receiverName, lang),
     });
 
-    // Deliver to receiver — works regardless of receiver's bot state
+    // Deliver to receiver — skip live push if receiver is in an active chat or group
+    // (message is already saved to inbox; daily cron will remind them at midnight)
     const receiver = await getUserByTelegramId(receiverId);
     const rLang = (receiver?.language as "fa" | "en") ?? "fa";
-    const notifyText = t(rLang).anonMsgReceived;
 
-    if (content) {
-      await bot.api
-        .sendMessage(receiverId, `${notifyText}\n\n${content}`, {
-          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
-        })
-        .catch(() => null);
-    } else if (fileId && fileType === "photo") {
-      await bot.api
-        .sendPhoto(receiverId, fileId, {
-          caption: notifyText,
-          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
-        })
-        .catch(() => null);
-    } else if (fileId && fileType === "video") {
-      await bot.api
-        .sendVideo(receiverId, fileId, {
-          caption: notifyText,
-          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
-        })
-        .catch(() => null);
-    } else if (fileId && fileType === "voice") {
-      await bot.api
-        .sendVoice(receiverId, fileId, {
-          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
-        })
-        .catch(() => null);
-    } else if (fileId && fileType === "sticker") {
-      await bot.api.sendSticker(receiverId, fileId).catch(() => null);
-      await bot.api
-        .sendMessage(receiverId, notifyText, {
-          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
-        })
-        .catch(() => null);
+    if (!receiver?.isInChat && !receiver?.isInGroup) {
+      const notifyText = t(rLang).anonMsgReceived;
+
+      if (content) {
+        await bot.api
+          .sendMessage(receiverId, `${notifyText}\n\n${content}`, {
+            reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+          })
+          .catch(() => null);
+      } else if (fileId && fileType === "photo") {
+        await bot.api
+          .sendPhoto(receiverId, fileId, {
+            caption: notifyText,
+            reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+          })
+          .catch(() => null);
+      } else if (fileId && fileType === "video") {
+        await bot.api
+          .sendVideo(receiverId, fileId, {
+            caption: notifyText,
+            reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+          })
+          .catch(() => null);
+      } else if (fileId && fileType === "voice") {
+        await bot.api
+          .sendVoice(receiverId, fileId, {
+            reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+          })
+          .catch(() => null);
+      } else if (fileId && fileType === "sticker") {
+        await bot.api.sendSticker(receiverId, fileId).catch(() => null);
+        await bot.api
+          .sendMessage(receiverId, notifyText, {
+            reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+          })
+          .catch(() => null);
+      }
     }
   });
 
@@ -525,16 +529,17 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     ctx.session.step = undefined;
     await ctx.reply(t(lang).replySent, { reply_markup: mainMenuKeyboard(lang) });
 
-    // Notify the original sender with proper format and replier's name
+    // Notify the original sender — skip live push if sender is in chat or group
     if (original.senderId) {
       const replierName = user?.firstName ?? (lang === "fa" ? "کاربر" : "User");
       const sender = await getUserByTelegramId(original.senderId);
-      const sLang = (sender?.language as "fa" | "en") ?? "fa";
-      const replyNotify = t(sLang).yourReplyFromName(replierName) + ctx.message.text;
-
-      await bot.api
-        .sendMessage(original.senderId, replyNotify)
-        .catch(() => {});
+      if (sender && !sender.isInChat && !sender.isInGroup) {
+        const sLang = (sender.language as "fa" | "en") ?? "fa";
+        const replyNotify = t(sLang).yourReplyFromName(replierName) + ctx.message.text;
+        await bot.api
+          .sendMessage(original.senderId, replyNotify)
+          .catch(() => {});
+      }
     }
   });
 }

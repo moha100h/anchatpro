@@ -619,6 +619,8 @@ export const fa = {
     (unread > 0 ? `📬 شما **${unread}** پیام ناشناس خوانده‌نشده دارید!\n\n` : "") +
     `نوع لینک را انتخاب کنید:`,
   anonMsgSentKeep: "✅ پیام ارسال شد!\n\nمی‌توانید پیام دیگری بفرستید یا از دکمه انصراف استفاده کنید.",
+  anonInboxDailyReminder: (n: number) =>
+    `📬 **${n} پیام ناشناس خوانده‌نشده** در صندوق شما منتظر است!\n\nبرای مشاهده روی «📬 صندوق پیام ناشناس من» بزنید.`,
   anonInboxEmpty: "📭 صندوق پیام ناشناس شما خالی است.",
   anonInboxHeader: (_total: number, unread: number, page: number, totalPages: number) =>
     `📬 <b>صندوق پیام ناشناس</b>\n\n🔴 ${unread} پیام خوانده‌نشده\n📄 صفحه ${page} از ${totalPages}:`,

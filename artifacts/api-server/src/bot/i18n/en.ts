@@ -605,6 +605,8 @@ export const en = {
     (unread > 0 ? `📬 You have **${unread}** unread anonymous messages!\n\n` : "") +
     `Choose link type:`,
   anonMsgSentKeep: "✅ Message sent!\n\nYou can send another message or press cancel to go back.",
+  anonInboxDailyReminder: (n: number) =>
+    `📬 You have **${n} unread anonymous message${n === 1 ? "" : "s"}** waiting!\n\nTap «📬 My Anonymous Inbox» to read them.`,
   anonInboxEmpty: "📭 Your anonymous inbox is empty.",
   anonInboxHeader: (_total: number, unread: number, page: number, totalPages: number) =>
     `📬 <b>Anonymous Inbox</b>\n\n🔴 ${unread} unread messages\n📄 Page ${page} of ${totalPages}:`,

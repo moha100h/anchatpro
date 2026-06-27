@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
-import { usersTable, referralsTable, coinTransactionsTable } from "@workspace/db";
-import { eq, gte, desc, count } from "drizzle-orm";
+import { usersTable, referralsTable, coinTransactionsTable, anonymousMessagesTable } from "@workspace/db";
+import { eq, gte, desc, count, and } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import type { User } from "@workspace/db";
 
@@ -157,6 +157,24 @@ export async function getReferralTree(userId: number, depth = 3): Promise<Array<
 
   await traverse(userId, depth);
   return result;
+}
+
+/**
+ * Returns all users who have at least one unread anonymous message.
+ * Used by the midnight cron to send daily inbox reminders.
+ */
+export async function getUsersWithUnreadAnonMessages(): Promise<Array<{ receiverId: number; unreadCount: number }>> {
+  const rows = await db
+    .select({ receiverId: anonymousMessagesTable.receiverId, cnt: count() })
+    .from(anonymousMessagesTable)
+    .where(and(
+      eq(anonymousMessagesTable.isRead, false),
+    ))
+    .groupBy(anonymousMessagesTable.receiverId);
+
+  return rows
+    .filter((r) => r.receiverId !== null)
+    .map((r) => ({ receiverId: r.receiverId as number, unreadCount: Number(r.cnt) }));
 }
 
 export async function getTotalStats() {

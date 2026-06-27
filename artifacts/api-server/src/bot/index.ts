@@ -18,7 +18,7 @@ import { getTetraPayCallbackUrl } from "../lib/base-url.js";
 import { forceJoinMiddleware } from "./middleware/force-join.js";
 import { sendBackup, getBackupConfig } from "./services/backup.service.js";
 import { cleanupStaleQueue } from "./services/matching.service.js";
-import { getUserByTelegramId } from "./services/user.service.js";
+import { getUserByTelegramId, getUsersWithUnreadAnonMessages } from "./services/user.service.js";
 import { t } from "./i18n/index.js";
 import { mainMenuKeyboard } from "./keyboards/main.js";
 import { logger } from "../lib/logger.js";
@@ -137,6 +137,29 @@ export async function createBot(): Promise<Bot<BotContext>> {
       }
     } catch (e) {
       logger.error({ err: e }, "Queue cleanup error");
+    }
+  });
+
+  // ─── Daily midnight inbox reminder (every day at 00:00 Tehran = 20:30 UTC) ───
+  // Sends a reminder to every user who has unread anonymous messages
+  cron.schedule("30 20 * * *", async () => {
+    try {
+      const usersWithUnread = await getUsersWithUnreadAnonMessages();
+      for (const { receiverId, unreadCount } of usersWithUnread) {
+        const user = await getUserByTelegramId(receiverId);
+        if (!user) continue;
+        const lang = (user.language as "fa" | "en") ?? "fa";
+        await bot.api
+          .sendMessage(receiverId, t(lang).anonInboxDailyReminder(unreadCount), {
+            parse_mode: "Markdown",
+          })
+          .catch(() => {});
+      }
+      if (usersWithUnread.length > 0) {
+        logger.info({ count: usersWithUnread.length }, "Midnight inbox reminders sent");
+      }
+    } catch (e) {
+      logger.error({ err: e }, "Midnight inbox reminder cron error");
     }
   });
 

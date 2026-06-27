@@ -1,6 +1,6 @@
 import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
-import { getUserByTelegramId } from "../services/user.service.js";
+import { getUserByTelegramId, updateUser } from "../services/user.service.js";
 import { deductCoins } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
 import {
@@ -81,8 +81,14 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     if (user.isInGroup) {
-      await ctx.reply(t(lang).alreadyInGroup);
-      return;
+      // Verify — isInGroup can stay true if bot crashed during a group session
+      const actualGroupId = await getUserGroup(tgId);
+      if (actualGroupId !== null) {
+        await ctx.reply(t(lang).alreadyInGroup);
+        return;
+      }
+      await updateUser(tgId, { isInGroup: false });
+      // Fall through — flag was stale; show group sub-menu normally
     }
 
     await ctx.reply(t(lang).menuGroup, { reply_markup: groupSubMenuKeyboard(lang) });

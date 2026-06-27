@@ -169,9 +169,11 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const cardNo = await getSetting("card_number") ?? "تنظیم نشده";
     const wallet = await getSetting("crypto_wallet") ?? "تنظیم نشده";
     const reviewGroup = await getSetting("payment_review_group") ?? "تنظیم نشده";
-    const createCost  = await getSetting("group_create_cost")      ?? "3";
-    const joinCost    = await getSetting("group_join_cost")         ?? "3";
-    const expandCost  = await getSetting("group_slot_expand_cost")  ?? "30";
+    const createCost    = await getSetting("group_create_cost")       ?? "3";
+    const joinCost      = await getSetting("group_join_cost")          ?? "3";
+    const expandCost    = await getSetting("group_slot_expand_cost")   ?? "30";
+    const permLinkCost  = await getSetting("perm_anon_link_cost")      ?? "10";
+    const timedLinkCost = await getSetting("timed_anon_link_cost")     ?? "3";
     await ctx.reply(
       `💳 **تنظیمات پرداخت**\n\n` +
       `شماره کارت: ${cardNo}\n` +
@@ -179,7 +181,9 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       `گروه بررسی: ${reviewGroup}\n` +
       `هزینه ساخت گروه: ${createCost} سکه\n` +
       `هزینه پیوستن به گروه: ${joinCost} سکه\n` +
-      `هزینه افزایش ظرفیت گروه: ${expandCost} سکه`,
+      `هزینه افزایش ظرفیت گروه: ${expandCost} سکه\n` +
+      `هزینه لینک ناشناس دائمی: ${permLinkCost} سکه\n` +
+      `هزینه لینک ناشناس موقت: ${timedLinkCost} سکه`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -190,6 +194,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "تنظیم هزینه ساخت گروه", callback_data: "pay_set:group_create_cost" }],
             [{ text: "تنظیم هزینه پیوستن به گروه", callback_data: "pay_set:group_join_cost" }],
             [{ text: "تنظیم هزینه افزایش ظرفیت گروه", callback_data: "pay_set:group_slot_expand_cost" }],
+            [{ text: "🔗 هزینه لینک ناشناس دائمی", callback_data: "pay_set:perm_anon_link_cost" }],
+            [{ text: "⏱ هزینه لینک ناشناس موقت", callback_data: "pay_set:timed_anon_link_cost" }],
             [{ text: "غیرفعال/فعال کارت", callback_data: "pay_toggle:card" }],
             [{ text: "غیرفعال/فعال کریپتو", callback_data: "pay_toggle:crypto" }],
           ]
@@ -384,6 +390,13 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       group_create_cost: "هزینه ساخت گروه (سکه)",
       group_join_cost: "هزینه پیوستن به گروه (سکه)",
       group_slot_expand_cost: "هزینه افزایش ظرفیت گروه (سکه)",
+      perm_anon_link_cost: "هزینه لینک ناشناس دائمی (سکه)",
+      timed_anon_link_cost: "هزینه لینک ناشناس موقت (سکه)",
+      referral_reward_inviter: "پاداش دعوت‌کننده (سکه)",
+      referral_reward_invitee: "پاداش دعوت‌شده (سکه)",
+      support_link: "لینک پشتیبانی",
+      group_admin_promote_cost: "هزینه ارتقا ادمین گروه (سکه)",
+      group_expand_cost: "هزینه افزایش ظرفیت گروه ادمین (سکه)",
     };
     await ctx.reply(`${labels[key] ?? key} را وارد کنید:`);
     await ctx.answerCallbackQuery();

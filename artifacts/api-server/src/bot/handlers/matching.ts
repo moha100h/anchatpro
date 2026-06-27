@@ -1,6 +1,7 @@
 import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
-import { getUserByTelegramId } from "../services/user.service.js";
+import { getUserByTelegramId, updateUser } from "../services/user.service.js";
+import { getUserGroup } from "../services/group.service.js";
 import { deductCoins } from "../services/coin.service.js";
 import {
   addToQueue,
@@ -47,7 +48,16 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
 
     if (user.isInChat)  { await ctx.reply(t(lang).alreadyInChat);  return; }
     if (user.isInQueue) { await ctx.reply(t(lang).alreadyInQueue); return; }
-    if (user.isInGroup) { await ctx.reply(t(lang).alreadyInGroup); return; }
+    if (user.isInGroup) {
+      // Verify — flag can be stale after a crash
+      const actualGroupId = await getUserGroup(tgId);
+      if (actualGroupId !== null) {
+        await ctx.reply(t(lang).alreadyInGroup);
+        return;
+      }
+      await updateUser(tgId, { isInGroup: false });
+      // Fall through — stale flag cleared
+    }
 
     await ctx.reply(t(lang).selectGenderPref, { reply_markup: genderPrefKeyboard(lang) });
   });

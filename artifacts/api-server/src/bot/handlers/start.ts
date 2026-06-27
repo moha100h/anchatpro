@@ -19,6 +19,7 @@ import {
   isUserBannedFromGroup,
   getExistingMembership,
   reactivateAndGetRole,
+  getUserGroup,
 } from "../services/group.service.js";
 import { eq as eqDrizzle } from "drizzle-orm";
 import { t } from "../i18n/index.js";
@@ -244,6 +245,15 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         }
       }
     }
+
+    // Clear stale isInGroup — can get stuck if bot crashed during group session
+    if (user.isInGroup) {
+      const actualGroupId = await getUserGroup(tgId);
+      if (actualGroupId === null) await updateUser(tgId, { isInGroup: false });
+    }
+
+    // Also clear stale session step
+    if (ctx.session.step) ctx.session.step = undefined;
 
     await processReferralReward(tgId);
     if (referralCode) await ctx.reply(t(lang).referralWelcome(user.firstName ?? "کاربر"));

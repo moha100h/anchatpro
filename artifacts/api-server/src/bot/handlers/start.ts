@@ -10,6 +10,7 @@ import {
 } from "../services/user.service.js";
 import { processReferralReward } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
+import { getActiveSession, endChatSession } from "../services/matching.service.js";
 import { t } from "../i18n/index.js";
 import { languageKeyboard, genderKeyboard, mainMenuKeyboard } from "../keyboards/main.js";
 
@@ -72,6 +73,21 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
     // ── 5. Existing user → clear stuck state + show main menu ──────────────
     if (user.setupStep) await setUserSetupStep(tgId, null);
+
+    // If user is stuck in an active chat, end it gracefully before resetting
+    if (user.isInChat) {
+      const session = await getActiveSession(tgId);
+      if (session) {
+        const result = await endChatSession(session.id, tgId);
+        if (result) {
+          const partnerId = result.user1Id === tgId ? result.user2Id : result.user1Id;
+          await bot.api
+            .sendMessage(partnerId, t(lang).chatEndedByPartner, { reply_markup: mainMenuKeyboard(lang) })
+            .catch(() => {});
+        }
+      }
+    }
+
     await processReferralReward(tgId);
     if (referralCode) await ctx.reply(t(lang).referralWelcome(user.firstName ?? "کاربر"));
     await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });

@@ -213,6 +213,12 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
   });
 
   // ─── Forward messages during 1-on-1 chat ─────────────────────────────────────
+  // Button/command texts that must NEVER be forwarded — let hears() handlers catch them.
+  // This guards against the edge case where the user's visible keyboard diverges from
+  // their isInChat state (e.g. after /start resets the keyboard mid-session).
+  const SKIP_FORWARD_RE =
+    /^(🔴|🚨|🚫|❌|🔙|💰|❓|⚙️|🎁|🌊|🍾|✉️|📡|👧|👦|🎲|🌈|🇮🇷|🇬🇧|🚪|🔗 اتصال|🔗 Connect|👥|🆕|🔗 لینک|🔗 My Anon|🔗 زنجیر)/u;
+
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -229,6 +235,9 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
 
     // Safety check on text
     if (ctx.message.text) {
+      // Do NOT forward keyboard button texts — pass to the proper hears() handler
+      if (SKIP_FORWARD_RE.test(ctx.message.text)) return next();
+
       const lang = (user.language as "fa" | "en") ?? "fa";
       const isBad = await containsBadWord(ctx.message.text);
       if (isBad) {

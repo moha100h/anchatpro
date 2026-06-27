@@ -65,7 +65,8 @@ export function chatControlKeyboard(lang: Lang) {
 export function groupControlKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
-    .text(i.leaveGroup)
+    .text(i.leaveGroup).row()
+    .text(i.groupLeaveRemoveBtn)
     .resized()
     .persistent();
 }
@@ -78,7 +79,8 @@ export function groupCreatorKeyboard(lang: Lang) {
     .text(i.groupAdminPromoteBtn).row()
     .text(i.groupExpandBtn).row()
     .text(i.groupInviteLinkBtn).row()
-    .text(i.leaveGroup)
+    .text(i.leaveGroup).row()
+    .text(i.groupLeaveRemoveBtn)
     .resized()
     .persistent();
 }
@@ -88,7 +90,8 @@ export function groupAdminKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
     .text(i.manageMembers).row()
-    .text(i.leaveGroup)
+    .text(i.leaveGroup).row()
+    .text(i.groupLeaveRemoveBtn)
     .resized()
     .persistent();
 }

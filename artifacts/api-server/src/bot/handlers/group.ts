@@ -212,11 +212,10 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
       if (g.status !== "ended") {
-        // Active group: enter button + invite link URL button
+        // Active group: enter button + invite link callback button
         kb.text(`🟢 ${name} — ${g.activeMemberCount}/${g.maxMembers} 👥`, `group:enter:${g.id}`).row();
         if (g.inviteToken) {
-          const inviteUrl = `https://t.me/${BOT_USERNAME}?start=g_${g.inviteToken}`;
-          kb.url(`🔗 ${lang === "fa" ? "لینک دعوت گروه" : "Group Invite Link"}`, inviteUrl).row();
+          kb.text(`🔗 ${lang === "fa" ? "لینک دعوت گروه" : "Group Invite Link"}`, `group:showlink:${g.id}`).row();
         }
       } else {
         // Ended group: info + dismiss button
@@ -255,9 +254,9 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
 
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
-      // Named groups are always active — user can always enter regardless of DB status
       const roleIcon = g.isAdmin ? "⭐ " : "";
       kb.text(`🟢 ${roleIcon}${name} — ${g.memberCount}/${g.maxMembers} 👥`, `group:enter:${g.id}`).row();
+      kb.text(`🚪🗑️ ${lang === "fa" ? "خروج و حذف" : "Leave & Remove"}: ${name}`, `group:leaverm:${g.id}`).row();
     }
     if (slots.maxJoined < 10) {
       const expandCostStr = await getSetting("group_slot_expand_cost");
@@ -785,6 +784,112 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const lang = (user?.language as "fa" | "en") ?? "fa";
     await ctx.editMessageText(t(lang).cancelledAction);
     await ctx.answerCallbackQuery();
+  });
+
+  // ─── Show invite link as text (callback from "My Created Groups" list) ───────
+  bot.callbackQuery(/^group:showlink:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const groupId = parseInt(ctx.match[1]);
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+
+    const [groupName, inviteToken] = await Promise.all([
+      getGroupName(groupId),
+      getGroupInviteToken(groupId),
+    ]);
+
+    if (!inviteToken) {
+      await ctx.reply(lang === "fa" ? "❌ لینک یافت نشد." : "❌ Link not found.");
+      return;
+    }
+
+    const name = groupName ?? (lang === "fa" ? "بدون نام" : "Unnamed");
+    const link = `https://t.me/${BOT_USERNAME}?start=g_${inviteToken}`;
+    const msg = lang === "fa"
+      ? `🔗 **لینک دعوت گروه ${name}**\n\n\`${link}\``
+      : `🔗 **Group Invite Link for ${name}**\n\n\`${link}\``;
+    await ctx.reply(msg, { parse_mode: "Markdown" });
+  });
+
+  // ─── Leave & Remove from joined list (from joined list inline button) ────────
+  bot.callbackQuery(/^group:leaverm:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const groupId = parseInt(ctx.match[1]);
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    const kb = new InlineKeyboard()
+      .text(t(lang).confirm, `group:leaverm:${groupId}:confirm`)
+      .text(t(lang).cancel,  `group:leaverm:${groupId}:cancel`);
+    await ctx.reply(t(lang).groupLeaveRemoveConfirm, { reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^group:leaverm:(\d+):confirm$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const groupId = parseInt(ctx.match[1]);
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    // If the user is currently in this group, leave it first
+    const currentGroupId = await getUserGroup(tgId);
+    let myAlias = "?";
+    let leaveResult: Awaited<ReturnType<typeof leaveGroup>> = null;
+    if (currentGroupId === groupId) {
+      myAlias = await generateGroupUserId(tgId, groupId);
+      leaveResult = await leaveGroup(tgId);
+    }
+
+    // Always remove from their list
+    await dismissGroupFromList(tgId, groupId);
+
+    await ctx.editMessageText(t(lang).groupLeaveRemoveOk).catch(() => {});
+    await ctx.reply(t(lang).groupLeaveRemoveOk, { reply_markup: mainMenuKeyboard(lang) });
+
+    // Notify remaining members
+    if (leaveResult) {
+      const members = await getGroupMembers(leaveResult.groupId);
+      if (leaveResult.groupActuallyEnded) {
+        for (const memberId of members) {
+          const mUser = await getUserByTelegramId(memberId);
+          const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+          await bot.api.sendMessage(memberId, t(mLang).groupEnded, { reply_markup: mainMenuKeyboard(mLang) }).catch(() => {});
+        }
+      } else {
+        for (const memberId of members) {
+          const mUser = await getUserByTelegramId(memberId);
+          const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+          await bot.api.sendMessage(memberId, t(mLang).memberLeft(myAlias, leaveResult.remaining)).catch(() => {});
+        }
+      }
+    }
+  });
+
+  bot.callbackQuery(/^group:leaverm:(\d+):cancel$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("❌").catch(() => {});
+  });
+
+  // ─── Leave & Remove from group control keyboard (while inside a group) ────────
+  bot.hears([/^🚪🗑️ خروج/, /^🚪🗑️ Leave & Remove/], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const groupId = await getUserGroup(tgId);
+    if (!groupId) {
+      await ctx.reply(t(lang).notInChat, { reply_markup: mainMenuKeyboard(lang) });
+      return;
+    }
+
+    const kb = new InlineKeyboard()
+      .text(t(lang).confirm, `group:leaverm:${groupId}:confirm`)
+      .text(t(lang).cancel,  `group:leaverm:${groupId}:cancel`);
+    await ctx.reply(t(lang).groupLeaveRemoveConfirm, { reply_markup: kb });
   });
 
   // ─── Leave group ─────────────────────────────────────────────────────────────

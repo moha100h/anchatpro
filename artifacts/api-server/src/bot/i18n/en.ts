@@ -23,7 +23,7 @@ export const en = {
   menuCoins: "💰 My Coins",
   menuHelp: "📋 Help & Rules",
   menuSettings: "⚙️ Settings",
-  menuReferral: "🎁 Invite Friends",
+  menuReferral: "🎁 Invite Friends & Earn Coins",
   menuMagic: "🔮 Strangers Like Us",
 
   // ─── Magic sub-menu button labels ────────────────────────────────────────────
@@ -209,22 +209,40 @@ export const en = {
   paymentMethodDisabled: "⚠️ This payment method is currently disabled.",
 
   // ─── Referral ────────────────────────────────────────────────────────────────
-  referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
-    `🎁 **Referral Program**\n\n` +
-    `Your referral code: \`${code}\`\n` +
-    `Referral link:\n${link}\n\n` +
+  referralInfoTitle: "🎁 **Invite Friends & Earn Free Coins**\n\nShare your unique link with friends and earn coins for every signup!\n\n👤 Get your invite link ready to share instantly.\n📊 Track your referral stats anytime.",
+  inviteBtnGetLink: "🔗 Invite Link + Share Banner",
+  inviteBtnStats: "📊 My Detailed Referral Stats",
+  referralStats: (total: number, successful: number, pending: number, coins: number, inviterReward: number, inviteeReward: number) =>
+    `📊 **My Referral Stats**\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
     `👥 Total referrals: **${total}**\n` +
-    `💰 Coins earned: **${coins}** coins\n\n` +
-    `🎉 For every successful referral:\n` +
+    `✅ Successful (setup complete): **${successful}**\n` +
+    `⏳ Pending (setup incomplete): **${pending}**\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 Total coins earned: **${coins} coins**\n\n` +
+    `🎁 Reward per successful referral:\n` +
     `• You: **${inviterReward} coins**\n` +
     (inviteeReward > 0 ? `• Your friend: **${inviteeReward} welcome coins**\n` : "") +
-    `\nShare your link with friends!`,
-  referralInfoTitle: "🎁 **Invite Friends**",
-  inviteBtnGetLink: "🔗 Get My Referral Link",
-  inviteBtnStats: "📊 My Referral Stats",
-  referralReward: (n: number) => `🎁 Congratulations! You received ${n} coins from your referral.`,
-  referralInviteeReward: (n: number) => `🎁 Welcome! ${n} bonus coins have been added to your account.`,
-  referralWelcome: (name: string) => `👋 Hello! You were invited by **${name}**.`,
+    `\n_Only users who complete setup count as successful referrals._`,
+  referralLinkMsg: (link: string) =>
+    `🔗 **Your personal invite link:**\n\n\`${link}\`\n\n` +
+    `Forward the banner below 👇`,
+  referralBanner: (link: string, inviterReward: number, inviteeReward: number) =>
+    `🌟 **Anonymous Chat Bot — @anymschat\\_bot**\n\n` +
+    `Completely anonymous:\n` +
+    `💬 Chat with strangers\n` +
+    `📩 Send & receive anonymous messages\n` +
+    `🔮 Magic features: Bottle, Chain, Future Letter & Frequency\n\n` +
+    `🎁 **Sign up via this link and get ${inviteeReward > 0 ? `${inviteeReward} free coins` : "free coins"}!**\n\n` +
+    `👉 ${link}`,
+  referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
+    `🎁 **Invite Friends**\n\nCode: \`${code}\`\n\n` +
+    `👥 Referrals: **${total}**  |  💰 Coins: **${coins}**\n\n` +
+    `🎉 Per referral: You **${inviterReward} coins**` +
+    (inviteeReward > 0 ? ` + Friend **${inviteeReward} coins**` : ""),
+  referralReward: (n: number) => `🎁 Congratulations! You received **${n} coins** from your referral!`,
+  referralInviteeReward: (n: number) => `🎁 Welcome! **${n} bonus coins** have been added to your account.`,
+  referralWelcome: (name: string) => `👋 Hello! You joined via **${name}**'s invite.\n\nComplete your setup to unlock coins for both of you! 🎁`,
 
   // ─── Settings ────────────────────────────────────────────────────────────────
   settingsMenu: "⚙️ Profile Settings:",

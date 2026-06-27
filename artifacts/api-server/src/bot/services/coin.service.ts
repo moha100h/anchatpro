@@ -86,8 +86,19 @@ export async function processReferralReward(
   return { referrerId: referral.referrerId, inviterCoins, inviteeCoins };
 }
 
-export async function getReferralStats(telegramId: number): Promise<{ total: number; coinsEarned: number }> {
+export async function getReferralStats(telegramId: number): Promise<{
+  total: number;
+  successful: number;
+  pending: number;
+  coinsEarned: number;
+}> {
   const referrals = await db.select().from(referralsTable).where(eq(referralsTable.referrerId, telegramId));
+  const successful = referrals.filter((r) => (r.rewarded ?? 0) > 0).length;
   const coinsEarned = referrals.reduce((s, r) => s + (r.rewarded ?? 0), 0);
-  return { total: referrals.length, coinsEarned };
+  return {
+    total: referrals.length,
+    successful,
+    pending: referrals.length - successful,
+    coinsEarned,
+  };
 }

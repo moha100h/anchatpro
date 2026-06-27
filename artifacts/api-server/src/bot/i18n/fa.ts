@@ -23,7 +23,7 @@ export const fa = {
   menuCoins: "💰 سکه‌های من",
   menuHelp: "📋 راهنما و قوانین",
   menuSettings: "⚙️ تنظیمات",
-  menuReferral: "🎁 دعوت دوستان",
+  menuReferral: "🎁 دعوت دوستان و سکه رایگان",
   menuMagic: "🔮 ناشناس از ما بهترون",
 
   // ─── Magic sub-menu button labels ────────────────────────────────────────────
@@ -209,22 +209,40 @@ export const fa = {
   paymentMethodDisabled: "⚠️ این روش پرداخت در حال حاضر غیرفعال است.",
 
   // ─── Referral ────────────────────────────────────────────────────────────────
-  referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
-    `🎁 **برنامه دعوت دوستان**\n\n` +
-    `کد دعوت شما: \`${code}\`\n` +
-    `لینک دعوت:\n${link}\n\n` +
-    `👥 تعداد دعوت‌شده‌ها: **${total}** نفر\n` +
-    `💰 سکه‌های کسب‌شده: **${coins}** سکه\n\n` +
-    `🎉 به ازای هر دعوت موفق:\n` +
+  referralInfoTitle: "🎁 **دعوت دوستان و سکه رایگان**\n\nبا لینک اختصاصی خود دوستانت را دعوت کن و سکه رایگان بگیر!\n\n👤 لینک دعوتم را دریافت کن تا آماره ارسال فوری برات باشه.\n📊 آمار دعوت‌هایت را هر وقت خواستی چک کن.",
+  inviteBtnGetLink: "🔗 لینک دعوت + بنر ارسال",
+  inviteBtnStats: "📊 آمار دقیق دعوت‌هایم",
+  referralStats: (total: number, successful: number, pending: number, coins: number, inviterReward: number, inviteeReward: number) =>
+    `📊 **آمار دعوت‌هایم**\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `👥 کل دعوت‌ها: **${total}** نفر\n` +
+    `✅ دعوت موفق (ثبت‌نام کامل): **${successful}** نفر\n` +
+    `⏳ در انتظار تکمیل ثبت‌نام: **${pending}** نفر\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 سکه‌های کسب‌شده: **${coins} سکه**\n\n` +
+    `🎁 پاداش هر دعوت موفق:\n` +
     `• شما: **${inviterReward} سکه**\n` +
-    (inviteeReward > 0 ? `• دوست شما: **${inviteeReward} سکه هدیه ثبت‌نام**\n` : "") +
-    `\nلینک را برای دوستانتان بفرستید!`,
-  referralInfoTitle: "🎁 **دعوت دوستان**",
-  inviteBtnGetLink: "🔗 دریافت لینک دعوتم",
-  inviteBtnStats: "📊 آمار دعوت‌های من",
-  referralReward: (n: number) => `🎁 تبریک! ${n} سکه از دعوت دوست شما دریافت کردید.`,
-  referralInviteeReward: (n: number) => `🎁 خوش آمدید! ${n} سکه هدیه ثبت‌نام به حساب شما اضافه شد.`,
-  referralWelcome: (name: string) => `👋 سلام! شما توسط **${name}** دعوت شده‌اید.`,
+    (inviteeReward > 0 ? `• دوست شما: **${inviteeReward} سکه هدیه**\n` : "") +
+    `\n_فقط کاربرانی که ثبت‌نام را کامل کنند پاداش می‌دهند._`,
+  referralLinkMsg: (link: string) =>
+    `🔗 **لینک دعوت اختصاصی شما:**\n\n\`${link}\`\n\n` +
+    `بنر زیر را فوروارد کن 👇`,
+  referralBanner: (link: string, inviterReward: number, inviteeReward: number) =>
+    `🌟 **ربات چت ناشناس — @anymschat\\_bot**\n\n` +
+    `با این ربات به‌صورت کاملاً ناشناس:\n` +
+    `💬 با غریبه‌ها چت کن\n` +
+    `📩 پیام ناشناس بفرست و دریافت کن\n` +
+    `🔮 ویژگی‌های جادویی: بطری، زنجیر، نامه آینده و فرکانس\n\n` +
+    `🎁 **با این لینک ثبت‌نام کن و ${inviteeReward > 0 ? `${inviteeReward} سکه رایگان` : "سکه رایگان"} بگیر!**\n\n` +
+    `👉 ${link}`,
+  referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
+    `🎁 **برنامه دعوت دوستان**\n\nکد دعوت: \`${code}\`\n\n` +
+    `👥 دعوت‌شده‌ها: **${total}** نفر  |  💰 سکه: **${coins}**\n\n` +
+    `🎉 پاداش هر دعوت: شما **${inviterReward} سکه**` +
+    (inviteeReward > 0 ? ` + دوستتان **${inviteeReward} سکه**` : ""),
+  referralReward: (n: number) => `🎁 تبریک! **${n} سکه** از دعوت دوست شما دریافت کردید!`,
+  referralInviteeReward: (n: number) => `🎁 خوش آمدید! **${n} سکه** هدیه ثبت‌نام به حساب شما اضافه شد.`,
+  referralWelcome: (name: string) => `👋 سلام! از طریق دعوت **${name}** به ما پیوستید.\n\nثبت‌نام را کامل کنید تا هر دو سکه دریافت کنید! 🎁`,
 
   // ─── Settings ────────────────────────────────────────────────────────────────
   settingsMenu: "⚙️ تنظیمات پروفایل:",

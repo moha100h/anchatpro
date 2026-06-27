@@ -317,44 +317,53 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     });
   });
 
-  // ─── Get referral link ────────────────────────────────────────────────────
-  bot.hears(["🔗 دریافت لینک دعوتم", "🔗 Get My Referral Link"], async (ctx) => {
+  // ─── Get referral link + shareable banner ────────────────────────────────
+  bot.hears(["🔗 لینک دعوت + بنر ارسال", "🔗 Invite Link + Share Banner"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const botUsername = bot.botInfo?.username ?? process.env["BOT_USERNAME"] ?? "bot";
-    const link = `https://t.me/${botUsername}?start=r_${user.referralCode}`;
-    const stats = await getReferralStats(tgId);
+    // Use botInfo username — always accurate after bot init
+    const botUsername = bot.botInfo?.username ?? "anymschat_bot";
+    // Use inv prefix (no underscore) to avoid Markdown parse issues
+    const link = `https://t.me/${botUsername}?start=inv${user.referralCode}`;
 
-    const inviterRewardStr = await getSetting("referral_reward_inviter");
-    const inviteeRewardStr = await getSetting("referral_reward_invitee");
-    const inviterReward = inviterRewardStr ? parseInt(inviterRewardStr, 10) : 5;
-    const inviteeReward = inviteeRewardStr ? parseInt(inviteeRewardStr, 10) : 0;
+    const [inviterRewardStr, inviteeRewardStr] = await Promise.all([
+      getSetting("referral_reward_inviter"),
+      getSetting("referral_reward_invitee"),
+    ]);
+    const inviterReward = parseInt(inviterRewardStr ?? "10", 10);
+    const inviteeReward = parseInt(inviteeRewardStr ?? "5", 10);
 
-    await ctx.reply(
-      t(lang).referralInfo(user.referralCode, link, stats.total, stats.coinsEarned, inviterReward, inviteeReward),
-      { parse_mode: "Markdown" }
-    );
+    // Message 1: link info (copyable)
+    await ctx.reply(t(lang).referralLinkMsg(link), { parse_mode: "Markdown" });
+
+    // Message 2: forward-able promotional banner
+    await ctx.reply(t(lang).referralBanner(link, inviterReward, inviteeReward), {
+      parse_mode: "Markdown",
+    });
   });
 
-  // ─── Referral stats ───────────────────────────────────────────────────────
-  bot.hears(["📊 آمار دعوت‌هایم", "📊 My Referral Stats"], async (ctx) => {
+  // ─── Referral stats (detailed) ────────────────────────────────────────────
+  bot.hears(["📊 آمار دقیق دعوت‌هایم", "📊 My Detailed Referral Stats"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const stats = await getReferralStats(tgId);
-    const inviterRewardStr = await getSetting("referral_reward_inviter");
-    const inviterReward = inviterRewardStr ? parseInt(inviterRewardStr, 10) : 5;
+    const [stats, inviterRewardStr, inviteeRewardStr] = await Promise.all([
+      getReferralStats(tgId),
+      getSetting("referral_reward_inviter"),
+      getSetting("referral_reward_invitee"),
+    ]);
+    const inviterReward = parseInt(inviterRewardStr ?? "10", 10);
+    const inviteeReward = parseInt(inviteeRewardStr ?? "5", 10);
 
-    const msg = lang === "fa"
-      ? `📊 **آمار دعوت‌هایم**\n\n👥 تعداد دعوت موفق: **${stats.total}**\n💰 سکه‌های کسب‌شده: **${stats.coinsEarned}**\n🎁 پاداش هر دعوت: **${inviterReward} سکه**`
-      : `📊 **My Referral Stats**\n\n👥 Successful referrals: **${stats.total}**\n💰 Coins earned: **${stats.coinsEarned}**\n🎁 Reward per referral: **${inviterReward} coins**`;
-
-    await ctx.reply(msg, { parse_mode: "Markdown" });
+    await ctx.reply(
+      t(lang).referralStats(stats.total, stats.successful, stats.pending, stats.coinsEarned, inviterReward, inviteeReward),
+      { parse_mode: "Markdown" }
+    );
   });
 }
 

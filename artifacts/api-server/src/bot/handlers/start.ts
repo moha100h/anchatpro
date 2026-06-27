@@ -211,10 +211,11 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       await ctx.reply(t(lang).timedLinkInvalid);
     }
 
-    // ── 2. Extract referral code (supports ref_ and r_ formats) ────────────
+    // ── 2. Extract referral code (supports inv / ref_ / r_ formats) ─────────
     let referralCode: string | undefined;
-    if (arg.startsWith("ref_")) referralCode = arg.slice(4);
-    else if (arg.startsWith("r_")) referralCode = arg.slice(2);
+    if (arg.startsWith("inv"))      referralCode = arg.slice(3);
+    else if (arg.startsWith("ref_")) referralCode = arg.slice(4);
+    else if (arg.startsWith("r_"))   referralCode = arg.slice(2);
 
     // ── 3. Get or create user ───────────────────────────────────────────────
     const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username, referralCode);

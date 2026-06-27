@@ -39,7 +39,7 @@ async function loadSubAdmins(): Promise<void> {
   }
 }
 
-function isAdmin(userId: number): boolean {
+export function isAdmin(userId: number): boolean {
   return SUPER_ADMIN_IDS.has(userId) || SUB_ADMIN_IDS.has(userId);
 }
 

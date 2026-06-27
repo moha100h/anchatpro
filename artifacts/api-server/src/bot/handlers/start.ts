@@ -8,11 +8,19 @@ import {
   getUserByTelegramId,
   getUserByAnonToken,
 } from "../services/user.service.js";
-import { processReferralReward } from "../services/coin.service.js";
+import { processReferralReward, deductCoins } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
 import { getActiveSession, endChatSession } from "../services/matching.service.js";
+import {
+  getGroupByInviteToken,
+  joinGroupByInvite,
+  getGroupMembers,
+  generateGroupUserId,
+  isUserBannedFromGroup,
+} from "../services/group.service.js";
+import { eq as eqDrizzle } from "drizzle-orm";
 import { t } from "../i18n/index.js";
-import { languageKeyboard, genderKeyboard, mainMenuKeyboard } from "../keyboards/main.js";
+import { languageKeyboard, genderKeyboard, mainMenuKeyboard, groupControlKeyboard } from "../keyboards/main.js";
 
 // Bilingual welcome shown before language is selected
 const BILINGUAL_WELCOME =
@@ -27,7 +35,69 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     const tgId = ctx.from!.id;
     const arg = ctx.match?.trim() ?? "";
 
-    // ── 1. Handle anonymous link (a_ or anon_ prefix) ──────────────────────
+    // ── 1a. Handle group invite link (g_ prefix) ────────────────────────────
+    if (arg.startsWith("g_")) {
+      const token = arg.slice(2);
+      const group = await getGroupByInviteToken(token);
+      if (group && group.status !== "ended") {
+        const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        const lang = (user.language as "fa" | "en") ?? "fa";
+
+        if (!user.gender || !user.age) {
+          // Incomplete user → normal setup (they can rejoin after setup)
+          await setUserLanguage(tgId, "fa");
+          await setUserSetupStep(tgId, "select_language");
+          const customWelcome = await getSetting("welcome_message");
+          if (customWelcome) await ctx.reply(customWelcome);
+          await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
+          return;
+        }
+
+        if (user.isInGroup || user.isInChat) {
+          await ctx.reply(t(lang).alreadyInGroup, { reply_markup: mainMenuKeyboard(lang) });
+          return;
+        }
+
+        const isBanned = await isUserBannedFromGroup(tgId, group.id);
+        if (isBanned) {
+          await ctx.reply(t(lang).errorGeneral, { reply_markup: mainMenuKeyboard(lang) });
+          return;
+        }
+
+        if (group.memberCount >= group.maxMembers) {
+          await ctx.reply(lang === "fa" ? "⚠️ این گروه پر است." : "⚠️ This group is full.", {
+            reply_markup: mainMenuKeyboard(lang),
+          });
+          return;
+        }
+
+        const cost = group.joinCost;
+        const deduct = await deductCoins(tgId, cost, "group_cost", "Join group via invite link");
+        if (!deduct.success) {
+          await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
+          return;
+        }
+
+        const { memberCount } = await joinGroupByInvite(tgId, group.id);
+        const myAlias = await generateGroupUserId(tgId, group.id);
+
+        await ctx.reply(t(lang).groupJoined.replace("{count}", memberCount.toString()), {
+          reply_markup: groupControlKeyboard(lang),
+        });
+
+        const members = await getGroupMembers(group.id);
+        for (const memberId of members) {
+          if (memberId === tgId) continue;
+          const mUser = await getUserByTelegramId(memberId);
+          const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+          await bot.api.sendMessage(memberId, t(mLang).memberJoined(myAlias, memberCount)).catch(() => {});
+        }
+        return;
+      }
+      // Invalid/expired token → fall through to normal /start
+    }
+
+    // ── 1b. Handle anonymous link (a_ or anon_ prefix) ──────────────────────
     if (arg.startsWith("a_") || arg.startsWith("anon_")) {
       const token = arg.startsWith("a_") ? arg.slice(2) : arg.slice(5);
       const receiver = await getUserByAnonToken(token);
@@ -50,6 +120,37 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         return;
       }
       // Invalid token or self-link → fall through to normal /start
+    }
+
+    // ── 1c. Handle timed anonymous link (t_ prefix) ──────────────────────────
+    if (arg.startsWith("t_")) {
+      const token = arg.slice(2);
+      const { db, timedAnonLinksTable } = await import("@workspace/db");
+      const [timedLink] = await db
+        .select()
+        .from(timedAnonLinksTable)
+        .where(eqDrizzle(timedAnonLinksTable.token, token))
+        .limit(1);
+
+      if (timedLink && timedLink.expiresAt > new Date() && timedLink.userId !== tgId) {
+        const sender = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        if (!sender.gender || !sender.age) {
+          ctx.session.step = `pending_anon:${timedLink.userId}`;
+          await setUserLanguage(tgId, "fa");
+          await setUserSetupStep(tgId, "select_language");
+          const customWelcome = await getSetting("welcome_message");
+          if (customWelcome) await ctx.reply(customWelcome);
+          await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
+          return;
+        }
+        const lang = (sender.language as "fa" | "en") ?? "fa";
+        ctx.session.step = `anon_send:${timedLink.userId}`;
+        await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+        return;
+      }
+      // Expired / invalid → show message
+      const lang = "fa";
+      await ctx.reply(t(lang).timedLinkInvalid);
     }
 
     // ── 2. Extract referral code (supports ref_ and r_ formats) ────────────
@@ -111,7 +212,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
   // ─── Gender selection (initial setup only) ──────────────────────────────────
   // IMPORTANT: must call next() when step doesn't match so settings.ts handler fires
   bot.hears(
-    [/^(👦 مرد|👧 زن|🌈 سایر|👦 Male|👧 Female|🌈 Other)$/],
+    [/^(👦 پسر|👧 دختر|👦 مرد|👧 زن|🌈 سایر|👦 Male|👧 Female|🌈 Other)$/],
     async (ctx, next) => {
       const tgId = ctx.from!.id;
       const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -121,8 +222,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       const text = ctx.message!.text ?? "";
       const gender =
-        text.includes("مرد") || text.includes("Male") ? "male"
-        : text.includes("زن") || text.includes("Female") ? "female"
+        text.includes("پسر") || text.includes("مرد") || text.includes("Male") ? "male"
+        : text.includes("دختر") || text.includes("زن") || text.includes("Female") ? "female"
         : "other";
 
       const lang = (user?.language as "fa" | "en") ?? "fa";
@@ -167,7 +268,20 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       // Finish setup
       await setUserSetupStep(tgId, null);
-      await processReferralReward(tgId);
+
+      const referralResult = await processReferralReward(tgId);
+      if (referralResult) {
+        if (referralResult.inviterCoins > 0) {
+          await bot.api.sendMessage(
+            referralResult.referrerId,
+            t((await getUserByTelegramId(referralResult.referrerId))?.language as "fa" | "en" ?? "fa")
+              .referralReward(referralResult.inviterCoins)
+          ).catch(() => {});
+        }
+        if (referralResult.inviteeCoins > 0) {
+          await ctx.reply(t(lang).referralInviteeReward(referralResult.inviteeCoins), { parse_mode: "Markdown" });
+        }
+      }
 
       // Check for pending anon link (user clicked anon link before completing setup)
       const pendingStep = ctx.session.step;

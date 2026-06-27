@@ -217,7 +217,7 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
   // This guards against the edge case where the user's visible keyboard diverges from
   // their isInChat state (e.g. after /start resets the keyboard mid-session).
   const SKIP_FORWARD_RE =
-    /^(🔴|🚨|🚫|❌|🔙|💰|❓|⚙️|🎁|🌊|🍾|✉️|📡|👧|👦|🎲|🌈|🇮🇷|🇬🇧|🚪|📖|🔗 اتصال|🔗 Connect|👥|🆕|🔗 لینک|🔗 My Anon|🔗 زنجیر)/u;
+    /^(🔴|🚨|🚫|❌|🔙|💰|❓|⚙️|🎁|🌊|🔮|🍾|✉️|📡|👧|👦|🎲|🌈|🇮🇷|🇬🇧|🚪|📖|📋|🛒|🔗|👥|🆕|⭐|⬆️|📊)/u;
 
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;

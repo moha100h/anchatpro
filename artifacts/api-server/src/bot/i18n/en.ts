@@ -19,10 +19,10 @@ export const en = {
   menuCreateGroup: "🆕 Create Anonymous Group",
   menuMyLink: "🔗 My Anonymous Link",
   menuCoins: "💰 My Coins",
-  menuHelp: "❓ Help",
+  menuHelp: "📋 Help & Rules",
   menuSettings: "⚙️ Settings",
   menuReferral: "🎁 Invite Friends",
-  menuMagic: "🌊 اقیانوس احساس",
+  menuMagic: "🔮 Mystery World",
 
   // ─── Magic sub-menu button labels ────────────────────────────────────────────
   magicBtnBottle:  "🍾 Message in a Bottle",
@@ -30,7 +30,7 @@ export const en = {
   magicBtnLetter:  "✉️ Letter to the Future",
   magicBtnFreq:    "📡 Anonymous Frequency",
   magicBtnHelp:    "📖 Help Guide",
-  magicSubTitle:   "🌊 Ocean of Emotions\n\nChoose a feature:",
+  magicSubTitle:   "🔮 Mystery World\n\nChoose a feature:",
 
   // ─── Matching ────────────────────────────────────────────────────────────────
   selectGenderPref: "Which gender would you like to talk to?",
@@ -185,14 +185,21 @@ export const en = {
   paymentMethodDisabled: "⚠️ This payment method is currently disabled.",
 
   // ─── Referral ────────────────────────────────────────────────────────────────
-  referralInfo: (code: string, link: string, total: number, coins: number) =>
+  referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `🎁 **Referral Program**\n\n` +
     `Your referral code: \`${code}\`\n` +
     `Referral link:\n${link}\n\n` +
     `👥 Total referrals: **${total}**\n` +
     `💰 Coins earned: **${coins}** coins\n\n` +
-    `🎉 Earn **5 coins** for every successful referral!`,
+    `🎉 For every successful referral:\n` +
+    `• You: **${inviterReward} coins**\n` +
+    (inviteeReward > 0 ? `• Your friend: **${inviteeReward} welcome coins**\n` : "") +
+    `\nShare your link with friends!`,
+  referralInfoTitle: "🎁 **Invite Friends**",
+  inviteBtnGetLink: "🔗 Get My Referral Link",
+  inviteBtnStats: "📊 My Referral Stats",
   referralReward: (n: number) => `🎁 Congratulations! You received ${n} coins from your referral.`,
+  referralInviteeReward: (n: number) => `🎁 Welcome! ${n} bonus coins have been added to your account.`,
   referralWelcome: (name: string) => `👋 Hello! You were invited by **${name}**.`,
 
   // ─── Settings ────────────────────────────────────────────────────────────────
@@ -217,32 +224,77 @@ export const en = {
   toggleForceJoin: "🔄 Toggle Force Join",
   setForceJoinChannel: "📢 Set Channel",
 
-  // ─── Help ─────────────────────────────────────────────────────────────────────
-  helpText:
-    `❓ **Bot Help**\n\n` +
-    `🔗 **Anonymous Connect:**\n` +
-    `Click "Connect Anonymously" to chat with a random anonymous user.\n` +
-    `Specific gender = 1 coin | Anyone = free\n\n` +
-    `👥 **Anonymous Group:**\n` +
-    `Join groups of 3-10 people. Cost: 1 coin\n\n` +
-    `🆕 **Create Group:**\n` +
-    `Create your own group and manage members.\n\n` +
-    `🔗 **Anonymous Link:**\n` +
-    `Your unique link for receiving anonymous messages from others.\n\n` +
-    `💰 **Coins:**\n` +
+  // ─── Help sections ────────────────────────────────────────────────────────────
+  helpMenuTitle: "📋 **Help & Rules**\n\nChoose a section:",
+  helpBtnConnect: "🔗 Connect Guide",
+  helpBtnGroup: "👥 Group Guide",
+  helpBtnLink: "🔗 Anonymous Link Guide",
+  helpBtnCoins: "💰 Coins Guide",
+  helpBtnRules: "🚫 Rules & Regulations",
+  helpBtnMagic: "🔮 Mystery World Guide",
+  helpBtnSupport: "💬 Support",
+  helpSectionConnect:
+    `🔗 **Anonymous Connect**\n\n` +
+    `Click "🔗 Connect Anonymously" to enter the queue.\n` +
+    `You'll be connected as soon as a suitable user is found.\n\n` +
+    `💡 Specific gender: **1 coin** | Anyone: **free**\n\n` +
+    `After connecting you can:\n` +
+    `• Send text, photos, videos, voice and stickers\n` +
+    `• Report or block the user\n` +
+    `• End the chat at any time`,
+  helpSectionGroup:
+    `👥 **Anonymous Group**\n\n` +
+    `Join multi-person anonymous groups!\n\n` +
+    `📌 **Public Group:** **1 coin** — up to 10 members\n` +
+    `📌 **Create Private Group:** costs more\n` +
+    `  • Custom name + invite link\n` +
+    `  • Manage members (kick / ban)\n` +
+    `  • Promote up to 2 admins\n` +
+    `  • Expand capacity to 25 members\n\n` +
+    `All members remain anonymous via aliases (#001, etc.).`,
+  helpSectionLink:
+    `🔗 **Anonymous Link**\n\n` +
+    `Your unique link for receiving anonymous messages from anyone!\n\n` +
+    `📌 **Permanent Link:** active forever\n` +
+    `📌 **Timed Link:** set your own expiry\n` +
+    `  • 1h / 6h / 24h / 7 days\n` +
+    `  • Link deactivates after expiry\n\n` +
+    `You can reply or block senders from each message.`,
+  helpSectionCoins:
+    `💰 **Coins**\n\n` +
+    `Coins are the bot's internal currency.\n\n` +
+    `📋 **Costs:**\n` +
     `• Connect to specific gender: 1 coin\n` +
     `• Join group: 1 coin\n` +
     `• Create group: 3 coins (default)\n` +
-    `• Buy coins: from 💰 My Coins menu\n` +
-    `• Earn free coins by inviting friends\n\n` +
-    `🎁 **Invite Friends:**\n` +
-    `Earn 5 coins for every successful referral!\n\n` +
-    `🚫 **Rules:**\n` +
-    `• No inappropriate content, spam or harassment\n` +
-    `• Violations = warning, restriction, or ban\n\n` +
-    `🛡️ **Safety:**\n` +
-    `• Your identity is fully protected\n` +
-    `• You can report or block users`,
+    `• Mystery World features: varies\n\n` +
+    `💡 **Earn free coins:**\n` +
+    `• Invite friends → bonus coins\n\n` +
+    `🛒 **Buy coins:** from 💰 My Coins menu`,
+  helpSectionRules:
+    `🚫 **Rules & Regulations**\n\n` +
+    `❌ Prohibited:\n` +
+    `• Inappropriate, offensive or sexual content\n` +
+    `• Advertising and spam links\n` +
+    `• Others' personal information\n` +
+    `• Harassment and abuse\n` +
+    `• Fraud\n\n` +
+    `⚠️ Violations result in warnings, restrictions or bans.\n\n` +
+    `🛡️ Your identity is fully protected at all times.\n` +
+    `You can report or block problematic users.`,
+  helpSectionMagic:
+    `🔮 **Mystery World**\n\n` +
+    `Four unique experiences:\n\n` +
+    `🍾 **Message in a Bottle** — release a message, maybe someone finds it\n` +
+    `🔗 **Emotion Chain** — 10 anonymous people build a story together\n` +
+    `✉️ **Letter to the Future** — write a letter to yourself in the future\n` +
+    `📡 **Anonymous Frequency** — connect with someone feeling the same\n\n` +
+    `For feature guides, go to 🔮 Mystery World → 📖 Help Guide.`,
+  helpSupportText: (link: string) =>
+    `💬 **Contact Support**\n\n` +
+    `For any questions, issues or feedback, reach us here:\n\n` +
+    `${link}`,
+  helpSupportNotSet: "⚠️ Support link has not been configured by the admin yet.",
 
   // ─── Safety ──────────────────────────────────────────────────────────────────
   warningIssued: (n: number) =>
@@ -330,9 +382,9 @@ export const en = {
   rejectPayment: "❌ Reject",
   paymentAlreadyProcessed: "⚠️ This payment has already been processed.",
 
-  // ─── 🌊 Ocean of Emotions ─────────────────────────────────────────────────────
+  // ─── 🔮 Mystery World ────────────────────────────────────────────────────────
   magicMenu: (cfg: { bottleCost: number; chainCost: number; letterCost: number; freqCost: number }) =>
-    `🌊 **Ocean of Emotions**\n\n` +
+    `🔮 **Mystery World**\n\n` +
     `Four unique experiences found nowhere else:\n\n` +
     `🍾 *Message in a Bottle* — ${cfg.bottleCost} coins\n` +
     `Release your message into the ocean. Maybe someone finds it...\n\n` +
@@ -435,12 +487,78 @@ export const en = {
   magicLimitReached: (limit: number) => `⏳ You've used this feature ${limit} times today. Come back tomorrow!`,
   magicNotEnoughCoins: (cost: number) => `💰 You need ${cost} coins for this feature.\n\nBuy coins from the menu!`,
   adminMagicPanel: (cfgs: Record<string, { enabled: boolean; cost: number; daily: number }>) =>
-    `🌊 **Ocean of Emotions Settings**\n\n` +
+    `🔮 **Mystery World Settings**\n\n` +
     Object.entries(cfgs).map(([k, v]) =>
       `${v.enabled ? "✅" : "❌"} **${k}** — Cost: ${v.cost} coins | Daily: ${v.daily}`
     ).join("\n"),
   adminMagicFeaturePanel: (name: string, enabled: boolean, cost: number, daily: number) =>
     `⚙️ **${name} Settings**\n\nStatus: ${enabled ? "✅ Enabled" : "❌ Disabled"}\nCost: ${cost} coins\nDaily limit: ${daily} times`,
+
+  // ─── Coins sub-menu ──────────────────────────────────────────────────────────
+  coinsBtnHistory: "📋 My Transactions",
+  coinsBtnBuy: "🛒 Buy Coins",
+
+  // ─── Magic help sub-menu ─────────────────────────────────────────────────────
+  magicHelpBtnBottle: "🍾 Bottle Guide",
+  magicHelpBtnChain: "🔗 Chain Guide",
+  magicHelpBtnLetter: "✉️ Letter Guide",
+  magicHelpBtnFreq: "📡 Frequency Guide",
+  magicHelpMenuTitle: "📖 **Mystery World Help**\n\nChoose a feature for its guide:",
+
+  // ─── Group sub-menu & management ─────────────────────────────────────────────
+  groupSubMenuJoin: "👥 Join Anonymous Group",
+  groupSubMenuMine: "📋 My Groups",
+  myGroupsEmpty: "📋 You haven't created any groups yet.\n\nUse «🆕 Create Anonymous Group» to create one.",
+  myGroupsTitle: "📋 **My Groups:**\n\n",
+  groupNoName: "No name",
+  groupInviteLinkBtn: "🔗 Group Invite Link",
+  groupAdminPromoteBtn: "⭐ Promote to Admin",
+  groupExpandBtn: "⬆️ Expand Capacity to 25",
+  groupAdminPromoteCost: (cost: number) =>
+    `⭐ **Promote Member to Group Admin**\n\n` +
+    `Admins can kick or ban members.\n` +
+    `Maximum 2 admins per group.\n\n` +
+    `💰 Cost: **${cost} coins**\n\nConfirm?`,
+  groupExpandCost: (cost: number, newMax: number) =>
+    `⬆️ **Expand Group Capacity**\n\n` +
+    `Group capacity will increase from 10 to **${newMax}** members.\n\n` +
+    `💰 Cost: **${cost} coins**\n\nConfirm?`,
+  promotedToAdmin: (alias: string) => `⭐ User ${alias} has been promoted to group admin.`,
+  youWerePromotedAdmin: "⭐ You have been promoted to admin of this group!",
+  groupExpanded: (max: number) => `✅ Group capacity expanded to **${max}** members.`,
+  groupAdminAlreadyExists: "❌ This user is already an admin.",
+  groupAdminMaxReached: "❌ Maximum 2 admins allowed per group.",
+  groupNotAdmin: "❌ You are not an admin or creator of this group.",
+  groupAlreadyMaxExpanded: "❌ This group has already been expanded to maximum capacity (25 members).",
+  createGroupAskName:
+    `📝 **Enter a name for your group:**\n\n` +
+    `• Max 30 characters\n` +
+    `• This name will be shown to all members\n\n` +
+    `Send a dot «.» to skip this step.`,
+  groupNameTooLong: "❌ Name too long. Max 30 characters.",
+  groupCreatedWithName: (name: string) =>
+    `🎉 Group **«${name}»** created!\n\nWaiting for members to join...\nYou are the group creator.`,
+  groupInfoLine: (name: string, count: number, max: number, link: string) =>
+    `📌 **${name}**\n👥 ${count}/${max} members\n🔗 ${link}\n`,
+  groupSelectForAdmin: "👥 **Select a member to promote to admin:**\n\n",
+
+  // ─── My Link sub-menu ─────────────────────────────────────────────────────────
+  myLinkBtnPermanent: "🔗 My Permanent Anonymous Link",
+  myLinkBtnTimed: "⏱️ Create Timed Link",
+  myLinkMenuTitle: "🔗 **My Anonymous Link**\n\nChoose link type:",
+
+  // ─── Timed anonymous link ─────────────────────────────────────────────────────
+  timedLinkTitle: "⏱️ **Timed Anonymous Link**\n\nHow long should this link stay active?",
+  timedLink1h: "⏱️ 1 Hour",
+  timedLink6h: "⏱️ 6 Hours",
+  timedLink24h: "⏱️ 24 Hours",
+  timedLink7d: "📅 7 Days",
+  timedLinkCreated: (link: string, expiry: string) =>
+    `⏱️ **Your Timed Anonymous Link:**\n\n${link}\n\n` +
+    `🕐 Expires: ${expiry}\n\n` +
+    `Share this link for anonymous messages until it expires.`,
+  timedLinkExpiredOwner: "⏱️ Your timed link has expired. Create a new one anytime.",
+  timedLinkInvalid: "⏱️ This link has expired or is invalid.",
 
   // ─── Errors / Misc ───────────────────────────────────────────────────────────
   errorGeneral: "❌ An error occurred. Please try again.",

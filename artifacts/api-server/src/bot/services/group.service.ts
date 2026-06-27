@@ -1,6 +1,7 @@
 import { db } from "@workspace/db";
 import { groupChatsTable, groupMembersTable, usersTable } from "@workspace/db";
-import { eq, and, isNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, ne } from "drizzle-orm";
+import { randomBytes } from "crypto";
 
 const MIN_MEMBERS = 3;
 const MAX_MEMBERS = 10;
@@ -81,7 +82,7 @@ export async function isUserBannedFromGroup(userId: number, groupId: number): Pr
 
 export async function getGroupMembersWithDetails(
   groupId: number
-): Promise<Array<{ id: number; userId: number; isCreator: boolean; alias: string }>> {
+): Promise<Array<{ id: number; userId: number; isCreator: boolean; isAdmin: boolean; alias: string }>> {
   const members = await db
     .select()
     .from(groupMembersTable)
@@ -90,18 +91,27 @@ export async function getGroupMembersWithDetails(
     id: m.id,
     userId: m.userId,
     isCreator: m.isCreator,
+    isAdmin: m.isAdmin,
     alias: `#${(idx + 1).toString().padStart(3, "0")}`,
   }));
 }
 
 // ─── Group creation (paid, by creator) ───────────────────────────────────────
 
-/** Creator pays and starts a new group. Returns groupId. */
-export async function createGroup(creatorId: number, joinCost = 1): Promise<{ groupId: number }> {
+/** Creator pays and starts a new group. Returns groupId + inviteToken. */
+export async function createGroup(
+  creatorId: number,
+  name?: string,
+  joinCost = 1
+): Promise<{ groupId: number; inviteToken: string }> {
+  const inviteToken = randomBytes(12).toString("hex"); // 24 hex chars
+
   const [group] = await db
     .insert(groupChatsTable)
     .values({
       creatorId,
+      name: name ?? null,
+      inviteToken,
       status: "forming",
       memberCount: 0,
       maxMembers: MAX_MEMBERS,
@@ -127,7 +137,7 @@ export async function createGroup(creatorId: number, joinCost = 1): Promise<{ gr
     .set({ isInGroup: true, updatedAt: new Date() })
     .where(eq(usersTable.telegramId, creatorId));
 
-  return { groupId: group.id };
+  return { groupId: group.id, inviteToken };
 }
 
 // ─── Join public group ────────────────────────────────────────────────────────
@@ -138,7 +148,7 @@ export async function joinOrCreateGroup(
   const openGroups = await db
     .select()
     .from(groupChatsTable)
-    .where(eq(groupChatsTable.status, "forming"));
+    .where(and(eq(groupChatsTable.status, "forming"), isNull(groupChatsTable.inviteToken)));
 
   // Filter groups where this user was previously banned
   const available: (typeof openGroups)[number][] = [];
@@ -321,4 +331,144 @@ export async function banMember(groupId: number, memberDbId: number): Promise<nu
     .where(eq(groupChatsTable.id, groupId));
 
   return member.userId;
+}
+
+// ─── New functions: admin, expand, invite, creator-groups ─────────────────────
+
+/** Returns all groups where user is creator and status != ended. */
+export async function getCreatorGroups(
+  userId: number
+): Promise<Array<{ id: number; name: string | null; inviteToken: string | null; memberCount: number; maxMembers: number }>> {
+  const groups = await db
+    .select({
+      id: groupChatsTable.id,
+      name: groupChatsTable.name,
+      inviteToken: groupChatsTable.inviteToken,
+      memberCount: groupChatsTable.memberCount,
+      maxMembers: groupChatsTable.maxMembers,
+    })
+    .from(groupChatsTable)
+    .where(and(eq(groupChatsTable.creatorId, userId), ne(groupChatsTable.status, "ended")));
+  return groups;
+}
+
+/** Count of promoted admins (isAdmin=true, non-creator, currently in group) */
+export async function getGroupAdminCount(groupId: number): Promise<number> {
+  const rows = await db
+    .select({ id: groupMembersTable.id })
+    .from(groupMembersTable)
+    .where(
+      and(
+        eq(groupMembersTable.groupId, groupId),
+        eq(groupMembersTable.isAdmin, true),
+        isNull(groupMembersTable.leftAt)
+      )
+    );
+  return rows.length;
+}
+
+/** Promotes a group member (by DB row id) to admin. Returns their telegramId. */
+export async function promoteToAdmin(groupId: number, memberDbId: number): Promise<number | null> {
+  const [member] = await db
+    .select()
+    .from(groupMembersTable)
+    .where(
+      and(
+        eq(groupMembersTable.id, memberDbId),
+        eq(groupMembersTable.groupId, groupId),
+        isNull(groupMembersTable.leftAt)
+      )
+    )
+    .limit(1);
+  if (!member || member.isCreator || member.isAdmin) return null;
+
+  await db
+    .update(groupMembersTable)
+    .set({ isAdmin: true })
+    .where(eq(groupMembersTable.id, memberDbId));
+
+  return member.userId;
+}
+
+/** Expands maxMembers for a group. */
+export async function expandGroupLimit(groupId: number, newMax: number): Promise<void> {
+  await db
+    .update(groupChatsTable)
+    .set({ maxMembers: newMax })
+    .where(eq(groupChatsTable.id, groupId));
+}
+
+/** Returns a forming/active group matching the invite token, or null. */
+export async function getGroupByInviteToken(
+  token: string
+): Promise<typeof groupChatsTable.$inferSelect | null> {
+  const [group] = await db
+    .select()
+    .from(groupChatsTable)
+    .where(and(eq(groupChatsTable.inviteToken, token), isNotNull(groupChatsTable.inviteToken)))
+    .limit(1);
+  return group ?? null;
+}
+
+/** Returns the inviteToken for a group. */
+export async function getGroupInviteToken(groupId: number): Promise<string | null> {
+  const [g] = await db
+    .select({ inviteToken: groupChatsTable.inviteToken })
+    .from(groupChatsTable)
+    .where(eq(groupChatsTable.id, groupId))
+    .limit(1);
+  return g?.inviteToken ?? null;
+}
+
+/** True if user is creator OR promoted admin of the group (and hasn't left). */
+export async function isGroupAdmin(userId: number, groupId: number): Promise<boolean> {
+  const [member] = await db
+    .select()
+    .from(groupMembersTable)
+    .where(
+      and(
+        eq(groupMembersTable.userId, userId),
+        eq(groupMembersTable.groupId, groupId),
+        isNull(groupMembersTable.leftAt)
+      )
+    )
+    .limit(1);
+  if (!member) return false;
+  return member.isCreator || member.isAdmin;
+}
+
+/** Joins a user to a specific group (by invite link). Returns the new memberCount. */
+export async function joinGroupByInvite(
+  userId: number,
+  groupId: number
+): Promise<{ memberCount: number }> {
+  const [group] = await db
+    .select()
+    .from(groupChatsTable)
+    .where(eq(groupChatsTable.id, groupId))
+    .limit(1);
+  if (!group) return { memberCount: 0 };
+
+  await db.insert(groupMembersTable).values({
+    groupId,
+    userId,
+    isCreator: false,
+    isBanned: false,
+    joinedAt: new Date(),
+  });
+
+  const newCount = group.memberCount + 1;
+  await db
+    .update(groupChatsTable)
+    .set({
+      memberCount: newCount,
+      status: newCount >= MIN_MEMBERS ? "active" : "forming",
+    })
+    .where(eq(groupChatsTable.id, groupId));
+  await db
+    .update(usersTable)
+    .set({ isInGroup: true, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, userId));
+
+  return { memberCount: newCount };
 }

@@ -108,9 +108,9 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (isSuperAdmin(tgId))       secRow.push({ text: "📢 فورس جوین", callback_data: "admin:force_join" });
     if (secRow.length > 0) buttons.push(secRow);
 
-    // ─ 🌊 اقیانوس احساس ─
+    // ─ 🔮 دنیای اسرار ─
     if (canDo(tgId, "payment")) {
-      buttons.push([{ text: "🌊 اقیانوس احساس", callback_data: "admin:magic" }]);
+      buttons.push([{ text: "🔮 دنیای اسرار", callback_data: "admin:magic" }]);
     }
 
     // ─ ⚙️ سیستم ─
@@ -186,6 +186,39 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "تنظیم هزینه ساخت گروه", callback_data: "pay_set:group_create_cost" }],
             [{ text: "غیرفعال/فعال کارت", callback_data: "pay_toggle:card" }],
             [{ text: "غیرفعال/فعال کریپتو", callback_data: "pay_toggle:crypto" }],
+          ]
+        }
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Referral & Group settings ────────────────────────────────────────────────
+  bot.callbackQuery("admin:magic", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+
+    const inviterReward   = await getSetting("referral_reward_inviter")   ?? "5";
+    const inviteeReward   = await getSetting("referral_reward_invitee")   ?? "0";
+    const supportLink     = await getSetting("support_link")               ?? "تنظیم نشده";
+    const adminCost       = await getSetting("group_admin_promote_cost")   ?? "5";
+    const expandCost      = await getSetting("group_expand_cost")          ?? "10";
+
+    await ctx.reply(
+      `🔮 **تنظیمات دنیای اسرار + گروه‌ها**\n\n` +
+      `🎁 پاداش دعوت (دعوت‌کننده): **${inviterReward}** سکه\n` +
+      `🎁 پاداش دعوت (دعوت‌شده): **${inviteeReward}** سکه\n` +
+      `📞 لینک پشتیبانی: ${supportLink}\n` +
+      `⭐ هزینه ارتقا ادمین گروه: **${adminCost}** سکه\n` +
+      `⬆️ هزینه افزایش ظرفیت گروه: **${expandCost}** سکه`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🎁 پاداش دعوت‌کننده",  callback_data: "pay_set:referral_reward_inviter" }],
+            [{ text: "🎁 پاداش دعوت‌شده",     callback_data: "pay_set:referral_reward_invitee" }],
+            [{ text: "📞 لینک پشتیبانی",      callback_data: "pay_set:support_link" }],
+            [{ text: "⭐ هزینه ارتقا ادمین",  callback_data: "pay_set:group_admin_promote_cost" }],
+            [{ text: "⬆️ هزینه افزایش ظرفیت", callback_data: "pay_set:group_expand_cost" }],
           ]
         }
       }

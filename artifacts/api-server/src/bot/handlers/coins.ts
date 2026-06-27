@@ -14,7 +14,7 @@ import {
 } from "../services/payment.service.js";
 import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { t } from "../i18n/index.js";
-import { mainMenuKeyboard } from "../keyboards/main.js";
+import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard } from "../keyboards/main.js";
 import { packagesKeyboard, paymentMethodKeyboard, paymentReviewKeyboard } from "../keyboards/inline.js";
 
 /** Build a Trust Wallet deep-link for USDT TRC20 */
@@ -59,21 +59,49 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     const balance = await getBalance(tgId);
-    const history = await getCoinHistory(tgId, 5);
+    await ctx.reply(t(lang).coinsBalance(balance), {
+      parse_mode: "Markdown",
+      reply_markup: coinsSubMenuKeyboard(lang),
+    });
+  });
 
-    let msg = t(lang).coinsBalance(balance) + "\n\n";
-    if (history.length > 0) {
-      msg += "📋 " + (lang === "fa" ? "آخرین تراکنش‌ها:" : "Recent transactions:") + "\n";
-      for (const tx of history) {
-        const sign = tx.amount > 0 ? "+" : "";
-        msg += `${sign}${tx.amount} — ${tx.description ?? tx.type}\n`;
-      }
+  // ─── Transaction history ───────────────────────────────────────────────────
+  bot.hears(["📋 تراکنش‌های من", "📋 My Transactions"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const history = await getCoinHistory(tgId, 20);
+    if (history.length === 0) {
+      await ctx.reply(lang === "fa" ? "📋 هنوز تراکنشی ثبت نشده است." : "📋 No transactions yet.");
+      return;
     }
 
-    const buyBtn = lang === "fa" ? "🛒 خرید سکه" : "🛒 Buy Coins";
-    await ctx.reply(msg, {
+    let msg = (lang === "fa" ? "📋 **تراکنش‌های من:**\n\n" : "📋 **My Transactions:**\n\n");
+    for (const tx of history) {
+      const sign = tx.amount > 0 ? "+" : "";
+      const date = new Date(tx.createdAt).toLocaleDateString(lang === "fa" ? "fa-IR" : "en-GB");
+      msg += `${sign}${tx.amount} سکه — ${tx.description ?? tx.type} — ${date}\n`;
+    }
+    await ctx.reply(msg, { parse_mode: "Markdown" });
+  });
+
+  // ─── Buy Coins (text button) ───────────────────────────────────────────────
+  bot.hears(["🛒 خرید سکه", "🛒 Buy Coins"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const packages = await getPackages();
+    if (packages.length === 0) {
+      await ctx.reply(lang === "fa" ? "در حال حاضر بسته‌ای موجود نیست." : "No packages available.");
+      return;
+    }
+    await ctx.reply(t(lang).selectPackage, {
       parse_mode: "Markdown",
-      reply_markup: new InlineKeyboard().text(buyBtn, "buy_coins"),
+      reply_markup: packagesKeyboard(packages, lang),
     });
   });
 
@@ -277,8 +305,20 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     await ctx.answerCallbackQuery("❌");
   });
 
-  // ─── Referral ────────────────────────────────────────────────────────────
+  // ─── Invite / Referral sub-menu ──────────────────────────────────────────
   bot.hears([/^🎁 دعوت/, /^🎁 Invite/], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+    await ctx.reply(t(lang).referralInfoTitle, {
+      parse_mode: "Markdown",
+      reply_markup: inviteMenuKeyboard(lang),
+    });
+  });
+
+  // ─── Get referral link ────────────────────────────────────────────────────
+  bot.hears(["🔗 دریافت لینک دعوتم", "🔗 Get My Referral Link"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
@@ -288,9 +328,33 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const link = `https://t.me/${botUsername}?start=r_${user.referralCode}`;
     const stats = await getReferralStats(tgId);
 
+    const inviterRewardStr = await getSetting("referral_reward_inviter");
+    const inviteeRewardStr = await getSetting("referral_reward_invitee");
+    const inviterReward = inviterRewardStr ? parseInt(inviterRewardStr, 10) : 5;
+    const inviteeReward = inviteeRewardStr ? parseInt(inviteeRewardStr, 10) : 0;
+
     await ctx.reply(
-      t(lang).referralInfo(user.referralCode, link, stats.total, stats.coinsEarned),
+      t(lang).referralInfo(user.referralCode, link, stats.total, stats.coinsEarned, inviterReward, inviteeReward),
       { parse_mode: "Markdown" }
     );
   });
+
+  // ─── Referral stats ───────────────────────────────────────────────────────
+  bot.hears(["📊 آمار دعوت‌هایم", "📊 My Referral Stats"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const stats = await getReferralStats(tgId);
+    const inviterRewardStr = await getSetting("referral_reward_inviter");
+    const inviterReward = inviterRewardStr ? parseInt(inviterRewardStr, 10) : 5;
+
+    const msg = lang === "fa"
+      ? `📊 **آمار دعوت‌هایم**\n\n👥 تعداد دعوت موفق: **${stats.total}**\n💰 سکه‌های کسب‌شده: **${stats.coinsEarned}**\n🎁 پاداش هر دعوت: **${inviterReward} سکه**`
+      : `📊 **My Referral Stats**\n\n👥 Successful referrals: **${stats.total}**\n💰 Coins earned: **${stats.coinsEarned}**\n🎁 Reward per referral: **${inviterReward} coins**`;
+
+    await ctx.reply(msg, { parse_mode: "Markdown" });
+  });
 }
+

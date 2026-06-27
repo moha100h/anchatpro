@@ -2,19 +2,47 @@ import { Bot } from "grammy";
 import type { BotContext } from "../context.js";
 import { getUserByTelegramId, getUserByAnonToken, refreshAnonToken } from "../services/user.service.js";
 import { db } from "@workspace/db";
-import { anonymousMessagesTable } from "@workspace/db";
+import { anonymousMessagesTable, timedAnonLinksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { reportUser, blockUser } from "../services/safety.service.js";
 import { t } from "../i18n/index.js";
-import { mainMenuKeyboard } from "../keyboards/main.js";
+import { mainMenuKeyboard, myLinkMenuKeyboard, timedLinkKeyboard } from "../keyboards/main.js";
 import { anonMsgActionsKeyboard } from "../keyboards/inline.js";
+import { randomBytes } from "crypto";
+
+const DURATION_MAP: Record<string, number> = {
+  "⏱️ ۱ ساعت": 1,
+  "⏱️ ۶ ساعت": 6,
+  "⏱️ ۲۴ ساعت": 24,
+  "📅 ۷ روز": 168,
+  "⏱️ 1 Hour": 1,
+  "⏱️ 6 Hours": 6,
+  "⏱️ 24 Hours": 24,
+  "📅 7 Days": 168,
+};
+
+function formatExpiry(date: Date, lang: "fa" | "en"): string {
+  return date.toLocaleString(lang === "fa" ? "fa-IR" : "en-GB");
+}
 
 export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
 
-  // ─── My Anonymous Link button ───────────────────────────────────────────────
-  // Uses refreshAnonToken to shorten any legacy 32-char tokens to 8 chars on first use.
+  // ─── My Anonymous Link sub-menu ─────────────────────────────────────────────
   bot.hears([/^🔗 لینک ناشناس من/, /^🔗 My Anonymous Link/], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    await ctx.reply(t(lang).myLinkMenuTitle, {
+      parse_mode: "Markdown",
+      reply_markup: myLinkMenuKeyboard(lang),
+    });
+  });
+
+  // ─── Permanent anonymous link ────────────────────────────────────────────────
+  bot.hears(["🔗 لینک ثابت ناشناس من", "🔗 My Permanent Anonymous Link"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
@@ -26,10 +54,54 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     await ctx.reply(msg, { parse_mode: "Markdown" });
   });
 
-  // NOTE: /start with anon_ / a_ prefix is now handled in start.ts
-  // (This ensures proper setup flow for new users who click anon links)
+  // ─── Timed link: show duration keyboard ──────────────────────────────────────
+  bot.hears(["⏱️ ساخت لینک مدت‌دار", "⏱️ Create Timed Link"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
 
-  // ─── Receive anonymous message ───────────────────────────────────────────────
+    await ctx.reply(t(lang).timedLinkTitle, {
+      parse_mode: "Markdown",
+      reply_markup: timedLinkKeyboard(lang),
+    });
+  });
+
+  // ─── Timed link: duration selected ───────────────────────────────────────────
+  bot.hears(
+    ["⏱️ ۱ ساعت", "⏱️ ۶ ساعت", "⏱️ ۲۴ ساعت", "📅 ۷ روز", "⏱️ 1 Hour", "⏱️ 6 Hours", "⏱️ 24 Hours", "📅 7 Days"],
+    async (ctx) => {
+      const tgId = ctx.from!.id;
+      const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+      if (!user) return;
+      const lang = (user.language as "fa" | "en") ?? "fa";
+
+      const text = ctx.message?.text ?? "";
+      const hours = DURATION_MAP[text];
+      if (!hours) return;
+
+      const token = randomBytes(12).toString("hex"); // 24 hex chars
+      const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+      await db.insert(timedAnonLinksTable).values({
+        userId: tgId,
+        token,
+        coinsCost: 0,
+        expiresAt,
+      });
+
+      const link = `https://t.me/${BOT_USERNAME}?start=t_${token}`;
+      const expiryStr = formatExpiry(expiresAt, lang);
+      await ctx.reply(t(lang).timedLinkCreated(link, expiryStr), {
+        parse_mode: "Markdown",
+        reply_markup: myLinkMenuKeyboard(lang),
+      });
+    }
+  );
+
+  // NOTE: /start with anon_ / a_ / t_ prefixes handled in start.ts
+
+  // ─── Receive anonymous message (step: anon_send:{receiverId}) ────────────────
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -65,7 +137,6 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     ctx.session.step = undefined;
     await ctx.reply(t(lang).anonMsgSent, { reply_markup: mainMenuKeyboard(lang) });
 
-    // Notify receiver
     const receiver = await getUserByTelegramId(receiverId);
     const rLang = (receiver?.language as "fa" | "en") ?? "fa";
     const notifyText = `${t(rLang).anonMsgReceived}`;
@@ -83,7 +154,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     }
   });
 
-  // ─── Reply to anonymous message ─────────────────────────────────────────────
+  // ─── Reply to anonymous message ──────────────────────────────────────────────
   bot.callbackQuery(/^anon_reply:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
@@ -137,7 +208,6 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     const msgId = parseInt(step.replace("anon_reply:", ""), 10);
     const [original] = await db.select().from(anonymousMessagesTable).where(eq(anonymousMessagesTable.id, msgId)).limit(1);
-
     if (!original) { ctx.session.step = undefined; return; }
 
     await db.update(anonymousMessagesTable).set({ replyContent: ctx.message.text, repliedAt: new Date(), status: "replied" }).where(eq(anonymousMessagesTable.id, msgId));

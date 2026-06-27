@@ -5,3 +5,4 @@
 - [Force join middleware](force-join.md) — admin_settings keys; 5s in-memory cache; invalidateForceJoinCache() after admin changes.
 - [Setup flow](setup-flow.md) — select_language → select_gender → select_age → select_city (skippable with ".") → done.
 - [Lib rebuild required](lib-rebuild.md) — After schema changes in lib/db, run `pnpm run typecheck:libs` (root) before typechecking api-server; otherwise new fields/tables won't appear in compiled types.
+- [UX overhaul patterns](ux-overhaul.md) — Gender labels پسر/دختر; ocean→🔮 دنیای اسرار; persistent sub-menus; group invite tokens; timed anon links; drizzle-kit push needs force+TTY workaround.

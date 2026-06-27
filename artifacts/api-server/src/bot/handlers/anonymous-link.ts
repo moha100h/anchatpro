@@ -529,17 +529,15 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     ctx.session.step = undefined;
     await ctx.reply(t(lang).replySent, { reply_markup: mainMenuKeyboard(lang) });
 
-    // Notify the original sender — skip live push if sender is in chat or group
+    // Notify the original sender with their reply — always live, regardless of chat/group state
     if (original.senderId) {
       const replierName = user?.firstName ?? (lang === "fa" ? "کاربر" : "User");
       const sender = await getUserByTelegramId(original.senderId);
-      if (sender && !sender.isInChat && !sender.isInGroup) {
-        const sLang = (sender.language as "fa" | "en") ?? "fa";
-        const replyNotify = t(sLang).yourReplyFromName(replierName) + ctx.message.text;
-        await bot.api
-          .sendMessage(original.senderId, replyNotify)
-          .catch(() => {});
-      }
+      const sLang = (sender?.language as "fa" | "en") ?? "fa";
+      const replyNotify = t(sLang).yourReplyFromName(replierName) + ctx.message.text;
+      await bot.api
+        .sendMessage(original.senderId, replyNotify)
+        .catch(() => {});
     }
   });
 }

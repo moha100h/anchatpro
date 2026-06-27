@@ -7,6 +7,7 @@ export function mainMenuKeyboard(lang: Lang) {
     .text(i.menuConnect).text(i.menuGroup).row()
     .text(i.menuCreateGroup).text(i.menuMyLink).row()
     .text(i.menuCoins).text(i.menuReferral).row()
+    .text(i.menuMagic).row()
     .text(i.menuHelp).text(i.menuSettings)
     .resized()
     .persistent();

@@ -3,7 +3,7 @@ import { usersTable, coinTransactionsTable, referralsTable } from "@workspace/db
 import { eq, desc, and } from "drizzle-orm";
 import type { User } from "@workspace/db";
 
-type TxType = "referral_reward" | "chat_cost" | "group_cost" | "admin_add" | "admin_remove" | "payment" | "refund";
+type TxType = "referral_reward" | "chat_cost" | "group_cost" | "admin_add" | "admin_remove" | "payment" | "refund" | "magic_spend";
 
 export async function getBalance(telegramId: number): Promise<number> {
   const [user] = await db.select({ coins: usersTable.coins }).from(usersTable).where(eq(usersTable.telegramId, telegramId)).limit(1);

@@ -10,6 +10,7 @@ export const txTypeEnum = pgEnum("tx_type", [
   "admin_remove",
   "payment",
   "refund",
+  "magic_spend",
 ]);
 
 export const coinTransactionsTable = pgTable("coin_transactions", {

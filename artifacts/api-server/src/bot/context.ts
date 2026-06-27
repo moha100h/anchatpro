@@ -12,6 +12,9 @@ export interface SessionData {
   adminAction?: string;
   adminTargetUserId?: number;
   broadcastStep?: string;
+  // 🌊 Magic features
+  magicStep?: string;
+  magicChainId?: number;
 }
 
 export type BotContext = ConversationFlavor<Context & SessionFlavor<SessionData>> & {

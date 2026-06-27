@@ -22,6 +22,7 @@ export const en = {
   menuHelp: "❓ Help",
   menuSettings: "⚙️ Settings",
   menuReferral: "🎁 Invite Friends",
+  menuMagic: "🌊 Ocean of Emotions",
 
   // ─── Matching ────────────────────────────────────────────────────────────────
   selectGenderPref: "Which gender would you like to talk to?",
@@ -294,6 +295,86 @@ export const en = {
   approvePayment: "✅ Approve",
   rejectPayment: "❌ Reject",
   paymentAlreadyProcessed: "⚠️ This payment has already been processed.",
+
+  // ─── 🌊 Ocean of Emotions ─────────────────────────────────────────────────────
+  magicMenu: (cfg: { bottleCost: number; chainCost: number; letterCost: number; freqCost: number }) =>
+    `🌊 **Ocean of Emotions**\n\n` +
+    `Four unique experiences found nowhere else:\n\n` +
+    `🍾 *Message in a Bottle* — ${cfg.bottleCost} coins\n` +
+    `Release your message into the ocean. Maybe someone finds it...\n\n` +
+    `🔗 *Emotion Chain* — ${cfg.chainCost} coins\n` +
+    `Write a sentence. 10 people continue it. See the result!\n\n` +
+    `✉️ *Letter to the Future* — ${cfg.letterCost} coins\n` +
+    `Write yourself a letter. Receive it in 7–90 days.\n\n` +
+    `📡 *Anonymous Frequency* — ${cfg.freqCost} coins\n` +
+    `Choose your mood. Connect with someone who feels the same.`,
+  magicHelpMenu: "📖 **Ocean of Emotions Help**\n\nChoose a section:",
+  magicHelpBottle:
+    `🍾 **Message in a Bottle**\n\n` +
+    `Write an anonymous message and release it into the ocean.\n` +
+    `The system delivers it to a random user.\n` +
+    `If they reply → anonymous chat begins.\n` +
+    `If no reply in 24h → message is lost in the ocean 🌊\n\n` +
+    `💡 Tip: No name, no photo. Just words.`,
+  magicHelpChain:
+    `🔗 **Emotion Chain**\n\n` +
+    `You write one sentence.\n` +
+    `The system passes it to 9 other users.\n` +
+    `Each adds their own sentence.\n` +
+    `After 10 people, the full chain is sent to everyone!\n\n` +
+    `💡 Tip: The result is always unpredictable.`,
+  magicHelpLetter:
+    `✉️ **Letter to the Future**\n\n` +
+    `Write a letter to yourself today.\n` +
+    `Choose delivery time: 7, 30, 60, or 90 days.\n` +
+    `The bot sends it exactly on that day.\n\n` +
+    `💡 Tip: Only you will ever read this letter.`,
+  magicHelpFreq:
+    `📡 **Anonymous Frequency**\n\n` +
+    `Choose your current feeling.\n` +
+    `The system connects you with someone who feels exactly the same.\n` +
+    `Anonymous chat — as short or long as you like.\n\n` +
+    `💡 Tip: Shared feelings lead to deeper conversations.`,
+  bottleAskMessage: "🍾 Write your message for the ocean:\n\n(max 500 characters — text only)",
+  bottleTooLong: "❌ Message too long. Max 500 characters.",
+  bottleSent: "🌊 Your message was released into the ocean!\n\nMaybe someone finds it...",
+  bottleReceived: (msg: string) => `🍾 **A message from the ocean arrived!**\n\n_«${msg}»_\n\nWant to reply?`,
+  bottleReplyBtn: "💬 Reply",
+  bottleIgnoreBtn: "🌊 Release",
+  bottleIgnored: "🌊 You released the bottle. That's okay!",
+  bottleExpiredSender: "🌊 Your message was lost in the ocean. No one found it.",
+  bottleReplied: "✅ Reply sent! Anonymous chat started.",
+  bottleNoFloating: "🌊 No messages in the ocean right now. Check back later.",
+  chainAskFirst: "🔗 **Emotion Chain**\n\nWrite the first sentence to start the chain:",
+  chainAskNext: (step: number, prev: string) =>
+    `🔗 **Emotion Chain — Step ${step} of 10**\n\nWritten so far:\n_${prev}_\n\nYour turn. Add the next sentence:`,
+  chainSent: "🔗 Your sentence was added to the chain! Wait for 9 more people...",
+  chainComplete: (text: string) => `🎉 **Emotion Chain complete!**\n\nThis story was built by 10 anonymous people:\n\n${text}\n\n🌊 Beautiful!`,
+  chainNoChain: "🔗 No chain waiting right now. Starting a new one!",
+  letterAskDelay: "✉️ **Letter to the Future**\n\nWhen would you like to receive this letter?",
+  letterDelay7:  "📅 In 7 days",
+  letterDelay30: "📅 In 30 days",
+  letterDelay60: "📅 In 60 days",
+  letterDelay90: "📅 In 90 days",
+  letterAskContent: (days: number) => `✉️ Write your letter — you'll receive it in ${days} days:\n\n(no length limit)`,
+  letterSaved: (days: number) => `✅ Letter saved!\n\n📅 You'll receive it in exactly **${days} days**.\n\nDon't forget yourself 💙`,
+  letterDelivered: (msg: string) => `✉️ **A letter from your past arrived!**\n\n_«${msg}»_`,
+  freqAskMood: "📡 **Anonymous Frequency**\n\nHow are you feeling right now?\n\nYou'll be connected with someone on the same wavelength:",
+  freqSearching: (mood: string) => `📡 Searching for someone feeling **${mood}**...\n\nIf no match is found within 10 minutes, you'll be removed from the queue.`,
+  freqConnected: (mood: string) => `📡 **Frequency matched!**\n\nYou both feel **${mood}**.\n\nAnonymous chat started 🌊`,
+  freqTimeout: "📡 Sorry, no one with that frequency was found. Try again later.",
+  freqCancelBtn: "❌ Cancel search",
+  freqCancelled: "📡 You left the frequency queue.",
+  magicDisabled: "❌ This feature is currently disabled.",
+  magicLimitReached: (limit: number) => `⏳ You've used this feature ${limit} times today. Come back tomorrow!`,
+  magicNotEnoughCoins: (cost: number) => `💰 You need ${cost} coins for this feature.\n\nBuy coins from the menu!`,
+  adminMagicPanel: (cfgs: Record<string, { enabled: boolean; cost: number; daily: number }>) =>
+    `🌊 **Ocean of Emotions Settings**\n\n` +
+    Object.entries(cfgs).map(([k, v]) =>
+      `${v.enabled ? "✅" : "❌"} **${k}** — Cost: ${v.cost} coins | Daily: ${v.daily}`
+    ).join("\n"),
+  adminMagicFeaturePanel: (name: string, enabled: boolean, cost: number, daily: number) =>
+    `⚙️ **${name} Settings**\n\nStatus: ${enabled ? "✅ Enabled" : "❌ Disabled"}\nCost: ${cost} coins\nDaily limit: ${daily} times`,
 
   // ─── Errors / Misc ───────────────────────────────────────────────────────────
   errorGeneral: "❌ An error occurred. Please try again.",

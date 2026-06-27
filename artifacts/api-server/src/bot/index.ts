@@ -10,6 +10,8 @@ import { registerCoinHandlers } from "./handlers/coins.js";
 import { registerHelpHandlers } from "./handlers/help.js";
 import { registerSettingsHandlers } from "./handlers/settings.js";
 import { registerAdminHandlers, setAdminIds } from "./handlers/admin.js";
+import { registerMagicHandlers } from "./handlers/magic.js";
+import { getDueLetters, markLetterDelivered, expireOldBottles, expireDeliveredBottles, cleanStaleFrequency } from "./services/magic.service.js";
 import { ensureDefaultPackages, setSetting, getSetting } from "./services/payment.service.js";
 import { initDefaultBadWords, setOwnerIds } from "./services/safety.service.js";
 import { getTetraPayCallbackUrl } from "../lib/base-url.js";
@@ -60,6 +62,7 @@ export async function createBot(): Promise<Bot<BotContext>> {
   registerHelpHandlers(bot);      // help text
   registerSettingsHandlers(bot);  // settings menu, change gender/age/language (registered AFTER start.ts!)
   registerAdminHandlers(bot);     // /admin, callbacks, text inputs for admin actions
+  registerMagicHandlers(bot);     // 🌊 اقیانوس احساس: bottle, chain, letter, frequency
 
   // Global error handler
   bot.catch((err) => {
@@ -79,6 +82,39 @@ export async function createBot(): Promise<Bot<BotContext>> {
   }
 
   // ─── Scheduled jobs ──────────────────────────────────────────────────────────
+
+  // 🌊 Magic: deliver future letters every 5 minutes
+  cron.schedule("*/5 * * * *", async () => {
+    try {
+      const letters = await getDueLetters();
+      for (const letter of letters) {
+        const user = await getUserByTelegramId(letter.userId);
+        const lang = (user?.language as "fa" | "en") ?? "fa";
+        await bot.api
+          .sendMessage(letter.userId, t(lang).letterDelivered(letter.message), { parse_mode: "Markdown" })
+          .catch(() => {});
+        await markLetterDelivered(letter.id);
+      }
+    } catch (e) {
+      logger.error({ err: e }, "Future letters cron error");
+    }
+  });
+
+  // 🌊 Magic: expire stale bottles + frequency queue every 30 minutes
+  cron.schedule("*/30 * * * *", async () => {
+    try {
+      await expireOldBottles();
+      const expired = await expireDeliveredBottles();
+      for (const { senderId } of expired) {
+        const user = await getUserByTelegramId(senderId);
+        const lang = (user?.language as "fa" | "en") ?? "fa";
+        await bot.api.sendMessage(senderId, t(lang).bottleExpiredSender).catch(() => {});
+      }
+      await cleanStaleFrequency();
+    } catch (e) {
+      logger.error({ err: e }, "Magic cron error");
+    }
+  });
 
   // Cleanup stale matching queue every 2 minutes
   cron.schedule("*/2 * * * *", async () => {

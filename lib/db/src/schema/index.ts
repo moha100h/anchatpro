@@ -6,3 +6,4 @@ export * from "./coins";
 export * from "./payments";
 export * from "./reports";
 export * from "./settings";
+export * from "./magic";

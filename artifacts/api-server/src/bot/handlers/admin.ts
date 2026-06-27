@@ -71,21 +71,55 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const stats = await getTotalStats();
     const totalChats = await getTotalChats();
     const pendingReports = await getPendingReportsCount();
-    const msg = t("fa").adminStats({ ...stats, totalChats, pendingReports });
 
-    const buttons: Array<Array<{ text: string; callback_data: string }>> = [
-      [{ text: "👤 جستجو کاربر", callback_data: "admin:search_user" }],
+    const statsLine =
+      `📊 *پنل مدیریت*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👥 کاربران: \`${stats.totalUsers}\`  |  💬 چت: \`${totalChats}\`\n` +
+      `🚨 گزارش‌ها: \`${pendingReports}\`\n` +
+      `━━━━━━━━━━━━━━━━━━━━━`;
+
+    const buttons: Array<Array<{ text: string; callback_data: string }>> = [];
+
+    // ─ 👥 کاربران ─
+    const userRow: Array<{ text: string; callback_data: string }> = [
+      { text: "🔍 جستجو کاربر", callback_data: "admin:search_user" },
     ];
-    if (canDo(tgId, "broadcast")) buttons.push([{ text: "📢 ارسال همگانی", callback_data: "admin:broadcast" }]);
-    if (canDo(tgId, "backup")) buttons.push([{ text: "💾 تنظیمات بکاپ", callback_data: "admin:backup" }]);
-    if (canDo(tgId, "payment")) buttons.push([{ text: "💳 تنظیمات پرداخت", callback_data: "admin:payment_settings" }]);
-    if (canDo(tgId, "badwords")) buttons.push([{ text: "🔤 کلمات ناپسند", callback_data: "admin:badwords" }]);
-    if (canDo(tgId, "welcome_msg")) buttons.push([{ text: "📝 پیام خوشامد", callback_data: "admin:welcome_msg" }]);
-    if (isSuperAdmin(tgId)) buttons.push([{ text: "👤 مدیریت ادمین‌ها", callback_data: "admin:manage_admins" }]);
-    if (canDo(tgId, "payment")) buttons.push([{ text: "💳 تنظیمات TetraPay", callback_data: "admin:tetrapay" }]);
-    if (isSuperAdmin(tgId)) buttons.push([{ text: "📢 اجبار عضویت", callback_data: "admin:force_join" }]);
+    if (pendingReports > 0) userRow.push({ text: `🚨 گزارش‌ها (${pendingReports})`, callback_data: "admin:reports" });
+    buttons.push(userRow);
 
-    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } });
+    // ─ 💳 مالی ─
+    if (canDo(tgId, "payment")) {
+      buttons.push([
+        { text: "💳 پرداخت", callback_data: "admin:payment_settings" },
+        { text: "🔷 TetraPay", callback_data: "admin:tetrapay" },
+      ]);
+    }
+
+    // ─ 📢 محتوا ─
+    const contentRow: Array<{ text: string; callback_data: string }> = [];
+    if (canDo(tgId, "broadcast"))   contentRow.push({ text: "📣 همگانی", callback_data: "admin:broadcast" });
+    if (canDo(tgId, "welcome_msg")) contentRow.push({ text: "📝 خوشامد", callback_data: "admin:welcome_msg" });
+    if (contentRow.length > 0) buttons.push(contentRow);
+
+    // ─ 🛡️ امنیت ─
+    const secRow: Array<{ text: string; callback_data: string }> = [];
+    if (canDo(tgId, "badwords"))  secRow.push({ text: "🔤 کلمات ناپسند", callback_data: "admin:badwords" });
+    if (isSuperAdmin(tgId))       secRow.push({ text: "📢 فورس جوین", callback_data: "admin:force_join" });
+    if (secRow.length > 0) buttons.push(secRow);
+
+    // ─ 🌊 اقیانوس احساس ─
+    if (canDo(tgId, "payment")) {
+      buttons.push([{ text: "🌊 اقیانوس احساس", callback_data: "admin:magic" }]);
+    }
+
+    // ─ ⚙️ سیستم ─
+    const sysRow: Array<{ text: string; callback_data: string }> = [];
+    if (canDo(tgId, "backup"))    sysRow.push({ text: "💾 بکاپ", callback_data: "admin:backup" });
+    if (isSuperAdmin(tgId))       sysRow.push({ text: "👤 ادمین‌ها", callback_data: "admin:manage_admins" });
+    if (sysRow.length > 0) buttons.push(sysRow);
+
+    await ctx.reply(statsLine, { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } });
   });
 
   // ── Search user ─────────────────────────────────────────────────────────────
@@ -407,6 +441,94 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         }
       }
     );
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── 🌊 Magic features settings ────────────────────────────────────────────
+  bot.callbackQuery("admin:magic", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const features = ["bottle", "chain", "letter", "frequency"] as const;
+    const cfgs: Record<string, { enabled: boolean; cost: number; daily: number }> = {};
+    for (const f of features) {
+      const [en, co, da] = await Promise.all([
+        getSetting(`magic_${f}_enabled`),
+        getSetting(`magic_${f}_cost`),
+        getSetting(`magic_${f}_daily`),
+      ]);
+      cfgs[f] = {
+        enabled: (en ?? "true") !== "false",
+        cost: parseInt(co ?? "2", 10),
+        daily: parseInt(da ?? "3", 10),
+      };
+    }
+    await ctx.reply(
+      t("fa").adminMagicPanel(cfgs as any),
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🍾 پیام در بطری",   callback_data: "magic_cfg:bottle" }],
+            [{ text: "🔗 زنجیر احساس",   callback_data: "magic_cfg:chain" }],
+            [{ text: "✉️ نامه به آینده",  callback_data: "magic_cfg:letter" }],
+            [{ text: "📡 فرکانس ناشناس", callback_data: "magic_cfg:frequency" }],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  const MAGIC_NAMES: Record<string, string> = {
+    bottle: "🍾 پیام در بطری",
+    chain: "🔗 زنجیر احساس",
+    letter: "✉️ نامه به آینده",
+    frequency: "📡 فرکانس ناشناس",
+  };
+
+  bot.callbackQuery(/^magic_cfg:(.+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const feature = ctx.match[1]!;
+    const [en, co, da] = await Promise.all([
+      getSetting(`magic_${feature}_enabled`),
+      getSetting(`magic_${feature}_cost`),
+      getSetting(`magic_${feature}_daily`),
+    ]);
+    const enabled = (en ?? "true") !== "false";
+    const cost    = parseInt(co ?? "2", 10);
+    const daily   = parseInt(da ?? "3", 10);
+    const name    = MAGIC_NAMES[feature] ?? feature;
+    await ctx.reply(
+      t("fa").adminMagicFeaturePanel(name, enabled, cost, daily),
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: enabled ? "❌ غیرفعال کردن" : "✅ فعال کردن", callback_data: `magic_toggle:${feature}` }],
+            [{ text: "💰 تغییر هزینه سکه",          callback_data: `magic_set:cost:${feature}` }],
+            [{ text: "📅 تغییر محدودیت روزانه",       callback_data: `magic_set:daily:${feature}` }],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^magic_toggle:(.+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const feature = ctx.match[1]!;
+    const current = (await getSetting(`magic_${feature}_enabled`) ?? "true") !== "false";
+    await setSetting(`magic_${feature}_enabled`, current ? "false" : "true");
+    await ctx.answerCallbackQuery(current ? "❌ غیرفعال شد" : "✅ فعال شد");
+    await ctx.reply(`${current ? "❌ غیرفعال" : "✅ فعال"} شد: ${MAGIC_NAMES[feature] ?? feature}`);
+  });
+
+  bot.callbackQuery(/^magic_set:(cost|daily):(.+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const type    = ctx.match[1]!;
+    const feature = ctx.match[2]!;
+    const label   = type === "cost" ? "هزینه سکه (عدد)" : "محدودیت روزانه (عدد)";
+    ctx.session.adminAction = `set_setting:magic_${feature}_${type}`;
+    await ctx.reply(`🔢 مقدار جدید ${label} برای ${MAGIC_NAMES[feature] ?? feature} را وارد کنید:`);
     await ctx.answerCallbackQuery();
   });
 

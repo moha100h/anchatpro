@@ -1,175 +1,258 @@
-# Telegram Anonymous Chat Bot
+# 🤖 AnymsChatBot — ربات چت ناشناس تلگرام
 
-A professional, high-performance Telegram Anonymous Dating & Chat Bot built with Grammy, TypeScript, PostgreSQL, and Drizzle ORM.
+یک ربات حرفه‌ای و کامل برای چت ناشناس، گروه، لینک ناشناس، سیستم سکه و پرداخت — ساخته‌شده با Grammy، TypeScript، PostgreSQL و Drizzle ORM.
 
-## Features
+---
 
-- 🔗 **Anonymous 1-on-1 Chat** — Smart gender-based matching with queue system
-- 👥 **Anonymous Group Chat** — Dynamic groups of 3–10 users
-- 🔗 **Anonymous Link** — Unique shareable links for receiving anonymous messages
-- 💰 **Coin Economy** — Full coin system with purchases, referrals, and spending
-- 🎁 **Referral System** — Earn 5 coins per successful referral with tree tracking
-- 💳 **Payment System** — Card, crypto, and gateway support with admin review
-- 👑 **Admin Panel** — Telegram-based full admin panel
-- 📢 **Broadcast** — Send messages to all or active users
-- 💾 **Auto Backup** — Scheduled database backups to a Telegram group
-- 🛡️ **Content Safety** — Bad word filter, rate limiting, warnings, bans
-- 🌐 **Multilingual** — Full Persian (فارسی) and English support
+## ⚡ نصب سریع (یک دستور)
 
-## Requirements
+```bash
+git clone https://github.com/YOUR_REPO/anymschatbot.git
+cd anymschatbot
+sudo bash install.sh
+```
 
+اسکریپت فقط دو چیز می‌خواهد:
+1. **توکن ربات** از [@BotFather](https://t.me/BotFather)
+2. **آیدی عددی ادمین** (عدد Telegram ID)
+
+همه چیز دیگر (Node.js، PostgreSQL، پکیج‌ها، دیتابیس، PM2) به‌صورت خودکار نصب و راه‌اندازی می‌شود.
+
+---
+
+## ✨ امکانات
+
+### 🔗 چت ناشناس یک‌به‌یک
+- صف هوشمند با ترجیح جنسیت (پسر / دختر / شانسی)
+- تاگل هم‌سن — اتصال به کاربر هم‌سن
+- سه اتصال رایگان روزانه؛ بیشتر با سکه
+- گزارش، بلاک، پایان مکالمه
+
+### 👥 گروه ناشناس
+- گروه‌های ۳ تا ۱۰ نفر (قابل افزایش به ۲۵)
+- نام‌گذاری گروه + لینک دعوت اختصاصی
+- نقش‌ها: 👑 سازنده / ⭐ ادمین / عضو
+- سازنده می‌تواند تا ۲ ادمین ارتقا دهد (هزینه سکه)
+- مشاهده‌ی نام نمایشی اعضا در گروه
+- منوی «گروه‌های من» با تعداد اعضا و لینک دعوت
+
+### 🔗 لینک ناشناس
+- لینک ثابت اختصاصی
+- لینک مدت‌دار (۱ساعت / ۶ساعت / ۲۴ساعت / ۷روز)
+- صندوق پیام با شمارش خوانده‌نشده‌ها
+- نوتیف روزانه برای پیام‌های جدید
+
+### 💎 لینک ناشناس پرو
+- لینک دائمی پرو (ap_)
+- لینک داخل‌برنامه‌ای پرو (ai_)
+- ارسال چند پیام متوالی در یک session
+- نوتیف ۲۳:۰۰ برای صندوق پرو
+
+### 💰 سیستم سکه
+- خرید سکه (کارت / کریپتو / درگاه TetraPay)
+- سابقه تراکنش‌ها
+- مدیریت توسط ادمین (شارژ / کسر)
+
+### 🎁 سیستم رفرال
+- کد دعوت اختصاصی + لینک قابل اشتراک
+- پاداش برای هر دو طرف (قابل تنظیم توسط ادمین)
+- ضد تقلب (یک رفرال به ازای هر کاربر)
+- نوتیف برای دعوت‌کننده و دعوت‌شده
+
+### 🔮 ناشناس از ما بهترون (Magic)
+- پیام در بطری
+- زنجیر احساس
+- نامه به آینده
+- فرکانس ناشناس
+
+### 👑 پنل ادمین کامل
+- آمار لحظه‌ای (کاربران، پرداخت‌ها، گزارش‌ها)
+- جستجو و مدیریت کاربران
+- تنظیم نرخ سکه برای هر بخش
+- تنظیم پاداش رفرال
+- تنظیم لینک پشتیبانی (فعال/غیرفعال)
+- پخش پیام (همه / کاربران فعال)
+- بکاپ خودکار به گروه تلگرام
+- مدیریت قابلیت‌های Magic
+- فیلتر کلمات نامناسب
+
+### 🌐 دو زبانه
+- فارسی و انگلیسی کامل
+- تشخیص خودکار زبان کاربر
+
+---
+
+## ⚙️ نصب دستی (بدون اسکریپت)
+
+### پیش‌نیازها
 - Node.js 20+
 - PostgreSQL 14+
-- pnpm
+- pnpm 8+
 
-## Quick Install
-
-```bash
-chmod +x install.sh
-./install.sh
-```
-
-The installer will ask for:
-1. Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
-2. Admin Telegram ID (numeric)
-3. PostgreSQL Database URL
-
-## Manual Setup
-
-### 1. Install dependencies
-
-```bash
-pnpm install
-```
-
-### 2. Environment variables
-
-Create a `.env` file:
+### ۱. متغیرهای محیطی
+فایل `.env` در ریشه پروژه بسازید:
 
 ```env
-TELEGRAM_BOT_TOKEN=your_bot_token
-ADMIN_IDS=123456789,987654321
-DATABASE_URL=postgresql://user:password@localhost:5432/botdb
-BOT_USERNAME=YourBotUsername
+TELEGRAM_BOT_TOKEN=1234567890:AAF...
+ADMIN_IDS=123456789
+DATABASE_URL=postgresql://user:pass@localhost:5432/anchatbot
 NODE_ENV=production
 PORT=5000
 ```
 
-### 3. Database setup
-
+### ۲. نصب پکیج‌ها
 ```bash
-pnpm --filter @workspace/db run push
+pnpm install
 ```
 
-### 4. Build & start
-
+### ۳. اعمال طرح دیتابیس
 ```bash
-# Development
+pnpm --filter @workspace/db run push-force
+```
+
+### ۴. ساخت پروژه
+```bash
+pnpm --filter @workspace/api-server run build
+```
+
+### ۵. اجرا
+```bash
+# توسعه (با hot-reload)
 pnpm --filter @workspace/api-server run dev
 
-# Production build
-pnpm --filter @workspace/api-server run build
+# پروداکشن
 pnpm --filter @workspace/api-server run start
 ```
 
-### 5. Auto-restart with PM2
-
+### ۶. PM2 برای اجرای دائمی
 ```bash
 npm install -g pm2
-pm2 start "pnpm --filter @workspace/api-server run start" --name telegram-bot
+pm2 start "pnpm --filter @workspace/api-server run start" --name anchatbot
 pm2 save
 pm2 startup
 ```
 
-## Admin Commands
+---
 
-All admin commands are available to users listed in `ADMIN_IDS`.
+## 👑 دستورات ادمین
 
-| Command | Description |
-|---------|-------------|
-| `/admin` | Open admin panel with statistics |
-| `/verify_backup <code>` | Verify backup group (run in group) |
+| دستور | توضیح |
+|-------|-------|
+| `/admin` | پنل مدیریت |
+| `/verify_backup <code>` | تأیید گروه بکاپ (در گروه اجرا شود) |
 
-### Admin Panel Features
+### بخش‌های پنل ادمین
 
-- **📊 Statistics** — Total users, active users, chats, transactions, pending reports
-- **👤 User Search** — Search by Telegram ID, view profile, manage coins, ban/unban
-- **📢 Broadcast** — Send to all users or active users (last 7 days)
-- **💾 Backup** — Configure backup group, schedule, and manual backup
-- **💳 Payment Settings** — Card number, crypto wallet, review group, enable/disable methods
-- **🌳 Referral Tree** — View referral chain for any user
-- **🔤 Bad Words** — Add custom bad words to filter
+| بخش | امکانات |
+|-----|---------|
+| 📊 آمار | کاربران، چت‌های فعال، تراکنش‌ها، گزارش‌های معلق |
+| 👤 مدیریت کاربران | جستجو، مشاهده پروفایل، شارژ/کسر سکه، بن/آنبن |
+| 💳 پرداخت | شماره کارت، کیف کریپتو، گروه ادمین، فعال/غیرفعال |
+| 💰 نرخ‌ها | هزینه اتصال، گروه، لینک پرو، ادمین‌سازی، افزایش ظرفیت |
+| 🎁 رفرال | پاداش دعوت‌کننده و دعوت‌شده (سکه) |
+| 📢 پخش | ارسال به همه / کاربران فعال |
+| 💾 بکاپ | گروه بکاپ، زمان‌بندی، بکاپ دستی |
+| 🔮 Magic | فعال/غیرفعال، هزینه، محدودیت روزانه |
+| 💬 پشتیبانی | ست کردن لینک + فعال/غیرفعال |
+| 🚫 کلمات | افزودن/حذف کلمات فیلتر |
+| 🤖 TetraPay | API Key، تست اتصال، Auto-detect URL |
 
-## Payment Setup
+---
 
-1. Open Admin Panel (`/admin`)
-2. Go to **💳 Payment Settings**
-3. Set:
-   - Card number for card payments
-   - Crypto wallet address
-   - Admin review group ID (add bot as admin in the group)
-4. Enable desired payment methods
+## 💳 راه‌اندازی پرداخت
 
-### Manual Payment Flow
-1. User selects package → selects "Pay by Card"
-2. User sends payment receipt (photo)
-3. Receipt forwarded to admin review group
-4. Admin clicks ✅ Approve or ❌ Reject
-5. User notified automatically
+### کارت به کارت
+1. `/admin` → تنظیمات پرداخت → شماره کارت
+2. کاربر رسید (عکس) ارسال می‌کند
+3. رسید به گروه ادمین فوروارد می‌شود
+4. ادمین ✅ تأیید یا ❌ رد می‌کند
 
-## Backup Setup
+### درگاه TetraPay
+1. `/admin` → TetraPay → وارد کردن API Key
+2. کلیک روی **🔄 Auto-detect URL** (callback URL اتوماتیک ست می‌شود)
+3. تست اتصال
+4. فعال‌سازی
 
-1. Open Admin Panel (`/admin`) → **💾 Backup Settings**
-2. Click **🔑 Generate Code** — get a verification code
-3. Add bot as **admin** to your backup Telegram group
-4. Send `/verify_backup <code>` in the backup group
-5. Set schedule (e.g., every 24 hours)
+---
 
-## Coin System
+## 💾 راه‌اندازی بکاپ
 
-| Action | Cost/Reward |
-|--------|-------------|
-| Connect to specific gender | -1 coin |
-| Connect to random (any gender) | Free |
-| Join anonymous group | -1 coin |
-| Successful referral | +5 coins |
-| Admin adjustment | Variable |
+1. `/admin` → بکاپ → تولید کد تأیید
+2. ربات را به یک گروه تلگرامی اضافه کنید (باید ادمین باشد)
+3. در آن گروه تایپ کنید: `/verify_backup <کد>`
+4. زمان‌بندی بکاپ را تنظیم کنید
 
-## Architecture
+---
+
+## 🏗️ ساختار پروژه
 
 ```
-artifacts/api-server/
-  src/
-    bot/
-      handlers/     # Command & message handlers
-      services/     # Business logic layer
-      keyboards/    # Telegram keyboards
-      middleware/   # Auth, rate limiting
-      i18n/         # Translations (fa, en)
-      index.ts      # Bot initialization
-    app.ts          # Express app
-    index.ts        # Entry point
-
-lib/
-  db/
-    src/schema/     # Drizzle ORM schemas
-    src/index.ts    # DB connection
+anymschatbot/
+├── install.sh                      ← نصب‌کننده خودکار
+├── artifacts/
+│   └── api-server/
+│       └── src/
+│           ├── bot/
+│           │   ├── handlers/
+│           │   │   ├── start.ts          ← شروع، رفرال، لینک‌های ورودی
+│           │   │   ├── matching.ts       ← اتصال ناشناس
+│           │   │   ├── group.ts          ← گروه ناشناس
+│           │   │   ├── anonymous-link.ts ← لینک ناشناس + مدت‌دار
+│           │   │   ├── pro-anon-link.ts  ← لینک پرو
+│           │   │   ├── coins.ts          ← سکه + رفرال
+│           │   │   ├── help.ts           ← راهنما و قوانین
+│           │   │   ├── settings.ts       ← تنظیمات کاربر
+│           │   │   ├── admin.ts          ← پنل ادمین
+│           │   │   └── magic.ts          ← ناشناس از ما بهترون
+│           │   ├── services/             ← لایه منطق کسب‌وکار
+│           │   ├── keyboards/            ← کیبوردهای تلگرام
+│           │   ├── middleware/           ← احراز هویت و rate limit
+│           │   ├── i18n/                 ← ترجمه‌ها (fa, en)
+│           │   └── index.ts              ← راه‌اندازی ربات
+│           ├── app.ts
+│           └── index.ts
+└── lib/
+    └── db/src/schema/                    ← Drizzle ORM schemas
 ```
 
-## Tech Stack
+---
 
-- **Bot Framework**: [Grammy](https://grammy.dev/) v1
-- **Runtime**: Node.js 24 + TypeScript 5.9
-- **Database**: PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/)
-- **Validation**: Zod v4
-- **Scheduling**: node-cron
-- **Logging**: Pino
+## 🛠️ دستورات مفید
 
-## Security
+```bash
+pm2 status                               # وضعیت ربات
+pm2 logs anchatbot                       # لاگ زنده
+pm2 restart anchatbot                    # ریستارت
 
-- Rate limiting (30 messages / 10 seconds)
-- Bad word filtering with configurable word list
-- Warning system (3 warnings → 24h restriction → ban)
-- Block system prevents re-matching
-- Admin-only commands protected by ID whitelist
-- Anonymous sessions with no identity leakage
+pnpm run typecheck                       # بررسی TypeScript
+pnpm --filter @workspace/db run push-force   # اعمال تغییرات دیتابیس
+pnpm --filter @workspace/api-server run build  # بیلد مجدد
+```
+
+---
+
+## 🔒 امنیت
+
+- Rate limiting (30 پیام / 10 ثانیه)
+- فیلتر کلمات نامناسب با سیستم هشدار
+- سیستم هشدار (۳ هشدار → محدودیت ۲۴ساعته → بن)
+- بلاک بین کاربران (جلوگیری از تطابق مجدد)
+- پنل ادمین فقط با آیدی عددی تأیید‌شده
+- رفرال ضد تقلب (یک رفرال به ازای هر کاربر)
+- پرداخت: جلوگیری از تراکنش تکراری
+
+---
+
+## 🧰 تکنولوژی‌ها
+
+| بخش | تکنولوژی |
+|-----|----------|
+| Bot Framework | [Grammy](https://grammy.dev/) v1 |
+| Runtime | Node.js 20 + TypeScript 5.9 |
+| Database | PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/) |
+| Validation | Zod v4 |
+| API Server | Express 5 |
+| Scheduling | node-cron |
+| Logging | Pino |
+| Build | esbuild |
+| Process Manager | PM2 |

@@ -1,96 +1,107 @@
 #!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════════
+#  AnymsChatBot — Fully-Automatic Installer
+#  Usage: sudo bash install.sh
+#  Supports: Ubuntu 20+, Debian 11+, CentOS/Rocky/AlmaLinux 8+, Fedora 37+
+# ═══════════════════════════════════════════════════════════════════════════════
 
-set -e
+set -euo pipefail
 
-echo "================================================="
-echo "  Telegram Anonymous Chat Bot - Installer"
-echo "================================================="
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'
+BOLD='\033[1m'; NC='\033[0m'
+ok()   { echo -e "${GREEN}✅ $*${NC}"; }
+info() { echo -e "${CYAN}ℹ  $*${NC}"; }
+warn() { echo -e "${YELLOW}⚠  $*${NC}"; }
+die()  { echo -e "${RED}❌ $*${NC}" >&2; exit 1; }
+
+echo -e "${BOLD}"
+echo "═══════════════════════════════════════════════════"
+echo "   🤖 AnymsChatBot — Installer"
+echo "═══════════════════════════════════════════════════"
+echo -e "${NC}"
+
+# ─── Root check ──────────────────────────────────────────────────────────────
+if [ "$EUID" -ne 0 ]; then
+    die "Please run as root:  sudo bash install.sh"
+fi
+
+# ─── Step 1: Only two inputs required ────────────────────────────────────────
+echo -e "${BOLD}Step 1 — Credentials${NC}\n"
+
+while true; do
+    read -rp "🤖 Telegram Bot Token (from @BotFather): " BOT_TOKEN
+    [[ -n "$BOT_TOKEN" ]] && break
+    warn "Token cannot be empty."
+done
+
+while true; do
+    read -rp "👤 Admin Telegram ID (numeric, e.g. 277236314): " ADMIN_ID
+    [[ "$ADMIN_ID" =~ ^[0-9]+$ ]] && break
+    warn "Must be a numeric Telegram ID (no letters)."
+done
 echo ""
 
-# ─── 1. Collect only the two required inputs ────────────────────────────────
-
-read -p "🤖 Telegram Bot Token (from @BotFather): " BOT_TOKEN
-if [ -z "$BOT_TOKEN" ]; then
-    echo "❌ Bot token is required."
-    exit 1
-fi
-
-read -p "👤 Admin Telegram ID (numeric, e.g. 123456789): " ADMIN_IDS
-if [ -z "$ADMIN_IDS" ]; then
-    echo "❌ Admin ID is required."
-    exit 1
-fi
-
-# Validate that ADMIN_IDS is numeric
-if ! [[ "$ADMIN_IDS" =~ ^[0-9,]+$ ]]; then
-    echo "❌ Admin ID must be numeric (e.g. 123456789)."
-    exit 1
-fi
-
-echo ""
-
-# ─── 2. Detect OS ────────────────────────────────────────────────────────────
-
+# ─── Step 2: Detect OS ───────────────────────────────────────────────────────
 detect_os() {
     if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        echo "$ID"
-    elif command -v apt-get >/dev/null 2>&1; then
-        echo "debian"
-    elif command -v yum >/dev/null 2>&1; then
-        echo "centos"
-    else
-        echo "unknown"
-    fi
+        . /etc/os-release; echo "${ID:-unknown}"
+    elif command -v apt-get >/dev/null 2>&1; then echo "debian"
+    elif command -v yum    >/dev/null 2>&1; then echo "centos"
+    else echo "unknown"; fi
 }
-
 OS=$(detect_os)
+info "OS detected: $OS"
 
-# ─── 3. Install Node.js 20 if needed ─────────────────────────────────────────
+# ─── Step 3: Node.js 20+ ─────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 2 — Node.js${NC}"
+NEED_NODE=false
+if ! command -v node >/dev/null 2>&1; then
+    NEED_NODE=true
+else
+    NODE_MAJ=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
+    [ "$NODE_MAJ" -lt 20 ] && NEED_NODE=true
+fi
 
-if ! command -v node >/dev/null 2>&1 || [ "$(node -e 'process.stdout.write(process.version.split(".")[0].replace("v",""))')" -lt 20 ]; then
-    echo "📦 Installing Node.js 20..."
+if $NEED_NODE; then
+    info "Installing Node.js 20..."
     case "$OS" in
-        ubuntu|debian)
+        ubuntu|debian|raspbian)
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq >/dev/null 2>&1
             curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
             apt-get install -y nodejs >/dev/null 2>&1
             ;;
-        centos|rhel|fedora|rocky|almalinux)
+        centos|rhel|rocky|almalinux)
             curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
             yum install -y nodejs >/dev/null 2>&1
             ;;
+        fedora)
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - >/dev/null 2>&1
+            dnf install -y nodejs >/dev/null 2>&1
+            ;;
         *)
-            echo "❌ Please install Node.js 20+ manually and re-run this script."
-            exit 1
+            die "Cannot auto-install Node.js on OS '$OS'. Install Node.js 20+ manually and re-run."
             ;;
     esac
-    echo "✅ Node.js $(node -v) installed"
-else
-    echo "✅ Node.js $(node -v) already installed"
 fi
+ok "Node.js $(node -v) ready"
 
-# ─── 4. Install pnpm if needed ───────────────────────────────────────────────
-
+# ─── Step 4: pnpm ────────────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 3 — pnpm${NC}"
 if ! command -v pnpm >/dev/null 2>&1; then
-    echo "📦 Installing pnpm..."
-    npm install -g pnpm >/dev/null 2>&1
-    echo "✅ pnpm installed"
-else
-    echo "✅ pnpm already installed"
+    info "Installing pnpm..."
+    npm install -g pnpm --silent
 fi
+ok "pnpm $(pnpm -v) ready"
 
-# ─── 5. Install & configure PostgreSQL automatically ─────────────────────────
-
-DB_NAME="anchatbot"
-DB_USER="anchatbot"
-DB_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
-DB_HOST="localhost"
-DB_PORT="5432"
+# ─── Step 5: PostgreSQL ──────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 4 — PostgreSQL${NC}"
 
 if ! command -v psql >/dev/null 2>&1; then
-    echo "📦 Installing PostgreSQL..."
+    info "Installing PostgreSQL..."
     case "$OS" in
-        ubuntu|debian)
+        ubuntu|debian|raspbian)
+            export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq >/dev/null 2>&1
             apt-get install -y postgresql postgresql-contrib >/dev/null 2>&1
             ;;
@@ -103,129 +114,173 @@ if ! command -v psql >/dev/null 2>&1; then
             postgresql-setup --initdb >/dev/null 2>&1 || true
             ;;
         *)
-            echo "❌ Please install PostgreSQL manually and re-run."
-            exit 1
+            die "Cannot auto-install PostgreSQL on OS '$OS'. Install it manually and re-run."
             ;;
     esac
-    systemctl enable postgresql >/dev/null 2>&1 || true
-    systemctl start postgresql >/dev/null 2>&1 || true
-    echo "✅ PostgreSQL installed and started"
-else
-    # Make sure it's running
-    systemctl start postgresql >/dev/null 2>&1 || service postgresql start >/dev/null 2>&1 || true
-    echo "✅ PostgreSQL already installed"
 fi
 
-echo "🗄️  Creating database user and database..."
+# Ensure PostgreSQL is running
+systemctl enable postgresql >/dev/null 2>&1 || true
+systemctl start  postgresql >/dev/null 2>&1 \
+    || service postgresql start >/dev/null 2>&1 \
+    || true
+sleep 2
+ok "PostgreSQL running"
 
-# Create DB user and database via postgres superuser
-sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null || \
-    sudo -u postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null || true
+# Create database + user with random password
+DB_NAME="anchatbot"
+DB_USER="anchatbot"
+DB_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 28)"
+DB_HOST="localhost"
+DB_PORT="5432"
 
-sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};" 2>/dev/null || \
-    sudo -u postgres psql -c "ALTER DATABASE ${DB_NAME} OWNER TO ${DB_USER};" 2>/dev/null || true
+info "Creating database '$DB_NAME' and user '$DB_USER'..."
+
+sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null \
+    || sudo -u postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null \
+    || true
+
+sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};" 2>/dev/null \
+    || sudo -u postgres psql -c "ALTER DATABASE ${DB_NAME} OWNER TO ${DB_USER};" 2>/dev/null \
+    || true
 
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};" 2>/dev/null || true
 
-# Allow local password auth — add pg_hba.conf entry if not present
-PG_HBA=$(sudo -u postgres psql -t -c "SHOW hba_file;" 2>/dev/null | tr -d ' ')
+# Allow password-based auth in pg_hba.conf
+PG_HBA=$(sudo -u postgres psql -t -c "SHOW hba_file;" 2>/dev/null | tr -d ' \n')
 if [ -n "$PG_HBA" ] && [ -f "$PG_HBA" ]; then
-    if ! grep -q "^host.*${DB_NAME}.*${DB_USER}.*md5\|^host.*${DB_NAME}.*${DB_USER}.*scram" "$PG_HBA" 2>/dev/null; then
-        echo "host    ${DB_NAME}    ${DB_USER}    127.0.0.1/32    md5" >> "$PG_HBA"
-        echo "host    ${DB_NAME}    ${DB_USER}    ::1/128         md5" >> "$PG_HBA"
-        systemctl reload postgresql >/dev/null 2>&1 || service postgresql reload >/dev/null 2>&1 || true
+    if ! grep -qE "^host.*${DB_NAME}.*${DB_USER}.*(md5|scram)" "$PG_HBA" 2>/dev/null; then
+        printf "host    %-20s %-20s 127.0.0.1/32    md5\n" "${DB_NAME}" "${DB_USER}" >> "$PG_HBA"
+        printf "host    %-20s %-20s ::1/128         md5\n" "${DB_NAME}" "${DB_USER}" >> "$PG_HBA"
+        systemctl reload postgresql >/dev/null 2>&1 \
+            || service postgresql reload >/dev/null 2>&1 \
+            || true
+        sleep 1
     fi
 fi
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
-# Verify connection works
-if PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
-    echo "✅ Database connection verified"
+# Verify connection
+if PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+       -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
+    ok "Database connection verified"
 else
-    echo "⚠️  Could not verify DB connection — continuing anyway. Check logs if bot fails to start."
+    warn "Could not verify DB connection — will continue. Check logs if bot fails to start."
 fi
 
-# ─── 6. Write .env ───────────────────────────────────────────────────────────
+# ─── Step 6: Write .env ──────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 5 — Environment file${NC}"
 
-echo ""
-echo "📝 Writing .env..."
-cat > .env << EOF
+INSTALL_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${INSTALL_DIR}/.env"
+
+cat > "$ENV_FILE" << ENVEOF
 TELEGRAM_BOT_TOKEN=${BOT_TOKEN}
-ADMIN_IDS=${ADMIN_IDS}
+ADMIN_IDS=${ADMIN_ID}
 DATABASE_URL=${DATABASE_URL}
 NODE_ENV=production
 PORT=5000
-EOF
-echo "✅ .env created"
+ENVEOF
 
-# Export all env vars so every subsequent command (drizzle-kit, build, pm2) can see them
-set -a
-# shellcheck source=/dev/null
-source .env
-set +a
+ok ".env created at $ENV_FILE"
 
-# ─── 7. Install JS dependencies ──────────────────────────────────────────────
+# Export so sub-processes (drizzle-kit, pnpm scripts) pick them up
+export TELEGRAM_BOT_TOKEN="$BOT_TOKEN"
+export ADMIN_IDS="$ADMIN_ID"
+export DATABASE_URL="$DATABASE_URL"
+export NODE_ENV="production"
+export PORT="5000"
 
-echo ""
-echo "📦 Installing project dependencies..."
-pnpm install --frozen-lockfile 2>&1 | tail -5
-echo "✅ Dependencies installed"
+# ─── Step 7: JS dependencies ─────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 6 — Node.js dependencies${NC}"
+info "Running pnpm install..."
+cd "$INSTALL_DIR"
+pnpm install --frozen-lockfile 2>&1 | grep -E "ERR|error|added|Done" | tail -5 || true
+ok "Dependencies installed"
 
-# ─── 8. Apply DB schema ──────────────────────────────────────────────────────
+# ─── Step 8: Build ───────────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 7 — Build${NC}"
+info "Building with esbuild (fast)..."
+cd "${INSTALL_DIR}/artifacts/api-server"
+pnpm run build
+cd "$INSTALL_DIR"
+ok "Build complete"
 
-echo ""
-echo "🗄️  Applying database schema..."
-if pnpm --filter @workspace/db run push; then
-    echo "✅ Database schema applied"
+# ─── Step 9: Apply DB schema ─────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 8 — Database schema${NC}"
+info "Pushing schema (drizzle-kit)..."
+cd "$INSTALL_DIR"
+
+# Use push-force to avoid interactive TTY prompts
+if pnpm --filter @workspace/db run push-force 2>&1 | tail -5; then
+    ok "Database schema applied"
 else
-    echo "❌ DB schema push failed. Check DATABASE_URL and PostgreSQL connection."
-    exit 1
+    # Fallback: pipe yes for any remaining interactive prompts
+    warn "Retrying with prompt bypass..."
+    yes 2>/dev/null | pnpm --filter @workspace/db run push 2>&1 | tail -5 \
+        || die "Database schema push failed. Check DATABASE_URL and PostgreSQL logs."
 fi
 
-# ─── 9. Build ────────────────────────────────────────────────────────────────
-
-echo ""
-echo "🔨 Building project..."
-pnpm --filter @workspace/api-server run build
-echo "✅ Build complete"
-
-# ─── 10. Setup PM2 for auto-restart ──────────────────────────────────────────
+# ─── Step 10: PM2 process manager ────────────────────────────────────────────
+echo -e "\n${BOLD}Step 9 — Process manager (PM2)${NC}"
 
 if ! command -v pm2 >/dev/null 2>&1; then
-    echo ""
-    echo "📦 Installing PM2 (process manager)..."
-    npm install -g pm2 >/dev/null 2>&1
+    info "Installing PM2..."
+    npm install -g pm2 --silent
+fi
+ok "PM2 $(pm2 -v) ready"
+
+cd "$INSTALL_DIR"
+pm2 delete anchatbot >/dev/null 2>&1 || true
+
+pm2 start \
+    "pnpm --filter @workspace/api-server run start" \
+    --name anchatbot \
+    --restart-delay=5000 \
+    --max-restarts=20 \
+    >/dev/null 2>&1
+
+pm2 save >/dev/null 2>&1 || true
+
+# Enable auto-start on reboot
+STARTUP_CMD=$(pm2 startup 2>/dev/null | grep -E "^sudo|^env PATH" | head -1 || true)
+if [ -n "$STARTUP_CMD" ]; then
+    eval "$STARTUP_CMD" >/dev/null 2>&1 || true
+fi
+ok "PM2 auto-start on reboot configured"
+
+# Wait and check the process
+sleep 4
+if pm2 show anchatbot 2>/dev/null | grep -q "online"; then
+    ok "Bot is ONLINE ✔"
+else
+    warn "Bot process may have crashed. Check: pm2 logs anchatbot"
 fi
 
-pm2 delete anchatbot >/dev/null 2>&1 || true
-pm2 start "pnpm --filter @workspace/api-server run start" \
-    --name anchatbot \
-    --restart-delay=3000 \
-    --max-restarts=10 >/dev/null 2>&1
-pm2 save >/dev/null 2>&1 || true
-pm2 startup 2>/dev/null | tail -1 | bash >/dev/null 2>&1 || true
-
 # ─── Done ────────────────────────────────────────────────────────────────────
-
 echo ""
-echo "================================================="
-echo "✅ Installation complete! Bot is now running."
+echo -e "${BOLD}${GREEN}"
+echo "═══════════════════════════════════════════════════"
+echo "   🎉 Installation complete!"
+echo "═══════════════════════════════════════════════════"
+echo -e "${NC}"
+printf "  %-18s %s\n" "Bot Token:"    "${BOT_TOKEN:0:12}…"
+printf "  %-18s %s\n" "Admin ID:"     "${ADMIN_ID}"
+printf "  %-18s %s\n" "DB Host:"      "${DB_HOST}:${DB_PORT}/${DB_NAME}"
+printf "  %-18s %s\n" "DB Password:"  "${DB_PASS}"
 echo ""
-echo "📋 Connection details (saved in .env):"
-echo "   DB Name : ${DB_NAME}"
-echo "   DB User : ${DB_USER}"
-echo "   DB Host : ${DB_HOST}:${DB_PORT}"
+echo -e "${BOLD}  PM2 commands:${NC}"
+echo "    pm2 status              — view process status"
+echo "    pm2 logs anchatbot      — view live logs"
+echo "    pm2 restart anchatbot   — restart the bot"
+echo "    pm2 stop anchatbot      — stop the bot"
 echo ""
-echo "📌 Useful commands:"
-echo "   pm2 status              — view bot status"
-echo "   pm2 logs anchatbot      — view bot logs"
-echo "   pm2 restart anchatbot   — restart bot"
-echo "   pm2 stop anchatbot      — stop bot"
-echo ""
-echo "🤖 Open your bot in Telegram and:"
-echo "   1. Send /start to register"
-echo "   2. Send /admin to open the admin panel"
-echo "   3. In Admin ← Payment ← TetraPay: press 🔄 Auto-detect URL"
-echo "      to set the callback URL automatically."
-echo "================================================="
+echo -e "${BOLD}  First steps in Telegram:${NC}"
+echo "    1. Open your bot and send /start"
+echo "    2. Send /admin to open the admin panel"
+echo "    3. Admin → Payments → TetraPay → 🔄 Auto-detect URL"
+echo "       (sets the payment callback URL automatically)"
+echo "    4. Admin → Payments → set card/crypto details"
+echo "    5. Admin → Referral → set coin rewards"
+echo "═══════════════════════════════════════════════════"

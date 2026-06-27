@@ -64,6 +64,15 @@ export async function getUserByReferralCode(code: string): Promise<User | null> 
   return user ?? null;
 }
 
+export async function getUserReferral(telegramId: number): Promise<{ referrerId: number } | null> {
+  const [referral] = await db
+    .select({ referrerId: referralsTable.referrerId })
+    .from(referralsTable)
+    .where(eq(referralsTable.referredId, telegramId))
+    .limit(1);
+  return referral ?? null;
+}
+
 export async function getUserByAnonToken(token: string): Promise<User | null> {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.anonymousToken, token)).limit(1);
   return user ?? null;

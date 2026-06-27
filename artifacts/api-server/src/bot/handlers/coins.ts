@@ -340,7 +340,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).referralLinkMsg(link), { parse_mode: "HTML" });
 
     // Message 2: forward-able promotional banner — HTML
-    await ctx.reply(t(lang).referralBanner(link, inviterReward, inviteeReward), {
+    await ctx.reply(t(lang).referralBanner(link, inviterReward, inviteeReward, botUsername), {
       parse_mode: "HTML",
     });
   });

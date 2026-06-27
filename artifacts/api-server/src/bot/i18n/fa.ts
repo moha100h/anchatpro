@@ -230,8 +230,10 @@ export const fa = {
     `یا لینک زیر را کپی کن:\n<code>${link}</code>\n\n` +
     `─────────────────\n` +
     `بنر آماده فوروارد 👇`,
-  referralBanner: (link: string, inviterReward: number, inviteeReward: number) =>
-    `🌟 <b>ربات چت ناشناس — @anymschat_bot</b>\n\n` +
+  alreadyMember: "✅ شما قبلاً عضو هستید! به منوی اصلی خوش آمدید.",
+  alreadyJoinedVia: (name: string) => `✅ شما قبلاً با لینک دعوت <b>${name}</b> عضو شده‌اید.`,
+  referralBanner: (link: string, inviterReward: number, inviteeReward: number, botUsername: string) =>
+    `🌟 <b>ربات چت ناشناس — @${botUsername}</b>\n\n` +
     `یه ربات متفاوت برای ارتباط واقعی:\n\n` +
     `💬 با غریبه‌های جذاب چت کاملاً ناشناس\n` +
     `📩 پیام ناشناس بفرست، بدون اینکه شناخته بشی\n` +

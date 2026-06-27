@@ -230,8 +230,10 @@ export const en = {
     `Or copy the link below:\n<code>${link}</code>\n\n` +
     `─────────────────\n` +
     `Ready-to-forward banner 👇`,
-  referralBanner: (link: string, inviterReward: number, inviteeReward: number) =>
-    `🌟 <b>Anonymous Chat Bot — @anymschat_bot</b>\n\n` +
+  alreadyMember: "✅ You're already a member! Welcome back to the main menu.",
+  alreadyJoinedVia: (name: string) => `✅ You already joined via <b>${name}</b>'s invite link.`,
+  referralBanner: (link: string, inviterReward: number, inviteeReward: number, botUsername: string) =>
+    `🌟 <b>Anonymous Chat Bot — @${botUsername}</b>\n\n` +
     `A different kind of social app:\n\n` +
     `💬 Chat anonymously with interesting strangers\n` +
     `📩 Send anonymous messages, stay unknown\n` +

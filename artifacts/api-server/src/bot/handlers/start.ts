@@ -8,6 +8,7 @@ import {
   getUserByTelegramId,
   getUserByAnonToken,
   getUserByReferralCode,
+  getUserReferral,
 } from "../services/user.service.js";
 import { processReferralReward, deductCoins } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
@@ -286,9 +287,21 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     if (ctx.session.step) ctx.session.step = undefined;
 
     const existingReferralResult = await processReferralReward(tgId);
-    if (referralCode && existingReferralResult) {
-      const inviter = await getUserByTelegramId(existingReferralResult.referrerId);
-      await ctx.reply(t(lang).referralWelcome(inviter?.firstName ?? "یک دوست"), { parse_mode: "Markdown" });
+    if (referralCode) {
+      if (existingReferralResult) {
+        // Pending reward just processed → welcome with inviter name
+        const inviter = await getUserByTelegramId(existingReferralResult.referrerId);
+        await ctx.reply(t(lang).referralWelcome(inviter?.firstName ?? "یک دوست"), { parse_mode: "Markdown" });
+      } else {
+        // Already registered — check if they previously joined via someone's link
+        const existingReferral = await getUserReferral(tgId);
+        if (existingReferral) {
+          const inviter = await getUserByTelegramId(existingReferral.referrerId);
+          await ctx.reply(t(lang).alreadyJoinedVia(inviter?.firstName ?? "یک دوست"), { parse_mode: "HTML" });
+        } else {
+          await ctx.reply(t(lang).alreadyMember);
+        }
+      }
     }
     await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
   });

@@ -86,13 +86,27 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).menuGroup, { reply_markup: groupSubMenuKeyboard(lang) });
   });
 
-  // ─── Join public anonymous group — disabled, invite link only ────────────────
+  // ─── Join public anonymous group — show cost confirm ─────────────────────────
   bot.hears(["👥 پیوستن به گروه‌های ناشناس", "👥 Join Anonymous Groups"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
-    await ctx.reply(t(lang).groupJoinOnlyViaLink, { parse_mode: "Markdown" });
+
+    if (user.isInChat)  { await ctx.reply(t(lang).alreadyInChat);  return; }
+    if (user.isInGroup) { await ctx.reply(t(lang).alreadyInGroup); return; }
+    if (user.isInQueue) { await ctx.reply(t(lang).alreadyInQueue); return; }
+
+    const costStr = await getSetting("group_join_cost");
+    const cost = costStr ? parseInt(costStr, 10) : 3;
+
+    const kb = new InlineKeyboard()
+      .text(t(lang).confirm, "group:join:confirm")
+      .text(t(lang).cancel,  "group:join:cancel");
+    await ctx.reply(t(lang).groupJoinCostInfo(cost), {
+      parse_mode: "Markdown",
+      reply_markup: kb,
+    });
   });
 
   // ─── Join confirm callback ────────────────────────────────────────────────────

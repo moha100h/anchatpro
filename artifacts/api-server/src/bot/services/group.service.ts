@@ -394,7 +394,7 @@ export async function getCreatorGroups(
   return withActive;
 }
 
-/** ALL groups the user has been a member of (NOT the creator), excluding dismissed. Includes ended/left. */
+/** Groups the user joined via invite link (named groups with creatorId set, NOT the user themselves), excluding dismissed. */
 export async function getJoinedGroups(
   userId: number
 ): Promise<Array<{ id: number; name: string | null; memberCount: number; maxMembers: number; isAdmin: boolean; status: string; leftAt: Date | null }>> {
@@ -414,7 +414,10 @@ export async function getJoinedGroups(
       and(
         eq(groupMembersTable.userId, userId),
         eq(groupMembersTable.dismissed, false),
-        or(isNull(groupChatsTable.creatorId), ne(groupChatsTable.creatorId, userId))
+        // Only named groups (invite-link groups have creatorId set)
+        isNotNull(groupChatsTable.creatorId),
+        // Exclude groups the user themselves created
+        ne(groupChatsTable.creatorId, userId)
       )
     );
   return rows;

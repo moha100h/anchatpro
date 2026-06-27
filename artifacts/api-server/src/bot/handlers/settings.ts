@@ -9,6 +9,7 @@ import {
 import { t } from "../i18n/index.js";
 import {
   mainMenuKeyboard,
+  magicMenuKeyboard,
   settingsKeyboard,
   genderKeyboard,
   cancelKeyboard,
@@ -36,8 +37,13 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
       return; // handled
     }
 
-    // Final fallback: any other cancel → just show main menu
-    await ctx.reply(t(lang).cancelledAction, { reply_markup: mainMenuKeyboard(lang) });
+    // Final fallback: if in magic step → magic menu, else main menu
+    if (ctx.session.magicStep) {
+      ctx.session.magicStep = undefined;
+      await ctx.reply(t(lang).cancelledAction, { reply_markup: magicMenuKeyboard(lang) });
+    } else {
+      await ctx.reply(t(lang).cancelledAction, { reply_markup: mainMenuKeyboard(lang) });
+    }
   });
 
   // ─── Open settings menu ──────────────────────────────────────────────────────
@@ -86,15 +92,15 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).changeLanguage, { reply_markup: languageKeyboard() });
   });
 
-  // ─── Back button ─────────────────────────────────────────────────────────────
+  // ─── Back button — always return to main menu ─────────────────────────────
   bot.hears([/^🔙 بازگشت/, /^🔙 Back/], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
     await setUserSetupStep(tgId, null);
-    await ctx.reply(t(lang).profileUpdated.replace("✅ ", "🏠 ").replace(/.*/, "🏠"), {
-      reply_markup: mainMenuKeyboard(lang),
-    });
+    ctx.session.magicStep = undefined;
+    ctx.session.magicChainId = undefined;
+    await ctx.reply("🏠", { reply_markup: mainMenuKeyboard(lang) });
   });
 
   // ─── Handle gender selection (change_gender step) ────────────────────────────

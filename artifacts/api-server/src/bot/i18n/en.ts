@@ -22,7 +22,14 @@ export const en = {
   menuHelp: "❓ Help",
   menuSettings: "⚙️ Settings",
   menuReferral: "🎁 Invite Friends",
-  menuMagic: "🌊 Ocean of Emotions",
+  menuMagic: "🌊 اقیانوس احساس",
+
+  // ─── Magic sub-menu button labels ────────────────────────────────────────────
+  magicBtnBottle:  "🍾 Message in a Bottle",
+  magicBtnChain:   "🔗 Emotion Chain",
+  magicBtnLetter:  "✉️ Letter to the Future",
+  magicBtnFreq:    "📡 Anonymous Frequency",
+  magicSubTitle:   "🌊 Ocean of Emotions\n\nChoose a feature:",
 
   // ─── Matching ────────────────────────────────────────────────────────────────
   selectGenderPref: "Which gender would you like to talk to?",

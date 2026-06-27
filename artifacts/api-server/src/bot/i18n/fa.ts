@@ -24,6 +24,13 @@ export const fa = {
   menuReferral: "🎁 دعوت دوستان",
   menuMagic: "🌊 اقیانوس احساس",
 
+  // ─── Magic sub-menu button labels ────────────────────────────────────────────
+  magicBtnBottle:  "🍾 پیام در بطری",
+  magicBtnChain:   "🔗 زنجیر احساس",
+  magicBtnLetter:  "✉️ نامه به آینده",
+  magicBtnFreq:    "📡 فرکانس ناشناس",
+  magicSubTitle:   "🌊 اقیانوس احساس\n\nیک ویژگی انتخاب کن:",
+
   // ─── Matching ────────────────────────────────────────────────────────────────
   selectGenderPref: "با چه جنسیتی می‌خواهید صحبت کنید؟",
   genderPrefFemale: "👧 زن",

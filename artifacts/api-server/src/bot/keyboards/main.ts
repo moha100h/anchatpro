@@ -1,6 +1,16 @@
 import { Keyboard } from "grammy";
 import { t, type Lang } from "../i18n/index.js";
 
+export function magicMenuKeyboard(lang: Lang) {
+  const i = t(lang);
+  return new Keyboard()
+    .text(i.magicBtnBottle).text(i.magicBtnChain).row()
+    .text(i.magicBtnLetter).text(i.magicBtnFreq).row()
+    .text(i.back)
+    .resized()
+    .persistent();
+}
+
 export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()

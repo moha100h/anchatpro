@@ -27,6 +27,8 @@ import {
   getGroupByInviteToken,
   joinGroupByInvite,
   getGroupInviteToken,
+  updateGroupActivity,
+  cleanupStaleAnonymousGroups,
 } from "../services/group.service.js";
 import { containsBadWord, issueWarning } from "../services/safety.service.js";
 import { t } from "../i18n/index.js";
@@ -84,27 +86,13 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).menuGroup, { reply_markup: groupSubMenuKeyboard(lang) });
   });
 
-  // ─── Join public anonymous group — show cost confirm ─────────────────────────
+  // ─── Join public anonymous group — disabled, invite link only ────────────────
   bot.hears(["👥 پیوستن به گروه‌های ناشناس", "👥 Join Anonymous Groups"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
-
-    if (user.isInChat)  { await ctx.reply(t(lang).alreadyInChat);  return; }
-    if (user.isInGroup) { await ctx.reply(t(lang).alreadyInGroup); return; }
-    if (user.isInQueue) { await ctx.reply(t(lang).alreadyInQueue); return; }
-
-    const costStr = await getSetting("group_join_cost");
-    const cost = costStr ? parseInt(costStr, 10) : 3;
-
-    const kb = new InlineKeyboard()
-      .text(t(lang).confirm, "group:join:confirm")
-      .text(t(lang).cancel,  "group:join:cancel");
-    await ctx.reply(t(lang).groupJoinCostInfo(cost), {
-      parse_mode: "Markdown",
-      reply_markup: kb,
-    });
+    await ctx.reply(t(lang).groupJoinOnlyViaLink, { parse_mode: "Markdown" });
   });
 
   // ─── Join confirm callback ────────────────────────────────────────────────────
@@ -209,7 +197,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       const name = g.name ?? t(lang).groupNoName;
       if (g.status !== "ended") {
         // Active group: enter button + invite link URL button
-        kb.text(`🟢 ${name} — ${g.memberCount}/${g.maxMembers} 👥`, `group:enter:${g.id}`).row();
+        kb.text(`🟢 ${name} — ${g.activeMemberCount}/${g.maxMembers} 👥`, `group:enter:${g.id}`).row();
         if (g.inviteToken) {
           const inviteUrl = `https://t.me/${BOT_USERNAME}?start=g_${g.inviteToken}`;
           kb.url(`🔗 ${lang === "fa" ? "لینک دعوت" : "Invite Link"}`, inviteUrl).row();
@@ -301,6 +289,15 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
   // ─── Noop callback (info-only buttons like ended group names) ────────────────
   bot.callbackQuery("group:noop", async (ctx) => {
     await ctx.answerCallbackQuery();
+  });
+
+  // ─── Go to My Groups (from slot limit warning) ────────────────────────────────
+  bot.callbackQuery("group:go:mygroups", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await ctx.reply(t(lang).groupSubMenuMine, { reply_markup: groupMyGroupsKeyboard(lang) });
   });
 
   // ─── Dismiss ended group from created list ────────────────────────────────────
@@ -433,12 +430,13 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       const expandCostStr = await getSetting("group_slot_expand_cost");
       const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
       const kb = new InlineKeyboard();
+      kb.text(t(lang).groupLimitGoToMyGroups, "group:go:mygroups").row();
       if (slots.maxCreated < 10) {
         kb.text(t(lang).groupExpandCreatedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:created");
       }
       await ctx.reply(t(lang).groupLimitCreatedReached(slots.maxCreated, expandCost), {
         parse_mode: "Markdown",
-        reply_markup: slots.maxCreated < 10 ? kb : undefined,
+        reply_markup: kb,
       });
       return;
     }
@@ -823,6 +821,9 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     // Display name: "👑 FirstName ***" / "⭐ FirstName ***" / "FirstName ***"
     const myDisplayName = await getGroupMemberDisplayName(tgId, groupId);
 
+    // Update last activity timestamp for anonymous group cleanup
+    void updateGroupActivity(groupId);
+
     if (ctx.message.text) {
       const isBad = await containsBadWord(ctx.message.text);
       if (isBad) {
@@ -860,4 +861,14 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       }
     }
   });
+
+  // ─── Cleanup scheduler: end stale anonymous groups every hour ─────────────────
+  setInterval(async () => {
+    try {
+      const cleaned = await cleanupStaleAnonymousGroups();
+      if (cleaned > 0) console.log(`[group-cleanup] Ended ${cleaned} stale anonymous group(s).`);
+    } catch (e) {
+      console.error("[group-cleanup] Error:", e);
+    }
+  }, 60 * 60 * 1000); // every hour
 }

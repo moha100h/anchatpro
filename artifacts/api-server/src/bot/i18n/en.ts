@@ -517,6 +517,8 @@ export const en = {
 
   // ─── Group sub-menu & management ─────────────────────────────────────────────
   groupSubMenuJoin: "👥 Join Anonymous Groups",
+  groupJoinOnlyViaLink: "🔗 **Join a Group**\n\nYou can only join groups via an invite link.\n\nAsk the group creator to send you their invite link.",
+  groupLimitGoToMyGroups: "📋 View My Groups",
   groupSubMenuMine: "📋 My Groups",
   groupMyGroupsCreated: "🏗️ Groups I Created",
   groupMyGroupsJoined: "👤 Groups I Joined",

@@ -263,12 +263,14 @@ export async function leaveGroup(
     .set({ memberCount: remaining })
     .where(eq(groupChatsTable.id, member.groupId));
 
-  if (remaining < 2) {
+  // Only auto-end ANONYMOUS groups (creatorId = null) when too few members remain.
+  // Named groups (creatorId set) stay active until the creator explicitly deletes them.
+  if (remaining === 0 && group.creatorId === null) {
     await db
       .update(groupChatsTable)
       .set({ status: "ended", endedAt: new Date() })
       .where(eq(groupChatsTable.id, member.groupId));
-    // Remove all remaining members
+    // Remove any remaining members (safety sweep)
     const rest = await db
       .select()
       .from(groupMembersTable)
@@ -360,10 +362,10 @@ export async function banMember(groupId: number, memberDbId: number): Promise<nu
 
 // ─── New functions: admin, expand, invite, creator-groups ─────────────────────
 
-/** Returns ALL groups where user is creator (excluding dismissed ones). */
+/** Returns ALL groups where user is creator (excluding dismissed ones). Includes live active member count. */
 export async function getCreatorGroups(
   userId: number
-): Promise<Array<{ id: number; name: string | null; inviteToken: string | null; memberCount: number; maxMembers: number; status: string }>> {
+): Promise<Array<{ id: number; name: string | null; inviteToken: string | null; memberCount: number; activeMemberCount: number; maxMembers: number; status: string }>> {
   const rows = await db
     .select({
       id: groupChatsTable.id,
@@ -380,7 +382,16 @@ export async function getCreatorGroups(
       and(eq(groupMembersTable.groupId, groupChatsTable.id), eq(groupMembersTable.userId, userId), eq(groupMembersTable.isCreator, true))
     )
     .where(and(eq(groupChatsTable.creatorId, userId), not(eq(groupMembersTable.dismissed, true))));
-  return rows.map(r => ({ id: r.id, name: r.name, inviteToken: r.inviteToken, memberCount: r.memberCount, maxMembers: r.maxMembers, status: r.status }));
+
+  // Fetch live active member counts for each group in parallel
+  const withActive = await Promise.all(rows.map(async (r) => {
+    const activeRows = await db
+      .select({ id: groupMembersTable.id })
+      .from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, r.id), isNull(groupMembersTable.leftAt)));
+    return { id: r.id, name: r.name, inviteToken: r.inviteToken, memberCount: r.memberCount, activeMemberCount: activeRows.length, maxMembers: r.maxMembers, status: r.status };
+  }));
+  return withActive;
 }
 
 /** ALL groups the user has been a member of (NOT the creator), excluding dismissed. Includes ended/left. */
@@ -479,6 +490,49 @@ export async function promoteToAdmin(groupId: number, memberDbId: number): Promi
     .where(eq(groupMembersTable.id, memberDbId));
 
   return member.userId;
+}
+
+/** Update last_activity_at for a group (called on each forwarded message). */
+export async function updateGroupActivity(groupId: number): Promise<void> {
+  await db
+    .update(groupChatsTable)
+    .set({ lastActivityAt: new Date() })
+    .where(eq(groupChatsTable.id, groupId));
+}
+
+/** Ends anonymous groups that have been inactive for more than 24 hours. */
+export async function cleanupStaleAnonymousGroups(): Promise<number> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  // Find anonymous (creatorId null) active/forming groups with no activity in 24h
+  const stale = await db
+    .select({ id: groupChatsTable.id, lastActivityAt: groupChatsTable.lastActivityAt, createdAt: groupChatsTable.createdAt })
+    .from(groupChatsTable)
+    .where(
+      and(
+        isNull(groupChatsTable.creatorId),
+        or(eq(groupChatsTable.status, "active"), eq(groupChatsTable.status, "forming"))
+      )
+    );
+
+  let cleaned = 0;
+  for (const g of stale) {
+    const lastActive = g.lastActivityAt ?? g.createdAt;
+    if (lastActive < cutoff) {
+      // End the group
+      await db.update(groupChatsTable).set({ status: "ended", endedAt: new Date() }).where(eq(groupChatsTable.id, g.id));
+      // Clear all active members
+      const members = await db
+        .select()
+        .from(groupMembersTable)
+        .where(and(eq(groupMembersTable.groupId, g.id), isNull(groupMembersTable.leftAt)));
+      for (const m of members) {
+        await db.update(groupMembersTable).set({ leftAt: new Date() }).where(eq(groupMembersTable.id, m.id));
+        await db.update(usersTable).set({ isInGroup: false, updatedAt: new Date() }).where(eq(usersTable.telegramId, m.userId));
+      }
+      cleaned++;
+    }
+  }
+  return cleaned;
 }
 
 /** Expands maxMembers for a group. */

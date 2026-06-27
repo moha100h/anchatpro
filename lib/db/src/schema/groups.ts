@@ -15,6 +15,7 @@ export const groupChatsTable = pgTable("group_chats", {
   joinCost: integer("join_cost").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   endedAt: timestamp("ended_at"),
+  lastActivityAt: timestamp("last_activity_at"),
 });
 
 export const groupMembersTable = pgTable("group_members", {

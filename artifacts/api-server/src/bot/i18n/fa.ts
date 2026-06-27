@@ -530,6 +530,8 @@ export const fa = {
   magicHelpMenuTitle: "📖 **راهنمای ناشناس از ما بهترون**\n\nیک ویژگی را برای توضیحات انتخاب کنید:",
 
   // ─── Group sub-menu & management ─────────────────────────────────────────────
+  groupJoinOnlyViaLink: "🔗 **عضویت در گروه**\n\nعضویت در گروه فقط از طریق لینک دعوت اختصاصی امکان‌پذیر است.\n\nاز سازنده گروه بخواهید لینک دعوت را برایتان بفرستد.",
+  groupLimitGoToMyGroups: "📋 مشاهده گروه‌هایم",
   groupSubMenuJoin: "👥 پیوستن به گروه‌های ناشناس",
   groupSubMenuMine: "📋 گروه‌های من",
   groupMyGroupsCreated: "🏗️ گروه‌های ساخته‌ام",

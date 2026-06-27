@@ -121,30 +121,51 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
 
-    if (user?.setupStep !== "select_age") return next();
+    // ── Age step ──────────────────────────────────────────────────────────────
+    if (user?.setupStep === "select_age") {
+      const lang = (user?.language as "fa" | "en") ?? "fa";
+      const age = parseInt(ctx.message.text.trim(), 10);
 
-    const lang = (user?.language as "fa" | "en") ?? "fa";
-    const age = parseInt(ctx.message.text.trim(), 10);
+      if (isNaN(age) || age < 13 || age > 100) {
+        await ctx.reply(t(lang).invalidAge);
+        return;
+      }
 
-    if (isNaN(age) || age < 13 || age > 100) {
-      await ctx.reply(t(lang).invalidAge);
+      await updateUser(tgId, { age });
+      // Move to city step instead of finishing setup
+      await setUserSetupStep(tgId, "select_city");
+      await ctx.reply(t(lang).selectCity, { reply_markup: { remove_keyboard: true } });
       return;
     }
 
-    // Save age and CLEAR setupStep (null = SQL NULL, not undefined which Drizzle ignores)
-    await updateUser(tgId, { age });
-    await setUserSetupStep(tgId, null);
-    await processReferralReward(tgId);
+    // ── City step ─────────────────────────────────────────────────────────────
+    if (user?.setupStep === "select_city") {
+      const lang = (user?.language as "fa" | "en") ?? "fa";
+      const input = ctx.message.text.trim();
 
-    // Check for pending anon link (user clicked anon link before completing setup)
-    const pendingStep = ctx.session.step;
-    ctx.session.step = undefined;
-    if (pendingStep?.startsWith("pending_anon:")) {
-      const receiverId = pendingStep.slice(13);
-      ctx.session.step = `anon_send:${receiverId}`;
-      await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
-    } else {
-      await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+      // "." or empty = skip city
+      const city = input === "." || input === "" ? null : input.slice(0, 100);
+      if (city !== null) {
+        await updateUser(tgId, { city });
+      }
+
+      // Finish setup
+      await setUserSetupStep(tgId, null);
+      await processReferralReward(tgId);
+
+      // Check for pending anon link (user clicked anon link before completing setup)
+      const pendingStep = ctx.session.step;
+      ctx.session.step = undefined;
+      if (pendingStep?.startsWith("pending_anon:")) {
+        const receiverId = pendingStep.slice(13);
+        ctx.session.step = `anon_send:${receiverId}`;
+        await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+      } else {
+        await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+      }
+      return;
     }
+
+    return next();
   });
 }

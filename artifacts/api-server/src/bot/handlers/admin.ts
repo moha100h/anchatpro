@@ -2,7 +2,8 @@ import { Bot } from "grammy";
 import type { BotContext } from "../context.js";
 import { getUserByTelegramId, searchUser, getTotalStats, getAllUsers, getReferralTree } from "../services/user.service.js";
 import { addCoins, deductCoins } from "../services/coin.service.js";
-import { banUser, unbanUser } from "../services/safety.service.js";
+import { banUser, unbanUser, isOwner } from "../services/safety.service.js";
+import { invalidateForceJoinCache } from "../middleware/force-join.js";
 import { broadcastMessage } from "../services/broadcast.service.js";
 import { generateVerificationCode, setBackupSchedule, sendBackup, verifyBackupGroup, getBackupConfig } from "../services/backup.service.js";
 import { setSetting, getSetting } from "../services/payment.service.js";
@@ -80,6 +81,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (canDo(tgId, "badwords")) buttons.push([{ text: "🔤 کلمات ناپسند", callback_data: "admin:badwords" }]);
     if (canDo(tgId, "welcome_msg")) buttons.push([{ text: "📝 پیام خوشامد", callback_data: "admin:welcome_msg" }]);
     if (isSuperAdmin(tgId)) buttons.push([{ text: "👤 مدیریت ادمین‌ها", callback_data: "admin:manage_admins" }]);
+    if (canDo(tgId, "payment")) buttons.push([{ text: "💳 تنظیمات TetraPay", callback_data: "admin:tetrapay" }]);
+    if (isSuperAdmin(tgId)) buttons.push([{ text: "📢 اجبار عضویت", callback_data: "admin:force_join" }]);
 
     await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: buttons } });
   });
@@ -346,7 +349,15 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.callbackQuery(/^admin_ban:(\d+)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "ban_user")) { await ctx.answerCallbackQuery("❌"); return; }
     const uid = parseInt(ctx.match![1], 10);
-    await banUser(uid);
+    if (isOwner(uid)) {
+      await ctx.answerCallbackQuery(t("fa").adminCannotBanOwner);
+      return;
+    }
+    const result = await banUser(uid, ctx.from!.id);
+    if (!result.success) {
+      await ctx.answerCallbackQuery(`❌ ${result.reason ?? "Cannot ban"}`);
+      return;
+    }
     await ctx.editMessageText(t("fa").adminUserBanned(uid), { reply_markup: undefined });
     await bot.api.sendMessage(uid, t("fa").userBanned).catch(() => { return; });
     await ctx.answerCallbackQuery("✅");
@@ -373,6 +384,63 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       }
       await ctx.reply(msg, { parse_mode: "Markdown" });
     }
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── TetraPay settings ───────────────────────────────────────────────────────
+  bot.callbackQuery("admin:tetrapay", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const apiKey = await getSetting("tetrapay_api_key");
+    const callbackUrl = await getSetting("tetrapay_callback_url");
+    await ctx.reply(
+      t("fa").tetraPayStatus(!!apiKey, !!callbackUrl),
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: t("fa").setApiKey, callback_data: "pay_set:tetrapay_api_key" }],
+            [{ text: t("fa").setCallbackUrl, callback_data: "pay_set:tetrapay_callback_url" }],
+            [{ text: "غیرفعال/فعال درگاه", callback_data: "pay_toggle:gateway" }],
+          ]
+        }
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Force Join settings (super admin only) ────────────────────────────────────
+  bot.callbackQuery("admin:force_join", async (ctx) => {
+    if (!isSuperAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery("❌"); return; }
+    const enabled = (await getSetting("force_join_enabled")) === "true";
+    const channel = await getSetting("force_join_channel");
+    await ctx.reply(
+      t("fa").forceJoinStatus(enabled, channel),
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: t("fa").toggleForceJoin, callback_data: "fj:toggle" }],
+            [{ text: t("fa").setForceJoinChannel, callback_data: "fj:set_channel" }],
+          ]
+        }
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("fj:toggle", async (ctx) => {
+    if (!isSuperAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery("❌"); return; }
+    const current = (await getSetting("force_join_enabled")) === "true";
+    await setSetting("force_join_enabled", current ? "false" : "true");
+    invalidateForceJoinCache();
+    await ctx.reply(current ? t("fa").forceJoinDisabled : t("fa").forceJoinEnabled);
+    await ctx.answerCallbackQuery("✅");
+  });
+
+  bot.callbackQuery("fj:set_channel", async (ctx) => {
+    if (!isSuperAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.adminAction = "set_force_join_channel";
+    await ctx.reply(t("fa").forceJoinEnterChannel);
     await ctx.answerCallbackQuery();
   });
 
@@ -469,6 +537,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (action === "add_badword") {
       await addBadWord(text);
       await ctx.reply(`✅ کلمه "${text}" اضافه شد.`);
+      return;
+    }
+
+    if (action === "set_force_join_channel") {
+      const channel = text.startsWith("@") ? text : `@${text}`;
+      await setSetting("force_join_channel", channel);
+      invalidateForceJoinCache();
+      await ctx.reply(t("fa").forceJoinChannelSet(channel));
       return;
     }
 

@@ -120,7 +120,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     const [msg] = await db.select().from(anonymousMessagesTable).where(eq(anonymousMessagesTable.id, msgId)).limit(1);
     if (msg?.senderId) await reportUser(tgId, msg.senderId, "Anonymous message report");
-    await db.update(anonymousMessagesTable).set({ status: "reported" }).where(eq(anonymousMessagesTable.id, msgId));
+    await db.update(anonymousMessagesTable).set({ status: "blocked" }).where(eq(anonymousMessagesTable.id, msgId));
     await ctx.editMessageReplyMarkup();
     await ctx.reply(t(lang).reportSent);
     await ctx.answerCallbackQuery();

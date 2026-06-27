@@ -1,1 +1,7 @@
 - [Drizzle null vs undefined](drizzle-null-vs-undefined.md) — `undefined` in `.set()` skips the column; use `null` to clear nullable fields. Also: Grammy `bot.hears` chain needs `return next()` in step-guards to reach later handlers.
+- [Bot stack & critical patterns](bot-stack.md) — Grammy v1 + TypeScript + Express 5 + Drizzle ORM; key Drizzle/Grammy pitfalls documented.
+- [TetraPay integration](tetrapay-integration.md) — Full gateway implementation; amount in Rial (Toman × 10); webhook at /webhook/tetrapay; bot-instance singleton for Express→Bot messaging.
+- [Owner security](owner-security.md) — First ADMIN_IDS entry is owner; setOwnerIds() in safety.service; banUser() returns {success, reason} not void.
+- [Force join middleware](force-join.md) — admin_settings keys; 5s in-memory cache; invalidateForceJoinCache() after admin changes.
+- [Setup flow](setup-flow.md) — select_language → select_gender → select_age → select_city (skippable with ".") → done.
+- [Lib rebuild required](lib-rebuild.md) — After schema changes in lib/db, run `pnpm run typecheck:libs` (root) before typechecking api-server; otherwise new fields/tables won't appear in compiled types.

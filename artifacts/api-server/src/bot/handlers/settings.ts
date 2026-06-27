@@ -51,7 +51,7 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
       user.gender === "male"   ? t(lang).male
       : user.gender === "female" ? t(lang).female
       : t(lang).other;
-    const profileInfo = t(lang).currentProfile(genderLabel, user.age ?? 0);
+    const profileInfo = t(lang).currentProfile(genderLabel, user.age ?? 0, user.city);
 
     await ctx.reply(`${t(lang).settingsMenu}\n\n${profileInfo}`, {
       parse_mode: "Markdown",

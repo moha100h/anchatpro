@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 
 export const paymentMethodEnum = pgEnum("payment_method", ["card", "crypto", "gateway"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "approved", "rejected"]);
+export const tetraPayStatusEnum = pgEnum("tetrapay_status", ["pending", "paid", "failed", "duplicate"]);
 
 export const paymentPackagesTable = pgTable("payment_packages", {
   id: serial("id").primaryKey(),
@@ -33,7 +34,26 @@ export const paymentsTable = pgTable("payments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/** TetraPay gateway transactions (one-to-one with paymentsTable when method=gateway) */
+export const tetraPayTransactionsTable = pgTable("tetrapay_transactions", {
+  id: serial("id").primaryKey(),
+  paymentId: integer("payment_id").notNull(),          // FK to paymentsTable.id
+  userId: bigint("user_id", { mode: "number" }).notNull(),
+  hashId: varchar("hash_id", { length: 128 }).notNull().unique(),  // our unique invoice id
+  authority: varchar("authority", { length: 256 }),    // from TetraPay response
+  trackingId: varchar("tracking_id", { length: 128 }),
+  paymentUrlBot: varchar("payment_url_bot", { length: 512 }),
+  paymentUrlWeb: varchar("payment_url_web", { length: 512 }),
+  amountRial: integer("amount_rial").notNull(),
+  status: tetraPayStatusEnum("status").default("pending").notNull(),
+  callbackVerified: boolean("callback_verified").default(false).notNull(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  verifiedAt: timestamp("verified_at"),
+});
+
 export const insertPaymentSchema = createInsertSchema(paymentsTable).omit({ id: true });
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type Payment = typeof paymentsTable.$inferSelect;
 export type PaymentPackage = typeof paymentPackagesTable.$inferSelect;
+export type TetraPayTransaction = typeof tetraPayTransactionsTable.$inferSelect;

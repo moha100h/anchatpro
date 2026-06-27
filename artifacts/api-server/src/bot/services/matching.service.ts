@@ -33,7 +33,8 @@ export async function removeFromQueue(userId: number): Promise<void> {
 export async function findMatch(
   userId: number,
   genderPreference: "male" | "female" | "any",
-  userGender: string
+  userGender: string,
+  userLanguage?: string
 ): Promise<number | null> {
   // Get users blocked by or blocking this user
   const blocks = await db
@@ -45,8 +46,15 @@ export async function findMatch(
   );
 
   const candidates = await db
-    .select()
+    .select({
+      userId: matchingQueueTable.userId,
+      genderPreference: matchingQueueTable.genderPreference,
+      userGender: matchingQueueTable.userGender,
+      createdAt: matchingQueueTable.createdAt,
+      language: usersTable.language,
+    })
     .from(matchingQueueTable)
+    .innerJoin(usersTable, eq(matchingQueueTable.userId, usersTable.telegramId))
     .where(
       and(
         ne(matchingQueueTable.userId, userId),
@@ -57,17 +65,31 @@ export async function findMatch(
     )
     .orderBy(asc(matchingQueueTable.createdAt));
 
-  // Smart matching: mutual preference first, then one-way, then any-any
-  const bestMatch =
+  const matchesGenderPref = (c: (typeof candidates)[number]) => {
+    const prefMatch = genderPreference === "any" || c.userGender === genderPreference;
+    const theirPrefMatch = c.genderPreference === "any" || c.genderPreference === userGender;
+    return prefMatch && theirPrefMatch;
+  };
+
+  const sameLanguage = (c: (typeof candidates)[number]) =>
+    !userLanguage || !c.language || c.language === userLanguage;
+
+  // Priority 1: mutual gender pref + same language
+  const best =
+    candidates.find((c) => matchesGenderPref(c) && sameLanguage(c)) ??
+    // Priority 2: mutual gender pref (any language)
+    candidates.find((c) => matchesGenderPref(c)) ??
+    // Priority 3: one-way gender pref match + same language
     candidates.find((c) => {
-      const prefMatch = genderPreference === "any" || c.userGender === genderPreference;
-      const theirPrefMatch = c.genderPreference === "any" || c.genderPreference === userGender;
-      return prefMatch && theirPrefMatch;
+      const prefOk = genderPreference === "any" || c.userGender === genderPreference;
+      return prefOk && sameLanguage(c);
     }) ??
+    // Priority 4: any match with gender pref satisfied
     candidates.find((c) => genderPreference === "any" || c.userGender === genderPreference) ??
+    // Priority 5: any-any fallback
     (genderPreference === "any" ? candidates[0] : null);
 
-  return bestMatch?.userId ?? null;
+  return best?.userId ?? null;
 }
 
 export async function createChatSession(user1Id: number, user2Id: number): Promise<number> {

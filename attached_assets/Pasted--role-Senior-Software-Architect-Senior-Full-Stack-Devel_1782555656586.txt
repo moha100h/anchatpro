@@ -1,0 +1,228 @@
+{
+  "role": "Senior Software Architect & Senior Full Stack Developer",
+  "mission": "Review the entire project and convert it into a production-ready, enterprise-grade Telegram bot using the latest technologies and best practices available in 2026. Do not leave any incomplete feature, bug, synchronization issue, or security problem.",
+  "requirements": {
+    "admin_panel": {
+      "redesign": true,
+      "modern_ui": true,
+      "fixed_admin_menu": true,
+      "hide_user_menu_when_admin": true,
+      "return_to_user_panel_button": true,
+      "fully_synchronized": true,
+      "review_every_button": true,
+      "review_every_page": true,
+      "review_every_route": true
+    },
+    "user_management": {
+      "search_users": true,
+      "view_profile": true,
+      "charge_balance": true,
+      "add_coins": true,
+      "remove_coins": true,
+      "ban_user": true,
+      "unban_user": true,
+      "view_statistics": true,
+      "view_referrals": true,
+      "view_payments": true,
+      "manage_language": true,
+      "manage_city": true,
+      "fully_synced": true
+    },
+    "owner_security": {
+      "owner_can_never_be_banned": true,
+      "admins_cannot_ban_owner": true,
+      "owner_always_has_admin_access": true,
+      "review_permissions": true,
+      "review_roles": true,
+      "review_middlewares": true,
+      "review_authentication": true
+    },
+    "payments": {
+      "editable_from_admin": true,
+      "change_coin_price": true,
+      "change_coin_cost_per_feature": true,
+      "enable_disable_gateways": true,
+      "test_gateway_connection": true,
+      "supported_gateways": [
+        "ZarinPal",
+        "TetraPay",
+        "Other Iranian Gateways"
+      ]
+    },
+    "tetrapay": {
+      "implement_exactly_according_to_official_documentation": true,
+      "admin_only_sets_api_key": true,
+      "auto_activate": true,
+      "store_logs": true,
+      "store_transactions": true,
+      "prevent_duplicate_transactions": true,
+      "verify_before_crediting": true,
+      "callback_validation": true,
+      "error_handling": true,
+      "retry_failed_requests": true,
+      "create_order": {
+        "method": "POST",
+        "endpoint": "https://tetra98.com/api/create_order",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "request": {
+          "ApiKey": "<ADMIN_API_KEY>",
+          "Hash_id": "<UNIQUE_INVOICE_ID>",
+          "Amount": "<AMOUNT_IN_RIAL>",
+          "Description": "<DESCRIPTION>",
+          "Email": "<USER_EMAIL>",
+          "Mobile": "<USER_MOBILE>",
+          "CallbackURL": "<CALLBACK_URL>"
+        },
+        "expected_response": {
+          "status": "100",
+          "Authority": "<AUTHORITY>",
+          "payment_url_bot": "https://t.me/Tetra98_bot?start=pay_<AUTHORITY>",
+          "payment_url_web": "https://tetra98.com/payment/<AUTHORITY>",
+          "tracking_id": "<TRACKING_ID>"
+        },
+        "save_to_database": [
+          "Authority",
+          "TrackingID",
+          "PaymentURLBot",
+          "PaymentURLWeb",
+          "InvoiceID",
+          "UserID",
+          "Status",
+          "CreatedAt"
+        ]
+      },
+      "verify": {
+        "method": "POST",
+        "endpoint": "https://tetra98.com/api/verify",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "request": {
+          "authority": "<AUTHORITY>",
+          "ApiKey": "<ADMIN_API_KEY>"
+        },
+        "requirements": [
+          "Verify callback authenticity",
+          "Update payment status",
+          "Prevent duplicate verification",
+          "Credit user only after successful verify",
+          "Log verify result"
+        ]
+      },
+      "callback": {
+        "expected_payload": {
+          "status": 100,
+          "hash_id": "<HASH_ID>",
+          "authority": "<AUTHORITY>"
+        },
+        "workflow": [
+          "Receive callback",
+          "Validate payload",
+          "Call Verify API",
+          "If Verify successful -> mark transaction paid",
+          "Credit user coins",
+          "Send payment success message",
+          "Notify admin if necessary",
+          "Ignore duplicate callbacks"
+        ]
+      }
+    },
+    "force_join": {
+      "after_start": true,
+      "after_language_selection": true,
+      "verify_membership": true,
+      "continue_after_confirmation": true,
+      "admin_can_enable_disable": true,
+      "admin_can_change_channel": true,
+      "admin_can_change_text": true
+    },
+    "anonymous_links": {
+      "execute_action_directly": true,
+      "remove_unnecessary_messages": true,
+      "professional_user_flow": true
+    },
+    "referral_system": {
+      "auto_start_bot": true,
+      "auto_register_referral": true,
+      "notify_inviter": true,
+      "prevent_duplicate_referral": true,
+      "prevent_self_referral": true,
+      "if_user_already_referred_show_inviter_name": true,
+      "dynamic_bot_username": true,
+      "never_hardcode_bot_username": true
+    },
+    "backup": {
+      "backup_everything": true,
+      "users": true,
+      "payments": true,
+      "coins": true,
+      "settings": true,
+      "languages": true,
+      "cities": true,
+      "admin_settings": true,
+      "database": true,
+      "restore_supported": true,
+      "restore_validation": true
+    },
+    "profile": {
+      "ask_city": true,
+      "save_city": true,
+      "final_message": "✅ پروفایل شما با موفقیت تنظیم شد!\n\nبه منوی اصلی خوش آمدید."
+    },
+    "matching": {
+      "priority_same_language": true,
+      "fallback_other_languages": true,
+      "optimize_queue": true,
+      "optimize_speed": true
+    },
+    "security": {
+      "prevent_sql_injection": true,
+      "prevent_duplicate_payments": true,
+      "prevent_callback_forgery": true,
+      "prevent_referral_abuse": true,
+      "prevent_unauthorized_admin_access": true,
+      "review_every_api": true
+    },
+    "logging": {
+      "payments": true,
+      "errors": true,
+      "admin_actions": true,
+      "user_actions": true,
+      "api_requests": true,
+      "backup": true,
+      "restore": true
+    },
+    "installer": {
+      "update_install_sh": true,
+      "update_documentation": true,
+      "fully_automatic": true,
+      "only_request": [
+        "BOT_TOKEN",
+        "OWNER_ID",
+        "API_ID",
+        "API_HASH",
+        "DATABASE_CONFIG",
+        "PAYMENT_API_KEYS"
+      ]
+    },
+    "final_review": {
+      "review_entire_project": true,
+      "test_every_button": true,
+      "test_every_api": true,
+      "test_every_callback": true,
+      "test_every_database_operation": true,
+      "test_payments": true,
+      "test_force_join": true,
+      "test_backup_restore": true,
+      "test_referral": true,
+      "test_admin_panel": true,
+      "remove_dead_code": true,
+      "remove_duplicate_code": true,
+      "optimize_performance": true,
+      "fix_every_bug": true,
+      "production_ready": true
+    }
+  }
+}

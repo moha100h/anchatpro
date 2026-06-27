@@ -3,6 +3,7 @@ export const en = {
   welcome: "👋 Welcome to the Anonymous Chat Bot!\n\nPlease select your language:",
   selectGender: "👤 Select your gender:",
   selectAge: "🎂 Enter your age (a number between 13 and 100):",
+  selectCity: "🏙️ Enter your city:\n\n(Send a dot «.» to skip this step)",
   invalidAge: "❌ Invalid age! Please enter a number between 13 and 100.",
   profileComplete: "✅ Your profile has been set up successfully!\n\nWelcome to the main menu:",
   profileUpdated: "✅ Profile updated successfully!",
@@ -118,7 +119,7 @@ export const en = {
   selectPaymentMethod: "💳 Select a payment method:",
   payByCard: "💳 Pay by Card",
   payByCrypto: "₿ Pay by Crypto",
-  payByGateway: "🌐 Online Gateway",
+  payByGateway: "🌐 Online Gateway (TetraPay)",
   cardPaymentInfo: (cardNo: string, amount: number) =>
     `💳 **Card Payment**\n\n` +
     `Card Number:\n\`${cardNo}\`\n\n` +
@@ -131,6 +132,15 @@ export const en = {
     `🌐 Network: **TRON (TRC20)**\n\n` +
     `⚠️ After sending, upload your receipt (transaction screenshot) in this chat.`,
   cryptoPaymentLinkBtn: "🔗 Open in Trust Wallet",
+  gatewayPaymentInfo: (amount: number) =>
+    `🌐 **Online Payment (TetraPay)**\n\n` +
+    `Amount: **${amount.toLocaleString()} Toman**\n\n` +
+    `Click one of the buttons below to complete your payment.\n` +
+    `Coins will be credited automatically after payment.`,
+  openPaymentBot: "🤖 Pay via Bot",
+  openPaymentWeb: "🌐 Pay via Browser",
+  gatewayCreating: "⏳ Creating payment link...",
+  gatewayError: (msg: string) => `❌ Gateway error:\n${msg}`,
   uploadReceipt: "📷 Upload your payment receipt:",
   receiptSubmitted: "✅ Your receipt has been submitted for review.\n\nYou will be notified once the admin reviews it.",
   paymentCancelled: "❌ Payment cancelled.",
@@ -155,9 +165,22 @@ export const en = {
   changeGender: "👤 Change Gender",
   changeAge: "🎂 Change Age",
   changeLanguage: "🌐 Change Language",
-  currentProfile: (gender: string, age: number) =>
-    `👤 Gender: **${gender}**\n🎂 Age: **${age}**`,
+  changeCity: "🏙️ Change City",
+  currentProfile: (gender: string, age: number, city?: string | null) =>
+    `👤 Gender: **${gender}**\n🎂 Age: **${age}**` + (city ? `\n🏙️ City: **${city}**` : ""),
   cancelledAction: "❌ Action cancelled.",
+
+  // ─── Force Join ───────────────────────────────────────────────────────────────
+  forceJoinEnabled: "✅ Force join enabled.",
+  forceJoinDisabled: "✅ Force join disabled.",
+  forceJoinChannelSet: (ch: string) => `✅ Force join channel set to «${ch}».`,
+  forceJoinStatus: (enabled: boolean, channel: string | null) =>
+    `📢 **Force Join Settings**\n\n` +
+    `Status: ${enabled ? "✅ Enabled" : "❌ Disabled"}\n` +
+    `Channel: ${channel ?? "Not set"}`,
+  forceJoinEnterChannel: "Enter the channel address (e.g. @mychannel):",
+  toggleForceJoin: "🔄 Toggle Force Join",
+  setForceJoinChannel: "📢 Set Channel",
 
   // ─── Help ─────────────────────────────────────────────────────────────────────
   helpText:
@@ -210,6 +233,7 @@ export const en = {
     `Name: ${u.firstName}\n` +
     `Gender: ${u.gender ?? "—"}\n` +
     `Age: ${u.age ?? "—"}\n` +
+    `🏙️ City: ${u.city ?? "—"}\n` +
     `💰 Coins: ${u.coins}\n` +
     `📅 Joined: ${new Date(u.createdAt).toLocaleDateString()}\n` +
     `Status: ${u.status}`,
@@ -218,6 +242,7 @@ export const en = {
   adminUserBanned: (uid: number) => `🔨 User ${uid} has been banned.`,
   adminUserUnbanned: (uid: number) => `✅ User ${uid} has been unbanned.`,
   adminBroadcastSent: (n: number) => `✅ Message sent to ${n} users.`,
+  adminCannotBanOwner: "🛡️ The bot owner cannot be banned.",
   backupSent: "✅ Backup sent successfully.",
   backupFailed: "❌ Backup failed.",
   backupConfigured: "✅ Backup settings saved.",
@@ -241,6 +266,20 @@ export const en = {
   welcomeMsgCleared: "✅ Welcome message cleared.",
   currentWelcomeMsg: (msg: string) => `📝 **Current Welcome Message:**\n\n${msg}`,
   noWelcomeMsg: "📝 No welcome message configured.",
+
+  // ─── Admin: TetraPay + Force Join settings ────────────────────────────────────
+  adminTetraPay: "💳 TetraPay Settings",
+  tetraPayApiKeySet: "✅ TetraPay API key saved.",
+  tetraPayCallbackSet: "✅ TetraPay callback URL saved.",
+  enterTetraPayApiKey: "🔑 Enter your TetraPay API key:",
+  enterTetraPayCallback: "🌐 Enter the TetraPay callback URL (e.g. https://yourdomain.com/webhook/tetrapay):",
+  tetraPayStatus: (hasKey: boolean, hasCallback: boolean) =>
+    `💳 **TetraPay Status**\n\n` +
+    `🔑 API Key: ${hasKey ? "✅ Set" : "❌ Not set"}\n` +
+    `🌐 Callback URL: ${hasCallback ? "✅ Set" : "❌ Not set"}`,
+  setApiKey: "🔑 Set API Key",
+  setCallbackUrl: "🌐 Set Callback URL",
+  adminForceJoin: "📢 Force Join",
 
   // ─── Payment review (admin group) ────────────────────────────────────────────
   paymentReviewMsg: (p: any) =>

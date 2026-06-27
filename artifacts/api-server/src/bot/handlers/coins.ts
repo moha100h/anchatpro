@@ -12,6 +12,7 @@ import {
   setAdminMessageId,
   cancelPayment,
 } from "../services/payment.service.js";
+import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { t } from "../i18n/index.js";
 import { mainMenuKeyboard } from "../keyboards/main.js";
 import { packagesKeyboard, paymentMethodKeyboard, paymentReviewKeyboard } from "../keyboards/inline.js";
@@ -124,16 +125,34 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
 
     if (!pkgId) { await ctx.answerCallbackQuery(); return; }
 
-    if (method === "gateway") {
-      await ctx.editMessageText(t(lang).gatewayUnavailable);
-      await ctx.answerCallbackQuery();
-      return;
-    }
-
     // Check if method is enabled
     const enabled = await isMethodEnabled(method);
     if (!enabled) {
       await ctx.editMessageText(t(lang).paymentMethodDisabled);
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    if (method === "gateway") {
+      await ctx.editMessageText(t(lang).gatewayCreating);
+      const payment = await createPayment(tgId, pkgId, "gateway");
+      ctx.session.pendingPaymentMethod = "gateway";
+
+      // Create TetraPay order (price is in Toman; TetraPay expects Rial = Toman × 10)
+      const desc = lang === "fa" ? `خرید ${payment.coins} سکه` : `Purchase ${payment.coins} coins`;
+      const result = await createTetraPayOrder(payment.id, tgId, payment.price * 10, desc);
+
+      if (!result.success) {
+        await ctx.editMessageText(t(lang).gatewayError(result.error ?? "Gateway error"));
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      const info = t(lang).gatewayPaymentInfo(payment.price);
+      const kb = new InlineKeyboard();
+      if (result.paymentUrlBot) kb.url(t(lang).openPaymentBot, result.paymentUrlBot).row();
+      if (result.paymentUrlWeb) kb.url(t(lang).openPaymentWeb, result.paymentUrlWeb);
+      await ctx.editMessageText(info, { parse_mode: "Markdown", reply_markup: kb });
       await ctx.answerCallbackQuery();
       return;
     }
@@ -265,8 +284,8 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const botUsername = process.env["BOT_USERNAME"] ?? "bot";
-    const link = `https://t.me/${botUsername}?start=ref_${user.referralCode}`;
+    const botUsername = bot.botInfo?.username ?? process.env["BOT_USERNAME"] ?? "bot";
+    const link = `https://t.me/${botUsername}?start=r_${user.referralCode}`;
     const stats = await getReferralStats(tgId);
 
     await ctx.reply(

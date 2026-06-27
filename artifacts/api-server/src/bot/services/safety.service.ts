@@ -5,6 +5,17 @@ import { eq, and, gte, gt } from "drizzle-orm";
 // In-memory rate limiter (fallback for fast checks)
 const rateLimitCache = new Map<string, { count: number; resetAt: number }>();
 
+/** Owner IDs: users who can NEVER be banned (loaded from ADMIN_IDS env — first entry) */
+let OWNER_IDS = new Set<number>();
+
+export function setOwnerIds(ids: number[]): void {
+  OWNER_IDS = new Set(ids);
+}
+
+export function isOwner(userId: number): boolean {
+  return OWNER_IDS.has(userId);
+}
+
 export async function checkRateLimit(userId: number, action: string, maxCount: number, windowSeconds: number): Promise<boolean> {
   const key = `${userId}:${action}`;
   const now = Date.now();
@@ -44,12 +55,17 @@ export async function issueWarning(userId: number, reason: string, issuedBy?: nu
   return newCount;
 }
 
-export async function banUser(userId: number): Promise<void> {
+/** Ban a user. Owners can NEVER be banned. */
+export async function banUser(userId: number, requestedBy?: number): Promise<{ success: boolean; reason?: string }> {
+  if (isOwner(userId)) {
+    return { success: false, reason: "Cannot ban the owner" };
+  }
   await db.update(usersTable).set({ status: "banned", updatedAt: new Date() }).where(eq(usersTable.telegramId, userId));
+  return { success: true };
 }
 
 export async function unbanUser(userId: number): Promise<void> {
-  await db.update(usersTable).set({ status: "active", warningCount: 0, restrictedUntil: undefined, updatedAt: new Date() }).where(eq(usersTable.telegramId, userId));
+  await db.update(usersTable).set({ status: "active", warningCount: 0, restrictedUntil: null, updatedAt: new Date() }).where(eq(usersTable.telegramId, userId));
 }
 
 export async function reportUser(reporterId: number, reportedId: number, reason: string, sessionId?: number): Promise<void> {

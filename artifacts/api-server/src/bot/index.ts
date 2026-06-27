@@ -11,7 +11,8 @@ import { registerHelpHandlers } from "./handlers/help.js";
 import { registerSettingsHandlers } from "./handlers/settings.js";
 import { registerAdminHandlers, setAdminIds } from "./handlers/admin.js";
 import { ensureDefaultPackages } from "./services/payment.service.js";
-import { initDefaultBadWords } from "./services/safety.service.js";
+import { initDefaultBadWords, setOwnerIds } from "./services/safety.service.js";
+import { forceJoinMiddleware } from "./middleware/force-join.js";
 import { sendBackup, getBackupConfig } from "./services/backup.service.js";
 import { cleanupStaleQueue } from "./services/matching.service.js";
 import { getUserByTelegramId } from "./services/user.service.js";
@@ -30,6 +31,8 @@ export async function createBot(): Promise<Bot<BotContext>> {
     .map((s) => parseInt(s.trim(), 10))
     .filter((n) => !isNaN(n));
   setAdminIds(adminIds);
+  // First admin in ADMIN_IDS is the owner — protected from being banned
+  if (adminIds.length > 0) setOwnerIds([adminIds[0]]);
 
   const bot = new Bot<BotContext>(token);
 
@@ -40,9 +43,10 @@ export async function createBot(): Promise<Bot<BotContext>> {
     })
   );
 
-  // Global middleware: populate ctx.dbUser and enforce rate limits
+  // Global middleware: populate ctx.dbUser and enforce rate limits + force join
   bot.use(authMiddleware);
   bot.use(rateLimitMiddleware);
+  bot.use(forceJoinMiddleware);
 
   // Register handlers — ORDER MATTERS for overlapping hears/on patterns.
   // start.ts hears handlers call next() when their step guard doesn't match,

@@ -3,6 +3,7 @@ export const fa = {
   welcome: "👋 سلام! به ربات ناشناس خوش آمدید!\n\nلطفاً زبان خود را انتخاب کنید:",
   selectGender: "👤 جنسیت خود را انتخاب کنید:",
   selectAge: "🎂 سن خود را وارد کنید (یک عدد بین 13 تا 100):",
+  selectCity: "🏙️ شهر خود را وارد کنید:\n\n(برای رد کردن این مرحله، یک نقطه «.» بفرستید)",
   invalidAge: "❌ سن نامعتبر! لطفاً یک عدد بین 13 تا 100 وارد کنید.",
   profileComplete: "✅ پروفایل شما با موفقیت تنظیم شد!\n\nبه منوی اصلی خوش آمدید:",
   profileUpdated: "✅ پروفایل با موفقیت بروزرسانی شد!",
@@ -118,7 +119,7 @@ export const fa = {
   selectPaymentMethod: "💳 روش پرداخت را انتخاب کنید:",
   payByCard: "💳 پرداخت با کارت",
   payByCrypto: "₿ پرداخت با ارز دیجیتال",
-  payByGateway: "🌐 درگاه آنلاین",
+  payByGateway: "🌐 درگاه آنلاین (TetraPay)",
   cardPaymentInfo: (cardNo: string, amount: number) =>
     `💳 **پرداخت با کارت بانکی**\n\n` +
     `شماره کارت:\n\`${cardNo}\`\n\n` +
@@ -131,6 +132,15 @@ export const fa = {
     `🌐 شبکه: **TRON (TRC20)**\n\n` +
     `⚠️ بعد از ارسال، رسید (عکس تراکنش) را در همین چت آپلود کنید.`,
   cryptoPaymentLinkBtn: "🔗 باز کردن در Trust Wallet",
+  gatewayPaymentInfo: (amount: number) =>
+    `🌐 **پرداخت آنلاین (TetraPay)**\n\n` +
+    `مبلغ: **${amount.toLocaleString()} تومان**\n\n` +
+    `روی یکی از دکمه‌های زیر کلیک کنید و پرداخت را انجام دهید.\n` +
+    `پس از پرداخت، سکه‌ها به صورت خودکار اضافه می‌شوند.`,
+  openPaymentBot: "🤖 پرداخت از طریق ربات",
+  openPaymentWeb: "🌐 پرداخت از طریق مرورگر",
+  gatewayCreating: "⏳ در حال ایجاد لینک پرداخت...",
+  gatewayError: (msg: string) => `❌ خطا در ایجاد درگاه پرداخت:\n${msg}`,
   uploadReceipt: "📷 رسید پرداخت را آپلود کنید:",
   receiptSubmitted: "✅ رسید شما ارسال شد و در صف بررسی قرار گرفت.\n\nنتیجه پس از بررسی ادمین اعلام می‌شود.",
   paymentCancelled: "❌ پرداخت لغو شد.",
@@ -155,9 +165,22 @@ export const fa = {
   changeGender: "👤 تغییر جنسیت",
   changeAge: "🎂 تغییر سن",
   changeLanguage: "🌐 تغییر زبان",
-  currentProfile: (gender: string, age: number) =>
-    `👤 جنسیت: **${gender}**\n🎂 سن: **${age}**`,
+  changeCity: "🏙️ تغییر شهر",
+  currentProfile: (gender: string, age: number, city?: string | null) =>
+    `👤 جنسیت: **${gender}**\n🎂 سن: **${age}**` + (city ? `\n🏙️ شهر: **${city}**` : ""),
   cancelledAction: "❌ عملیات لغو شد.",
+
+  // ─── Force Join ───────────────────────────────────────────────────────────────
+  forceJoinEnabled: "✅ اجبار عضویت فعال شد.",
+  forceJoinDisabled: "✅ اجبار عضویت غیرفعال شد.",
+  forceJoinChannelSet: (ch: string) => `✅ کانال اجبار عضویت به «${ch}» تنظیم شد.`,
+  forceJoinStatus: (enabled: boolean, channel: string | null) =>
+    `📢 **تنظیمات اجبار عضویت**\n\n` +
+    `وضعیت: ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
+    `کانال: ${channel ?? "تنظیم نشده"}`,
+  forceJoinEnterChannel: "آدرس کانال را وارد کنید (مثال: @mychannel):",
+  toggleForceJoin: "🔄 تغییر وضعیت اجبار عضویت",
+  setForceJoinChannel: "📢 تنظیم کانال",
 
   // ─── Help ─────────────────────────────────────────────────────────────────────
   helpText:
@@ -210,6 +233,7 @@ export const fa = {
     `نام: ${u.firstName}\n` +
     `جنسیت: ${u.gender ?? "—"}\n` +
     `سن: ${u.age ?? "—"}\n` +
+    `🏙️ شهر: ${u.city ?? "—"}\n` +
     `💰 سکه: ${u.coins}\n` +
     `📅 عضویت: ${new Date(u.createdAt).toLocaleDateString("fa-IR")}\n` +
     `وضعیت: ${u.status}`,
@@ -218,6 +242,7 @@ export const fa = {
   adminUserBanned: (uid: number) => `🔨 کاربر ${uid} مسدود شد.`,
   adminUserUnbanned: (uid: number) => `✅ مسدودیت کاربر ${uid} برداشته شد.`,
   adminBroadcastSent: (n: number) => `✅ پیام برای ${n} کاربر ارسال شد.`,
+  adminCannotBanOwner: "🛡️ اوونر ربات قابل مسدود شدن نیست.",
   backupSent: "✅ بکاپ با موفقیت ارسال شد.",
   backupFailed: "❌ ارسال بکاپ با خطا مواجه شد.",
   backupConfigured: "✅ تنظیمات بکاپ ذخیره شد.",
@@ -241,6 +266,20 @@ export const fa = {
   welcomeMsgCleared: "✅ پیام خوشامد پاک شد.",
   currentWelcomeMsg: (msg: string) => `📝 **پیام خوشامد فعلی:**\n\n${msg}`,
   noWelcomeMsg: "📝 پیام خوشامد تنظیم نشده.",
+
+  // ─── Admin: TetraPay + Force Join settings ────────────────────────────────────
+  adminTetraPay: "💳 تنظیمات TetraPay",
+  tetraPayApiKeySet: "✅ کلید API TetraPay تنظیم شد.",
+  tetraPayCallbackSet: "✅ آدرس کالبک TetraPay تنظیم شد.",
+  enterTetraPayApiKey: "🔑 کلید API TetraPay را وارد کنید:",
+  enterTetraPayCallback: "🌐 آدرس کالبک TetraPay را وارد کنید (مثال: https://yourdomain.com/webhook/tetrapay):",
+  tetraPayStatus: (hasKey: boolean, hasCallback: boolean) =>
+    `💳 **وضعیت TetraPay**\n\n` +
+    `🔑 API Key: ${hasKey ? "✅ تنظیم شده" : "❌ تنظیم نشده"}\n` +
+    `🌐 Callback URL: ${hasCallback ? "✅ تنظیم شده" : "❌ تنظیم نشده"}`,
+  setApiKey: "🔑 تنظیم API Key",
+  setCallbackUrl: "🌐 تنظیم Callback URL",
+  adminForceJoin: "📢 اجبار عضویت",
 
   // ─── Payment review (admin group) ────────────────────────────────────────────
   paymentReviewMsg: (p: any) =>

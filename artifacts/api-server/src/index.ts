@@ -1,6 +1,7 @@
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { createBot } from "./bot/index.js";
+import { setBotInstance } from "./bot/bot-instance.js";
 
 const rawPort = process.env["PORT"];
 
@@ -26,6 +27,7 @@ app.listen(port, async (err?: Error) => {
   if (process.env["TELEGRAM_BOT_TOKEN"]) {
     try {
       const bot = await createBot();
+      setBotInstance(bot);
       await bot.start({
         onStart: (info) => logger.info({ username: info.username }, "Bot started"),
         drop_pending_updates: true,

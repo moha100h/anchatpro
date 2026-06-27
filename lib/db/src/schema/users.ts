@@ -13,6 +13,7 @@ export const usersTable = pgTable("users", {
   lastName: varchar("last_name", { length: 255 }),
   gender: genderEnum("gender"),
   age: integer("age"),
+  city: varchar("city", { length: 100 }),                // new: city field
   language: languageEnum("language").default("fa").notNull(),
   coins: integer("coins").default(0).notNull(),
   referralCode: varchar("referral_code", { length: 32 }).unique().notNull(),

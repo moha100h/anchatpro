@@ -221,7 +221,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       return;
     }
 
-    const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+    const BOT_USERNAME = bot.botInfo?.username ?? "anymschat_bot";
     const kb = new InlineKeyboard();
     const activeCount = groups.filter(g => g.status !== "ended").length;
     const header = lang === "fa"
@@ -546,7 +546,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const { inviteToken } = await createGroup(tgId, groupName);
     ctx.session.step = undefined;
 
-    const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+    const BOT_USERNAME = bot.botInfo?.username ?? "anymschat_bot";
     const link = `https://t.me/${BOT_USERNAME}?start=g_${inviteToken}`;
     const displayName = groupName ?? t(lang).groupNoName;
     const msg = t(lang).groupCreatedWithName(displayName) + `\n\n🔗 \`${link}\``;
@@ -652,7 +652,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const token = await getGroupInviteToken(groupId);
     if (!token) { await ctx.reply(t(lang).errorGeneral); return; }
 
-    const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+    const BOT_USERNAME = bot.botInfo?.username ?? "anymschat_bot";
     await ctx.reply(`🔗 \`https://t.me/${BOT_USERNAME}?start=g_${token}\``, { parse_mode: "Markdown" });
   });
 
@@ -812,7 +812,7 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
-    const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+    const BOT_USERNAME = bot.botInfo?.username ?? "anymschat_bot";
 
     const [groupName, inviteToken] = await Promise.all([
       getGroupName(groupId),

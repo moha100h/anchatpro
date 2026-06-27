@@ -236,7 +236,7 @@ export const en = {
     `💬 Chat anonymously with interesting strangers\n` +
     `📩 Send anonymous messages, stay unknown\n` +
     `👥 Create anonymous groups\n` +
-    `🍾 Send a message in a bottle to the ocean\n` +
+    `🍾 Send a message in a bottle to the World of Secrets\n` +
     `🔗 Build an emotion chain with 10 strangers\n` +
     `✉️ Write a letter to your future self\n` +
     `📡 Match with someone on the same vibe\n\n` +
@@ -437,7 +437,7 @@ export const en = {
     `🔮 **Strangers Like Us**\n\n` +
     `Four unique experiences found nowhere else:\n\n` +
     `🍾 *Message in a Bottle* — ${cfg.bottleCost} coins\n` +
-    `Release your message into the ocean. Maybe someone finds it...\n\n` +
+    `Release your message into the World of Secrets. Maybe someone finds it...\n\n` +
     `🔗 *Emotion Chain* — ${cfg.chainCost} coins\n` +
     `Write a sentence. 10 people continue it. See the result!\n\n` +
     `✉️ *Letter to the Future* — ${cfg.letterCost} coins\n` +
@@ -447,7 +447,7 @@ export const en = {
   // ─ Confirm (shown before coin deduction) ─
   magicConfirmBottle: (cost: number, daily: number) =>
     `🍾 **Message in a Bottle**\n\n` +
-    `Write an anonymous message and release it into the ocean.\n` +
+    `Write an anonymous message and release it into the World of Secrets.\n` +
     `The system delivers it to a random user.\n` +
     `If they reply → anonymous chat begins 💬\n\n` +
     `💰 Cost: **${cost} coins**\n` +
@@ -479,10 +479,10 @@ export const en = {
   magicHelpMenu: "📖 **Ocean of Emotions Help**\n\nChoose a section:",
   magicHelpBottle:
     `🍾 **Message in a Bottle**\n\n` +
-    `Write an anonymous message and release it into the ocean.\n` +
+    `Write an anonymous message and release it into the World of Secrets.\n` +
     `The system delivers it to a random user.\n` +
     `If they reply → anonymous chat begins.\n` +
-    `If no reply in 24h → message is lost in the ocean 🌊\n\n` +
+    `If no reply in 24h → message is lost in the World of Secrets 🌊\n\n` +
     `💡 Tip: No name, no photo. Just words.`,
   magicHelpChain:
     `🔗 **Emotion Chain**\n\n` +
@@ -503,16 +503,16 @@ export const en = {
     `The system connects you with someone who feels exactly the same.\n` +
     `Anonymous chat — as short or long as you like.\n\n` +
     `💡 Tip: Shared feelings lead to deeper conversations.`,
-  bottleAskMessage: "🍾 Write your message for the ocean:\n\n(max 500 characters — text only)",
+  bottleAskMessage: "🍾 Write your message for the World of Secrets:\n\n(max 500 characters — text only)",
   bottleTooLong: "❌ Message too long. Max 500 characters.",
-  bottleSent: "🌊 Your message was released into the ocean!\n\nMaybe someone finds it...",
-  bottleReceived: (msg: string) => `🍾 **A message from the ocean arrived!**\n\n_«${msg}»_\n\nWant to reply?`,
+  bottleSent: "🌊 Your message was released into the World of Secrets!\n\nMaybe someone finds it...",
+  bottleReceived: (msg: string) => `🍾 **A message from the World of Secrets arrived!**\n\n_«${msg}»_\n\nWant to reply?`,
   bottleReplyBtn: "💬 Reply",
   bottleIgnoreBtn: "🌊 Release",
   bottleIgnored: "🌊 You released the bottle. That's okay!",
-  bottleExpiredSender: "🌊 Your message was lost in the ocean. No one found it.",
+  bottleExpiredSender: "🌊 Your message was lost in the World of Secrets. No one found it.",
   bottleReplied: "✅ Reply sent! Anonymous chat started.",
-  bottleNoFloating: "🌊 No messages in the ocean right now. Check back later.",
+  bottleNoFloating: "🌊 No messages in the World of Secrets right now. Check back later.",
   chainAskFirst: "🔗 **Emotion Chain**\n\nWrite the first sentence to start the chain:",
   chainAskNext: (step: number, prev: string) =>
     `🔗 **Emotion Chain — Step ${step} of 10**\n\nWritten so far:\n_${prev}_\n\nYour turn. Add the next sentence:`,

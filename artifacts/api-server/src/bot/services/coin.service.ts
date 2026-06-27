@@ -78,9 +78,10 @@ export async function processReferralReward(
   if (inviteeCoins > 0) {
     await addCoins(referredId, inviteeCoins, "referral_reward", `Welcome bonus for joining via referral`);
   }
+  // Store only what the INVITER earned (not the invitee's welcome bonus)
   await db
     .update(referralsTable)
-    .set({ rewarded: inviterCoins + inviteeCoins })
+    .set({ rewarded: inviterCoins })
     .where(eq(referralsTable.id, referral.id));
 
   return { referrerId: referral.referrerId, inviterCoins, inviteeCoins };

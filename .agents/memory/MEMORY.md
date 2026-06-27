@@ -6,3 +6,4 @@
 - [Setup flow](setup-flow.md) — select_language → select_gender → select_age → select_city (skippable with ".") → done.
 - [Lib rebuild required](lib-rebuild.md) — After schema changes in lib/db, run `pnpm run typecheck:libs` (root) before typechecking api-server; otherwise new fields/tables won't appear in compiled types.
 - [UX overhaul patterns](ux-overhaul.md) — Gender labels پسر/دختر; ocean→🔮 دنیای اسرار; persistent sub-menus; group invite tokens; timed anon links; drizzle-kit push needs force+TTY workaround.
+- [Grammy botInfo lazy access](grammy-botinfo-lazy.md) — Never access bot.botInfo at handler-registration time; use a lazy getter inside callback closures.

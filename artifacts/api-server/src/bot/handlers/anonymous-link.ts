@@ -96,7 +96,7 @@ export function cancelAnonKeyboard(receiverName: string, lang: "fa" | "en") {
 }
 
 export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
-  const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
+  const getBotUsername = () => bot.botInfo?.username ?? "anymschat_bot";
 
   // ─── My Anonymous Link sub-menu ─────────────────────────────────────────────
   bot.hears([/^🔗 لینک ناشناس من/, /^🔗 My Anonymous Link/], async (ctx) => {
@@ -137,7 +137,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
       if (user.anonLinkPaid) {
         const token = await refreshAnonToken(tgId);
-        const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
+        const link = `https://t.me/${getBotUsername()}?start=a_${token}`;
         await ctx.reply(t(lang).anonLinkActive(link), {
           parse_mode: "HTML",
           reply_markup: permLinkKeyboard(user.anonLinkEnabled, lang),
@@ -181,7 +181,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     await setAnonLinkPaid(tgId);
     const token = await refreshAnonToken(tgId);
-    const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
+    const link = `https://t.me/${getBotUsername()}?start=a_${token}`;
     await ctx.editMessageText(t(lang).anonLinkActive(link), {
       parse_mode: "HTML",
       reply_markup: permLinkKeyboard(true, lang),
@@ -207,7 +207,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     await setAnonLinkEnabled(tgId, enable);
     const token = await refreshAnonToken(tgId);
-    const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
+    const link = `https://t.me/${getBotUsername()}?start=a_${token}`;
     const statusMsg = enable ? t(lang).anonLinkNowEnabled : t(lang).anonLinkNowDisabled;
 
     await ctx.editMessageText(`${statusMsg}\n\n${t(lang).anonLinkActive(link)}`, {
@@ -299,7 +299,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     await db.insert(timedAnonLinksTable).values({ userId: tgId, token, coinsCost: cost, expiresAt });
     ctx.session.step = undefined;
 
-    const link = `https://t.me/${BOT_USERNAME}?start=t_${token}`;
+    const link = `https://t.me/${getBotUsername()}?start=t_${token}`;
     const expiryStr = formatExpiry(expiresAt, lang);
     const successMsg =
       lang === "fa"

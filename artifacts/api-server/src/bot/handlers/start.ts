@@ -7,6 +7,7 @@ import {
   setUserLanguage,
   getUserByTelegramId,
   getUserByAnonToken,
+  getUserByReferralCode,
 } from "../services/user.service.js";
 import { processReferralReward, deductCoins } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
@@ -223,6 +224,13 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
     // ── 4. New user → setup flow ────────────────────────────────────────────
     if (!user.gender || !user.age) {
+      // If they joined via referral link, greet them with inviter's name before setup
+      if (referralCode) {
+        const inviter = await getUserByReferralCode(referralCode);
+        if (inviter) {
+          await ctx.reply(t("fa").referralWelcome(inviter.firstName ?? "یک دوست"), { parse_mode: "Markdown" });
+        }
+      }
       await setUserLanguage(tgId, "fa");
       await setUserSetupStep(tgId, "select_language");
       const customWelcome = await getSetting("welcome_message");
@@ -277,8 +285,11 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     // Clear stale session step
     if (ctx.session.step) ctx.session.step = undefined;
 
-    await processReferralReward(tgId);
-    if (referralCode) await ctx.reply(t(lang).referralWelcome(user.firstName ?? "کاربر"));
+    const existingReferralResult = await processReferralReward(tgId);
+    if (referralCode && existingReferralResult) {
+      const inviter = await getUserByTelegramId(existingReferralResult.referrerId);
+      await ctx.reply(t(lang).referralWelcome(inviter?.firstName ?? "یک دوست"), { parse_mode: "Markdown" });
+    }
     await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
   });
 

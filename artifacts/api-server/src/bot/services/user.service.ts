@@ -59,6 +59,11 @@ export async function getUserByTelegramId(telegramId: number): Promise<User | nu
   return user ?? null;
 }
 
+export async function getUserByReferralCode(code: string): Promise<User | null> {
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.referralCode, code)).limit(1);
+  return user ?? null;
+}
+
 export async function getUserByAnonToken(token: string): Promise<User | null> {
   const [user] = await db.select().from(usersTable).where(eq(usersTable.anonymousToken, token)).limit(1);
   return user ?? null;

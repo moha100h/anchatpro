@@ -6,9 +6,9 @@ import { getSetting } from "../services/payment.service.js";
 import { reportUser, blockUser } from "../services/safety.service.js";
 import { db } from "@workspace/db";
 import { proAnonLinksTable, anonymousMessagesTable } from "@workspace/db";
-import { eq, desc, count as countFn, and, inArray } from "drizzle-orm";
+import { eq, desc, count as countFn, and, inArray, lte, isNotNull } from "drizzle-orm";
 import { t } from "../i18n/index.js";
-import { mainMenuKeyboard, anonProSubMenuKeyboard } from "../keyboards/main.js";
+import { mainMenuKeyboard, anonProSubMenuKeyboard, cancelProSendKeyboard } from "../keyboards/main.js";
 import {
   proAnonMsgActionsKeyboard,
   proLinkManageInlineKeyboard,
@@ -86,10 +86,99 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
+
+    // Auto-delete expired in-app links
+    const now = new Date();
+    const expired = await db
+      .select({ id: proAnonLinksTable.id })
+      .from(proAnonLinksTable)
+      .where(
+        and(
+          eq(proAnonLinksTable.userId, tgId),
+          eq(proAnonLinksTable.tier, "inapp"),
+          isNotNull(proAnonLinksTable.expiresAt),
+          lte(proAnonLinksTable.expiresAt, now),
+        ),
+      );
+    for (const el of expired) {
+      await db.delete(proAnonLinksTable).where(eq(proAnonLinksTable.id, el.id));
+    }
+    if (expired.length > 0) {
+      await ctx.reply(
+        lang === "fa"
+          ? `⏰ ${expired.length} لینک درون‌برنامه‌ای منقضی‌شده حذف شد.`
+          : `⏰ ${expired.length} expired in-app link(s) removed.`,
+      );
+    }
+
     const inboxCount = await getProUnreadCount(tgId);
     await ctx.reply(t(lang).proLinkSubMenuTitle(inboxCount), {
       parse_mode: "Markdown",
       reply_markup: anonProSubMenuKeyboard(lang, inboxCount),
+    });
+  });
+
+  // ─── My Pro Links list ─────────────────────────────────────────────────────
+  bot.hears(["📋 لینک‌های پرو من", "📋 My Pro Links"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+    const fa = lang === "fa";
+
+    const links = await db
+      .select()
+      .from(proAnonLinksTable)
+      .where(eq(proAnonLinksTable.userId, tgId))
+      .orderBy(desc(proAnonLinksTable.createdAt));
+
+    if (links.length === 0) {
+      await ctx.reply(t(lang).proMyLinksEmpty);
+      return;
+    }
+
+    const kb = new InlineKeyboard();
+    for (const link of links) {
+      const isInApp = link.tier === "inapp";
+      const expired = isInApp && link.expiresAt && link.expiresAt < new Date();
+      const label =
+        (isInApp ? "⚡" : "💎") +
+        " " +
+        (link.displayName ?? link.alias ?? link.token.slice(0, 8)) +
+        (expired ? (fa ? " (منقضی)" : " (expired)") : "") +
+        (link.isEnabled ? "" : (fa ? " ❌" : " ❌"));
+      kb.text(label, `pro_manage:${link.id}`).row();
+    }
+
+    await ctx.reply(t(lang).proMyLinksHeader, { parse_mode: "HTML", reply_markup: kb });
+  });
+
+  // ─── My Pro Links: manage specific link ────────────────────────────────────
+  bot.callbackQuery(/^pro_manage:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const linkId = parseInt(ctx.match![1], 10);
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    const [link] = await db
+      .select()
+      .from(proAnonLinksTable)
+      .where(and(eq(proAnonLinksTable.id, linkId), eq(proAnonLinksTable.userId, tgId)))
+      .limit(1);
+    if (!link) return;
+
+    const linkUrl = buildProLink(getBotUsername(), link.tier, link);
+    let body: string;
+    if (link.tier === "permanent") {
+      body = t(lang).proPermLinkActive(linkUrl, link.displayName, link.alias, !!link.welcomeMessage, link.isEnabled);
+    } else {
+      const expiryStr = link.expiresAt ? formatExpiry(link.expiresAt, lang) : "?";
+      body = t(lang).proInAppLinkActive(linkUrl, expiryStr, link.displayName, link.isEnabled);
+    }
+    await ctx.editMessageText(body, {
+      parse_mode: "HTML",
+      reply_markup: proLinkManageInlineKeyboard(link.id, link.tier, link.isEnabled, lang),
     });
   });
 
@@ -449,7 +538,6 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
 
   // ─── Reveal sender ─────────────────────────────────────────────────────────
   bot.callbackQuery(/^pro_reveal:(\d+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
     const msgId = parseInt(ctx.match![1], 10);
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
@@ -470,11 +558,15 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
     }
 
     if (msg.senderRevealedAt) {
-      const sender = await getUserByTelegramId(msg.senderId);
-      await ctx.reply(
-        t(lang).proRevealSenderInfo(sender?.firstName ?? "?", sender?.username ?? null, msg.senderId),
-        { parse_mode: "HTML" },
-      );
+      // Already revealed — open private chat directly
+      const revealCost = await getProRevealCost();
+      await ctx.editMessageReplyMarkup({
+        reply_markup: proAnonMsgActionsKeyboard(msgId, msg.linkType, lang, revealCost, true, msg.senderId ?? undefined),
+      }).catch(() => null);
+      await ctx.answerCallbackQuery({
+        text: lang === "fa" ? "✅ هویت فرستنده قبلاً آشکار شده است." : "✅ Already revealed.",
+        show_alert: false,
+      });
       return;
     }
 
@@ -495,11 +587,14 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
       .set({ senderRevealedAt: new Date() })
       .where(eq(anonymousMessagesTable.id, msgId));
 
-    const sender = await getUserByTelegramId(msg.senderId);
-    await ctx.reply(
-      t(lang).proRevealSenderInfo(sender?.firstName ?? "?", sender?.username ?? null, msg.senderId),
-      { parse_mode: "HTML" },
-    );
+    const revealCost = await getProRevealCost();
+    await ctx.editMessageReplyMarkup({
+      reply_markup: proAnonMsgActionsKeyboard(msgId, msg.linkType, lang, revealCost, true, msg.senderId ?? undefined),
+    }).catch(() => null);
+    await ctx.answerCallbackQuery({
+      text: lang === "fa" ? "✅ هویت فرستنده آشکار شد — روی دکمه بزن تا چت باز شه" : "✅ Sender revealed — tap the button to open chat",
+      show_alert: true,
+    });
   });
 
   // ─── Reply to pro message ──────────────────────────────────────────────────
@@ -588,6 +683,14 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
     let caption: string | undefined;
 
     const m = ctx.message;
+
+    // Cancel button check
+    if (m.text === "❌ انصراف" || m.text === "❌ Cancel") {
+      ctx.session.step = undefined;
+      await ctx.reply(lang === "fa" ? "❌ ارسال پیام لغو شد." : "❌ Cancelled.", { reply_markup: mainMenuKeyboard(lang) });
+      return;
+    }
+
     if (m.text) {
       content = m.text;
     } else if (m.photo) {
@@ -659,8 +762,7 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
     }
 
     ctx.session.step = undefined;
-    const inboxCount = await getProUnreadCount(tgId);
-    await ctx.reply(t(lang).proMsgSentConfirm, { reply_markup: anonProSubMenuKeyboard(lang, inboxCount) });
+    await ctx.reply(t(lang).proMsgSentConfirm, { reply_markup: mainMenuKeyboard(lang) });
   });
 
   // ─── Text input handler: pro_reply, pro_set_welcome, pro_set_name, pro_set_alias
@@ -695,7 +797,18 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
       if (original.senderId) {
         const sender = await getUserByTelegramId(original.senderId);
         const sLang = (sender?.language as "fa" | "en") ?? "fa";
-        const replierName = user?.firstName ?? (lang === "fa" ? "کاربر" : "User");
+        // Use proLink displayName as the replier name shown to the sender
+        let replierName: string;
+        if (original.proLinkId) {
+          const [pl] = await db
+            .select({ displayName: proAnonLinksTable.displayName, alias: proAnonLinksTable.alias })
+            .from(proAnonLinksTable)
+            .where(eq(proAnonLinksTable.id, original.proLinkId))
+            .limit(1);
+          replierName = pl?.displayName ?? pl?.alias ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
+        } else {
+          replierName = user?.firstName ?? (lang === "fa" ? "کاربر" : "User");
+        }
         await bot.api
           .sendMessage(original.senderId, t(sLang).yourReplyFromName(replierName) + ctx.message.text)
           .catch(() => {});
@@ -871,7 +984,10 @@ async function showProInboxPage(
         : "";
 
     const showActions = msg.status === "pending";
-    const actionKb = showActions ? proAnonMsgActionsKeyboard(msg.id, msg.linkType, lang, revealCost) : undefined;
+    const isRevealed = !!msg.senderRevealedAt;
+    const actionKb = showActions
+      ? proAnonMsgActionsKeyboard(msg.id, msg.linkType, lang, revealCost, isRevealed, msg.senderId ?? undefined)
+      : undefined;
 
     if (msg.content) {
       await bot.api

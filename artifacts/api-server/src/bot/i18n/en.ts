@@ -713,10 +713,13 @@ export const en = {
     `🔗 <code>${link}</code>\n\n` +
     (displayName ? `✏️ Display name: <b>${displayName}</b>\n` : "") +
     `📅 Expires: ${expiry}`,
+  proLinkBtnMyLinks: "📋 My Pro Links",
+  proMyLinksEmpty: "📋 You have no pro links.",
+  proMyLinksHeader: "📋 <b>My Pro Links:</b>",
   proLinkWelcomeGreeting: (displayName: string, welcomeMsg: string) =>
-    `👋 <b>${displayName}</b> accepts anonymous messages\n\n💬 ${welcomeMsg}\n\n📝 Send your message:`,
+    `✨ <b>${displayName}</b> is ready to receive your anonymous message\n\n💬 ${welcomeMsg}\n\nPress the button below to cancel 👇`,
   proLinkDefaultGreeting: (displayName: string) =>
-    `👋 <b>${displayName}</b> accepts anonymous messages\n\n📝 Send your message:`,
+    `✨ <b>${displayName}</b> is ready — send your anonymous message\n\nPress the button below to cancel 👇`,
   proLinkDisabled: "❌ This link has been disabled by its owner.",
   proLinkExpired: "⏰ This link has expired or is invalid.",
   proMsgSentConfirm: "✅ Your anonymous message was sent!",

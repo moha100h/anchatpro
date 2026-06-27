@@ -55,17 +55,32 @@ export function paymentReviewKeyboard(paymentId: number, lang: Lang) {
     .text(i.rejectPayment, `pay_reject:${paymentId}`);
 }
 
-export function proAnonMsgActionsKeyboard(msgId: number, linkType: string, lang: Lang, revealCost: number = 1) {
+export function proAnonMsgActionsKeyboard(
+  msgId: number,
+  linkType: string,
+  lang: Lang,
+  revealCost: number = 1,
+  revealed: boolean = false,
+  senderId?: number,
+) {
   const isPerm = linkType === "pro_perm";
   const fa = lang === "fa";
-  const revealLabel = isPerm
-    ? (fa ? "🔍 هویت فرستنده (رایگان)" : "🔍 See sender (free)")
-    : (fa ? `🔍 هویت فرستنده (${revealCost} سکه)` : `🔍 See sender (${revealCost} coin)`);
-  return new InlineKeyboard()
-    .text(fa ? "💬 پاسخ" : "💬 Reply", `pro_reply:${msgId}`).row()
-    .text(revealLabel, `pro_reveal:${msgId}`).row()
-    .text(fa ? "🚫 بلاک" : "🚫 Block", `pro_block:${msgId}`)
+
+  const kb = new InlineKeyboard()
+    .text(fa ? "💬 پاسخ" : "💬 Reply", `pro_reply:${msgId}`).row();
+
+  if (revealed && senderId) {
+    kb.url(fa ? "✅ مشاهده فرستنده" : "✅ View sender", `tg://user?id=${senderId}`).row();
+  } else if (isPerm) {
+    kb.text(fa ? "🔍 مشاهده فرستنده" : "🔍 View sender", `pro_reveal:${msgId}`).row();
+  } else {
+    kb.text(fa ? `🔍 فرستنده (${revealCost} سکه)` : `🔍 Sender (${revealCost} coin)`, `pro_reveal:${msgId}`).row();
+  }
+
+  kb.text(fa ? "🚫 بلاک" : "🚫 Block", `pro_block:${msgId}`)
     .text(fa ? "⚠️ گزارش" : "⚠️ Report", `pro_report:${msgId}`);
+
+  return kb;
 }
 
 export function proLinkManageInlineKeyboard(linkId: number, tier: string, enabled: boolean, lang: Lang) {

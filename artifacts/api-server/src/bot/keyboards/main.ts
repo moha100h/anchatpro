@@ -193,8 +193,17 @@ export function anonProSubMenuKeyboard(lang: Lang, proInboxCount: number) {
   return new Keyboard()
     .text(i.proLinkBtnPerm).row()
     .text(i.proLinkBtnInApp).row()
+    .text(i.proLinkBtnMyLinks).row()
     .text(i.proLinkBtnInbox(proInboxCount)).row()
     .text(i.back)
+    .resized()
+    .persistent();
+}
+
+/** One-button cancel keyboard shown while user is typing a pro anonymous message */
+export function cancelProSendKeyboard(lang: Lang) {
+  return new Keyboard()
+    .text(lang === "fa" ? "❌ انصراف" : "❌ Cancel")
     .resized()
     .persistent();
 }

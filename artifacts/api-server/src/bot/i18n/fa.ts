@@ -702,6 +702,7 @@ export const fa = {
   // ─── Pro Anonymous Link ───────────────────────────────────────────────────────
   proLinkBtnPerm: "💎 لینک پرو دائمی",
   proLinkBtnInApp: "⚡ لینک درون‌برنامه‌ای",
+  proLinkBtnMyLinks: "📋 لینک‌های پرو من",
   proLinkBtnInbox: (n: number) => n > 0 ? `📬 صندوق پرو | ${n} پیام` : "📬 صندوق پرو (خالی)",
   proLinkSubMenuTitle: (inboxCount: number) =>
     `💎 **لینک ناشناس پرو**\n\n📬 پیام‌های نخوانده پرو: **${inboxCount}**\n\nیک بخش را انتخاب کنید:`,
@@ -740,9 +741,11 @@ export const fa = {
     (displayName ? `✏️ نام نمایشی: <b>${displayName}</b>\n` : "") +
     `📅 انقضا: ${expiry}`,
   proLinkWelcomeGreeting: (displayName: string, welcomeMsg: string) =>
-    `👋 <b>${displayName}</b> پیام ناشناس می‌پذیرد\n\n💬 ${welcomeMsg}\n\n📝 پیام خود را ارسال کنید:`,
+    `✨ <b>${displayName}</b> آماده‌ی شنیدن پیام ناشناس توست\n\n💬 ${welcomeMsg}\n\nبرای انصراف دکمه پایین رو بزن 👇`,
   proLinkDefaultGreeting: (displayName: string) =>
-    `👋 <b>${displayName}</b> پیام ناشناس می‌پذیرد\n\n📝 پیام خود را ارسال کنید:`,
+    `✨ <b>${displayName}</b> آماده‌ی شنیدن پیام ناشناس توست\n\nپیامت رو بفرست — برای انصراف دکمه پایین رو بزن 👇`,
+  proMyLinksEmpty: "📋 هیچ لینک پرویی ندارید.",
+  proMyLinksHeader: "📋 <b>لینک‌های پرو من:</b>",
   proLinkDisabled: "❌ این لینک توسط صاحبش غیرفعال شده است.",
   proLinkExpired: "⏰ این لینک منقضی شده یا معتبر نیست.",
   proMsgSentConfirm: "✅ پیام ناشناس شما ارسال شد!",

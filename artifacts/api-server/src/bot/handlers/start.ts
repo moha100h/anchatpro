@@ -247,11 +247,12 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         }
 
         ctx.session.step = `pro_send:${proLink.userId}:${proLink.id}:permanent`;
-        const ownerName = proLink.displayName ?? (sLang === "fa" ? "کاربر" : "User");
+        const ownerName = proLink.displayName ?? proLink.alias ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
         const greeting = proLink.welcomeMessage
           ? t(sLang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
           : t(sLang).proLinkDefaultGreeting(ownerName);
-        await ctx.reply(greeting, { parse_mode: "HTML" });
+        const { cancelProSendKeyboard } = await import("../keyboards/main.js");
+        await ctx.reply(greeting, { parse_mode: "HTML", reply_markup: cancelProSendKeyboard(sLang) });
         return;
       }
     }
@@ -291,11 +292,12 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         }
 
         ctx.session.step = `pro_send:${proLink.userId}:${proLink.id}:inapp`;
-        const ownerName = proLink.displayName ?? (sLang === "fa" ? "کاربر" : "User");
+        const ownerName = proLink.displayName ?? proLink.alias ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
         const greeting = proLink.welcomeMessage
           ? t(sLang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
           : t(sLang).proLinkDefaultGreeting(ownerName);
-        await ctx.reply(greeting, { parse_mode: "HTML" });
+        const { cancelProSendKeyboard: cancelKbInApp } = await import("../keyboards/main.js");
+        await ctx.reply(greeting, { parse_mode: "HTML", reply_markup: cancelKbInApp(sLang) });
         return;
       }
       const lang = "fa";

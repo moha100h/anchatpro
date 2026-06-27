@@ -335,10 +335,10 @@ export async function banMember(groupId: number, memberDbId: number): Promise<nu
 
 // ─── New functions: admin, expand, invite, creator-groups ─────────────────────
 
-/** Returns all groups where user is creator and status != ended. */
+/** Returns ALL groups where user is creator (including ended ones). */
 export async function getCreatorGroups(
   userId: number
-): Promise<Array<{ id: number; name: string | null; inviteToken: string | null; memberCount: number; maxMembers: number }>> {
+): Promise<Array<{ id: number; name: string | null; inviteToken: string | null; memberCount: number; maxMembers: number; status: string }>> {
   const groups = await db
     .select({
       id: groupChatsTable.id,
@@ -346,16 +346,17 @@ export async function getCreatorGroups(
       inviteToken: groupChatsTable.inviteToken,
       memberCount: groupChatsTable.memberCount,
       maxMembers: groupChatsTable.maxMembers,
+      status: groupChatsTable.status,
     })
     .from(groupChatsTable)
-    .where(and(eq(groupChatsTable.creatorId, userId), ne(groupChatsTable.status, "ended")));
+    .where(eq(groupChatsTable.creatorId, userId));
   return groups;
 }
 
-/** Groups the user is currently a member of (but NOT the creator) */
+/** ALL groups the user has ever been a member of (NOT the creator). Includes ended/left. */
 export async function getJoinedGroups(
   userId: number
-): Promise<Array<{ id: number; name: string | null; memberCount: number; maxMembers: number; isAdmin: boolean }>> {
+): Promise<Array<{ id: number; name: string | null; memberCount: number; maxMembers: number; isAdmin: boolean; status: string; leftAt: Date | null }>> {
   const rows = await db
     .select({
       id: groupChatsTable.id,
@@ -363,22 +364,22 @@ export async function getJoinedGroups(
       memberCount: groupChatsTable.memberCount,
       maxMembers: groupChatsTable.maxMembers,
       isAdmin: groupMembersTable.isAdmin,
+      status: groupChatsTable.status,
+      leftAt: groupMembersTable.leftAt,
     })
     .from(groupMembersTable)
     .innerJoin(groupChatsTable, eq(groupMembersTable.groupId, groupChatsTable.id))
     .where(
       and(
         eq(groupMembersTable.userId, userId),
-        isNull(groupMembersTable.leftAt),
         // creatorId can be NULL for public groups — ne() returns NULL for NULLs, so use OR
-        or(isNull(groupChatsTable.creatorId), ne(groupChatsTable.creatorId, userId)),
-        ne(groupChatsTable.status, "ended")
+        or(isNull(groupChatsTable.creatorId), ne(groupChatsTable.creatorId, userId))
       )
     );
   return rows;
 }
 
-/** Returns the user's current group slot limits and usage counts */
+/** Returns the user's current group slot limits and usage counts (active groups only) */
 export async function getUserGroupSlots(tgId: number): Promise<{
   maxCreated: number; maxJoined: number; createdCount: number; joinedCount: number;
 }> {
@@ -389,7 +390,10 @@ export async function getUserGroupSlots(tgId: number): Promise<{
   const maxCreated = user?.maxGroupsCreated ?? 5;
   const maxJoined  = user?.maxGroupsJoined  ?? 5;
   const [cc, jc] = await Promise.all([getCreatorGroups(tgId), getJoinedGroups(tgId)]);
-  return { maxCreated, maxJoined, createdCount: cc.length, joinedCount: jc.length };
+  // Only count non-ended groups toward the limit
+  const createdCount = cc.filter(g => g.status !== "ended").length;
+  const joinedCount  = jc.filter(g => g.status !== "ended" && g.leftAt === null).length;
+  return { maxCreated, maxJoined, createdCount, joinedCount };
 }
 
 /** Expand user's group slot limit from 5 → 10 for the given section. Returns false if already maxed. */

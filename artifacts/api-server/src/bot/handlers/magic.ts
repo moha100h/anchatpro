@@ -41,7 +41,7 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
   // ────────────────────────────────────────────────────────────────────────────
   // Main magic menu button → switch to sub-keyboard
   // ────────────────────────────────────────────────────────────────────────────
-  bot.hears([/^🔮 دنیای/, /^🔮 World/, /^🌊 اقیانوس/, /^🌊 Ocean/], async (ctx, next) => {
+  bot.hears([/^🔮 ناشناس از ما/, /^🔮 Strangers Like Us/, /^🔮 دنیای/, /^🌊 اقیانوس/], async (ctx, next) => {
     if (!ctx.dbUser) return next();
     const lang = (ctx.dbUser.language as "fa" | "en") ?? "fa";
     await ctx.reply(t(lang).magicSubTitle, {

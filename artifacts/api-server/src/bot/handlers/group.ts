@@ -190,33 +190,27 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const slots = await getUserGroupSlots(tgId);
-    if (slots.createdCount === 0) {
-      const kb = new InlineKeyboard();
-      if (slots.maxCreated < 10) {
-        const expandCostStr = await getSetting("group_slot_expand_cost");
-        const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
-        kb.text(t(lang).groupExpandCreatedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:created");
-      }
-      await ctx.reply(t(lang).myGroupsCreatedEmpty, {
-        parse_mode: "Markdown",
-        reply_markup: slots.maxCreated < 10 ? kb : undefined,
-      });
+    const [slots, groups] = await Promise.all([getUserGroupSlots(tgId), getCreatorGroups(tgId)]);
+    if (groups.length === 0) {
+      await ctx.reply(t(lang).myGroupsCreatedEmpty, { parse_mode: "Markdown" });
       return;
     }
 
-    const groups = await getCreatorGroups(tgId);
     const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
     const kb = new InlineKeyboard();
     let msg = t(lang).myGroupsCreatedTitle;
     msg += lang === "fa"
-      ? `📊 ${slots.createdCount}/${slots.maxCreated} گروه\n\n`
-      : `📊 ${slots.createdCount}/${slots.maxCreated} groups\n\n`;
+      ? `📊 ${slots.createdCount}/${slots.maxCreated} گروه فعال\n\n`
+      : `📊 ${slots.createdCount}/${slots.maxCreated} active groups\n\n`;
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
       const link = g.inviteToken ? `https://t.me/${BOT_USERNAME}?start=g_${g.inviteToken}` : "—";
+      const statusIcon = g.status === "ended" ? "🔴" : "🟢";
+      msg += `${statusIcon} `;
       msg += t(lang).groupInfoLine(name, g.memberCount, g.maxMembers, link);
-      kb.text(`🚪 ${name}`, `group:enter:${g.id}`).row();
+      if (g.status !== "ended") {
+        kb.text(`🚪 ${name}`, `group:enter:${g.id}`).row();
+      }
     }
     if (slots.maxCreated < 10) {
       const expandCostStr = await getSetting("group_slot_expand_cost");
@@ -233,34 +227,27 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const slots = await getUserGroupSlots(tgId);
-    if (slots.joinedCount === 0) {
-      const kb = new InlineKeyboard();
-      if (slots.maxJoined < 10) {
-        const expandCostStr = await getSetting("group_slot_expand_cost");
-        const expandCost = expandCostStr ? parseInt(expandCostStr, 10) : 30;
-        kb.text(t(lang).groupExpandJoinedBtn.replace("۳۰", String(expandCost)).replace("30", String(expandCost)), "group:expand:joined");
-      }
-      await ctx.reply(t(lang).myGroupsJoinedEmpty, {
-        parse_mode: "Markdown",
-        reply_markup: slots.maxJoined < 10 ? kb : undefined,
-      });
+    const [slots, groups] = await Promise.all([getUserGroupSlots(tgId), getJoinedGroups(tgId)]);
+    if (groups.length === 0) {
+      await ctx.reply(t(lang).myGroupsJoinedEmpty, { parse_mode: "Markdown" });
       return;
     }
-
-    const groups = await getJoinedGroups(tgId);
     const kb = new InlineKeyboard();
     let msg = t(lang).myGroupsJoinedTitle;
     msg += lang === "fa"
-      ? `📊 ${slots.joinedCount}/${slots.maxJoined} گروه\n\n`
-      : `📊 ${slots.joinedCount}/${slots.maxJoined} groups\n\n`;
+      ? `📊 ${slots.joinedCount}/${slots.maxJoined} گروه فعال\n\n`
+      : `📊 ${slots.joinedCount}/${slots.maxJoined} active groups\n\n`;
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
       const role = g.isAdmin
         ? (lang === "fa" ? "⭐ ادمین" : "⭐ Admin")
         : (lang === "fa" ? "👤 عضو"   : "👤 Member");
+      const statusIcon = (g.status !== "ended" && g.leftAt === null) ? "🟢" : "🔴";
+      msg += `${statusIcon} `;
       msg += t(lang).groupInfoLineJoined(name, g.memberCount, g.maxMembers, role);
-      kb.text(`🚪 ${name}`, `group:enter:${g.id}`).row();
+      if (g.status !== "ended" && g.leftAt === null) {
+        kb.text(`🚪 ${name}`, `group:enter:${g.id}`).row();
+      }
     }
     if (slots.maxJoined < 10) {
       const expandCostStr = await getSetting("group_slot_expand_cost");

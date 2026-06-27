@@ -367,6 +367,14 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       fileType = "sticker";
     }
 
+    // Check receiver state FIRST to decide: live delivery OR inbox-only
+    const receiver = await getUserByTelegramId(receiverId);
+    const rLang = (receiver?.language as "fa" | "en") ?? "fa";
+    const receiverBusy = !!(receiver?.isInChat || receiver?.isInGroup);
+
+    // Always save to DB so reply/block/report inline buttons have a record to reference.
+    // isRead=true  → live path  → message won't appear in inbox (inbox only shows isRead=false)
+    // isRead=false → inbox path → will appear in inbox, midnight cron will remind
     const [msg] = await db
       .insert(anonymousMessagesTable)
       .values({
@@ -376,26 +384,13 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
         fileId: fileId ?? null,
         fileType: fileType ?? null,
         status: "pending",
-        isRead: false,
+        isRead: !receiverBusy, // true = live-delivered (skip inbox), false = inbox-only
         createdAt: new Date(),
       })
       .returning();
 
-    // Keep session active — user stays in anon-send mode for multiple messages
-    // Show confirmation with cancel keyboard still visible
-    const receiverName = await getUserByTelegramId(receiverId)
-      .then(r => r?.firstName ?? (lang === "fa" ? "کاربر" : "User"));
-
-    await ctx.reply(t(lang).anonMsgSentKeep, {
-      reply_markup: cancelAnonKeyboard(receiverName, lang),
-    });
-
-    // Deliver to receiver — skip live push if receiver is in an active chat or group
-    // (message is already saved to inbox; daily cron will remind them at midnight)
-    const receiver = await getUserByTelegramId(receiverId);
-    const rLang = (receiver?.language as "fa" | "en") ?? "fa";
-
-    if (!receiver?.isInChat && !receiver?.isInGroup) {
+    if (!receiverBusy) {
+      // ── LIVE PATH: receiver is free → push immediately ────────────────────────
       const notifyText = t(rLang).anonMsgReceived;
 
       if (content) {
@@ -433,6 +428,13 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
           .catch(() => null);
       }
     }
+    // ── INBOX PATH: receiver is busy → isRead=false already set, no push needed ─
+
+    // Confirm to sender (stays in anon-send mode for multiple messages)
+    const receiverName = receiver?.firstName ?? (lang === "fa" ? "کاربر" : "User");
+    await ctx.reply(t(lang).anonMsgSentKeep, {
+      reply_markup: cancelAnonKeyboard(receiverName, lang),
+    });
   });
 
   // ─── Reply to anonymous message ──────────────────────────────────────────────

@@ -225,16 +225,24 @@ export const en = {
     (inviteeReward > 0 ? `• Your friend: **${inviteeReward} welcome coins**\n` : "") +
     `\n_Only users who complete setup count as successful referrals._`,
   referralLinkMsg: (link: string) =>
-    `🔗 **Your personal invite link:**\n\n\`${link}\`\n\n` +
-    `Forward the banner below 👇`,
+    `🔗 **Your personal invite link:**\n\n` +
+    `[👆 Tap here to join instantly](${link})\n\n` +
+    `Or copy the link below:\n${link}\n\n` +
+    `─────────────────\n` +
+    `Ready-to-forward banner 👇`,
   referralBanner: (link: string, inviterReward: number, inviteeReward: number) =>
     `🌟 **Anonymous Chat Bot — @anymschat\\_bot**\n\n` +
-    `Completely anonymous:\n` +
-    `💬 Chat with strangers\n` +
-    `📩 Send & receive anonymous messages\n` +
-    `🔮 Magic features: Bottle, Chain, Future Letter & Frequency\n\n` +
-    `🎁 **Sign up via this link and get ${inviteeReward > 0 ? `${inviteeReward} free coins` : "free coins"}!**\n\n` +
-    `👉 ${link}`,
+    `A different kind of social app:\n\n` +
+    `💬 Chat anonymously with interesting strangers\n` +
+    `📩 Send anonymous messages, stay unknown\n` +
+    `👥 Create anonymous groups\n` +
+    `🍾 Send a message in a bottle to the ocean\n` +
+    `🔗 Build an emotion chain with 10 strangers\n` +
+    `✉️ Write a letter to your future self\n` +
+    `📡 Match with someone on the same vibe\n\n` +
+    `━━━━━━━━━━━━━━━━━━━━━\n` +
+    `🎁 **Join via this link and get ${inviteeReward > 0 ? `${inviteeReward} free coins` : "free coins"} as a gift!**\n\n` +
+    `[👉 Tap here to join now](${link})`,
   referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `🎁 **Invite Friends**\n\nCode: \`${code}\`\n\n` +
     `👥 Referrals: **${total}**  |  💰 Coins: **${coins}**\n\n` +

@@ -7,6 +7,7 @@ import { invalidateForceJoinCache } from "../middleware/force-join.js";
 import { broadcastMessage } from "../services/broadcast.service.js";
 import { generateVerificationCode, setBackupSchedule, sendBackup, verifyBackupGroup, getBackupConfig } from "../services/backup.service.js";
 import { setSetting, getSetting } from "../services/payment.service.js";
+import { getTetraPayCallbackUrl } from "../../lib/base-url.js";
 import { getTotalChats } from "../services/matching.service.js";
 import { getPendingReportsCount, addBadWord } from "../services/safety.service.js";
 import { db } from "@workspace/db";
@@ -393,12 +394,13 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const apiKey = await getSetting("tetrapay_api_key");
     const callbackUrl = await getSetting("tetrapay_callback_url");
     await ctx.reply(
-      t("fa").tetraPayStatus(!!apiKey, !!callbackUrl),
+      t("fa").tetraPayStatus(!!apiKey, callbackUrl ?? null),
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
             [{ text: t("fa").setApiKey, callback_data: "pay_set:tetrapay_api_key" }],
+            [{ text: t("fa").autoDetectCallbackUrl, callback_data: "tetrapay:auto_url" }],
             [{ text: t("fa").setCallbackUrl, callback_data: "pay_set:tetrapay_callback_url" }],
             [{ text: "غیرفعال/فعال درگاه", callback_data: "pay_toggle:gateway" }],
           ]
@@ -406,6 +408,15 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       }
     );
     await ctx.answerCallbackQuery();
+  });
+
+  // ── TetraPay: auto-detect callback URL ────────────────────────────────────
+  bot.callbackQuery("tetrapay:auto_url", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const url = getTetraPayCallbackUrl();
+    await setSetting("tetrapay_callback_url", url);
+    await ctx.answerCallbackQuery("✅ URL تنظیم شد");
+    await ctx.reply(t("fa").callbackUrlAutoSet(url), { parse_mode: "Markdown" });
   });
 
   // ── Force Join settings (super admin only) ────────────────────────────────────

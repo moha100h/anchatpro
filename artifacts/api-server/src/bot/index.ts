@@ -10,8 +10,9 @@ import { registerCoinHandlers } from "./handlers/coins.js";
 import { registerHelpHandlers } from "./handlers/help.js";
 import { registerSettingsHandlers } from "./handlers/settings.js";
 import { registerAdminHandlers, setAdminIds } from "./handlers/admin.js";
-import { ensureDefaultPackages } from "./services/payment.service.js";
+import { ensureDefaultPackages, setSetting, getSetting } from "./services/payment.service.js";
 import { initDefaultBadWords, setOwnerIds } from "./services/safety.service.js";
+import { getTetraPayCallbackUrl } from "../lib/base-url.js";
 import { forceJoinMiddleware } from "./middleware/force-join.js";
 import { sendBackup, getBackupConfig } from "./services/backup.service.js";
 import { cleanupStaleQueue } from "./services/matching.service.js";
@@ -68,6 +69,14 @@ export async function createBot(): Promise<Bot<BotContext>> {
   // Seed default data
   await ensureDefaultPackages();
   await initDefaultBadWords();
+
+  // Auto-set TetraPay callback URL if not already configured
+  const existingCallback = await getSetting("tetrapay_callback_url");
+  if (!existingCallback) {
+    const url = getTetraPayCallbackUrl();
+    await setSetting("tetrapay_callback_url", url);
+    logger.info({ url }, "TetraPay callback URL auto-configured");
+  }
 
   // ─── Scheduled jobs ──────────────────────────────────────────────────────────
 

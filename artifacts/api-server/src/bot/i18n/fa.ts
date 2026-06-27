@@ -273,12 +273,14 @@ export const fa = {
   tetraPayCallbackSet: "✅ آدرس کالبک TetraPay تنظیم شد.",
   enterTetraPayApiKey: "🔑 کلید API TetraPay را وارد کنید:",
   enterTetraPayCallback: "🌐 آدرس کالبک TetraPay را وارد کنید (مثال: https://yourdomain.com/webhook/tetrapay):",
-  tetraPayStatus: (hasKey: boolean, hasCallback: boolean) =>
+  tetraPayStatus: (hasKey: boolean, callbackUrl: string | null) =>
     `💳 **وضعیت TetraPay**\n\n` +
     `🔑 API Key: ${hasKey ? "✅ تنظیم شده" : "❌ تنظیم نشده"}\n` +
-    `🌐 Callback URL: ${hasCallback ? "✅ تنظیم شده" : "❌ تنظیم نشده"}`,
+    `🌐 Callback URL:\n\`${callbackUrl ?? "تنظیم نشده"}\``,
   setApiKey: "🔑 تنظیم API Key",
-  setCallbackUrl: "🌐 تنظیم Callback URL",
+  setCallbackUrl: "🌐 تنظیم Callback URL دستی",
+  autoDetectCallbackUrl: "🔄 تشخیص خودکار URL",
+  callbackUrlAutoSet: (url: string) => `✅ Callback URL بصورت خودکار تنظیم شد:\n\`${url}\``,
   adminForceJoin: "📢 اجبار عضویت",
 
   // ─── Payment review (admin group) ────────────────────────────────────────────

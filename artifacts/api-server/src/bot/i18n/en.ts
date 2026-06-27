@@ -273,12 +273,14 @@ export const en = {
   tetraPayCallbackSet: "✅ TetraPay callback URL saved.",
   enterTetraPayApiKey: "🔑 Enter your TetraPay API key:",
   enterTetraPayCallback: "🌐 Enter the TetraPay callback URL (e.g. https://yourdomain.com/webhook/tetrapay):",
-  tetraPayStatus: (hasKey: boolean, hasCallback: boolean) =>
+  tetraPayStatus: (hasKey: boolean, callbackUrl: string | null) =>
     `💳 **TetraPay Status**\n\n` +
     `🔑 API Key: ${hasKey ? "✅ Set" : "❌ Not set"}\n` +
-    `🌐 Callback URL: ${hasCallback ? "✅ Set" : "❌ Not set"}`,
+    `🌐 Callback URL:\n\`${callbackUrl ?? "Not set"}\``,
   setApiKey: "🔑 Set API Key",
-  setCallbackUrl: "🌐 Set Callback URL",
+  setCallbackUrl: "🌐 Set Callback URL (manual)",
+  autoDetectCallbackUrl: "🔄 Auto-detect URL",
+  callbackUrlAutoSet: (url: string) => `✅ Callback URL auto-set:\n\`${url}\``,
   adminForceJoin: "📢 Force Join",
 
   // ─── Payment review (admin group) ────────────────────────────────────────────

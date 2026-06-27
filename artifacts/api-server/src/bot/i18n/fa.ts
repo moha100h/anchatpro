@@ -39,6 +39,32 @@ export const fa = {
   insufficientCoins: "❌ سکه کافی ندارید!\n\n💰 برای اتصال به جنسیت خاص به 1 سکه نیاز دارید.\n\nاز منوی 💰 سکه‌های من سکه بخرید.",
   addedToQueue: "⏳ در صف انتظار قرار گرفتید!\n\nبرای لغو دکمه زیر را بزنید.",
   connected: "🎉 متصل شدید!\n\n⚠️ هویت شما کاملاً محفوظ است.\nمی‌توانید پیام، عکس، ویدیو، صدا و استیکر ارسال کنید.",
+
+  connectedWith: (p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }) => {
+    const name = p.firstName ?? "ناشناس";
+    const age  = p.age  ?? "؟";
+    const pre  = p.gender === "male"   ? `با آقا **${name}** که سنش **${age}** ساله`
+               : p.gender === "female" ? `با خانوم **${name}** که سنش **${age}** ساله`
+               : `با دوست **${name}** که سنش **${age}** ساله`;
+    const cityPart = p.city ? ` از **${p.city}**` : "";
+    return (
+      `🧚‍♂️ چت ناشناس ${pre}${cityPart} متصل شدی!\n\n` +
+      `⚠️ هویت شما کاملاً محفوظ است.\nمی‌توانید پیام، عکس، ویدیو، صدا و استیکر ارسال کنید.`
+    );
+  },
+
+  connectedWithMood: (p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }, mood: string) => {
+    const name = p.firstName ?? "ناشناس";
+    const age  = p.age  ?? "؟";
+    const pre  = p.gender === "male"   ? `با آقا **${name}** که سنش **${age}** ساله`
+               : p.gender === "female" ? `با خانوم **${name}** که سنش **${age}** ساله`
+               : `با دوست **${name}** که سنش **${age}** ساله`;
+    const cityPart = p.city ? ` از **${p.city}**` : "";
+    return (
+      `🧚‍♂️ فرکانس پیدا شد!\n\n${pre}${cityPart} و امروز ${mood} هست متصل شدی 🌊\n\n` +
+      `⚠️ هویت شما کاملاً محفوظ است.\nمی‌توانید پیام، عکس، ویدیو، صدا و استیکر ارسال کنید.`
+    );
+  },
   alreadyInQueue: "⏳ شما قبلاً در صف انتظار هستید.",
   alreadyInChat: "💬 شما هم‌اکنون در حال مکالمه هستید.",
   alreadyInGroup: "👥 شما هم‌اکنون در یک گروه هستید.",

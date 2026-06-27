@@ -355,12 +355,12 @@ export async function leaveFrequencyQueue(userId: number): Promise<void> {
   await db.delete(frequencyQueueTable).where(eq(frequencyQueueTable.userId, userId));
 }
 
-/** Cron: clean stale frequency entries older than 10 minutes */
-export async function cleanStaleFrequency(): Promise<number> {
+/** Cron: clean stale frequency entries older than 10 minutes, returns userIds to notify */
+export async function cleanStaleFrequency(): Promise<number[]> {
   const cutoff = new Date(Date.now() - 10 * 60 * 1000);
   const rows = await db
     .delete(frequencyQueueTable)
     .where(lt(frequencyQueueTable.joinedAt, cutoff))
     .returning({ userId: frequencyQueueTable.userId });
-  return rows.length;
+  return rows.map((r) => r.userId);
 }

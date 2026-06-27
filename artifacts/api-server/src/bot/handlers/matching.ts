@@ -66,11 +66,17 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
       const matchId = await findMatch(tgId, pref, user.gender ?? "other");
       if (matchId) {
         await createChatSession(tgId, matchId);
-        await ctx.reply(t(lang).connected, { reply_markup: chatControlKeyboard(lang) });
         const matchUser = await getUserByTelegramId(matchId);
         const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
+        await ctx.reply(t(lang).connectedWith(matchUser ?? {}), {
+          parse_mode: "Markdown",
+          reply_markup: chatControlKeyboard(lang),
+        });
         await bot.api
-          .sendMessage(matchId, t(matchLang).connected, { reply_markup: chatControlKeyboard(matchLang) })
+          .sendMessage(matchId, t(matchLang).connectedWith(user ?? {}), {
+            parse_mode: "Markdown",
+            reply_markup: chatControlKeyboard(matchLang),
+          })
           .catch(() => {});
       } else {
         await addToQueue(tgId, pref, user.gender ?? "other");
@@ -282,13 +288,22 @@ async function tryMatchFromQueue(
   const matchId = await findMatch(tgId, pref, gender);
   if (matchId) {
     await createChatSession(tgId, matchId);
-    await bot.api
-      .sendMessage(tgId, t(lang).connected, { reply_markup: chatControlKeyboard(lang) })
-      .catch(() => {});
-    const matchUser = await getUserByTelegramId(matchId);
+    const [myUser, matchUser] = await Promise.all([
+      getUserByTelegramId(tgId),
+      getUserByTelegramId(matchId),
+    ]);
     const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
     await bot.api
-      .sendMessage(matchId, t(matchLang).connected, { reply_markup: chatControlKeyboard(matchLang) })
+      .sendMessage(tgId, t(lang).connectedWith(matchUser ?? {}), {
+        parse_mode: "Markdown",
+        reply_markup: chatControlKeyboard(lang),
+      })
+      .catch(() => {});
+    await bot.api
+      .sendMessage(matchId, t(matchLang).connectedWith(myUser ?? {}), {
+        parse_mode: "Markdown",
+        reply_markup: chatControlKeyboard(matchLang),
+      })
       .catch(() => {});
   } else {
     setTimeout(() => tryMatchFromQueue(bot, tgId, pref, gender, lang, attempt + 1), 5000);

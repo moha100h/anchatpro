@@ -110,7 +110,12 @@ export async function createBot(): Promise<Bot<BotContext>> {
         const lang = (user?.language as "fa" | "en") ?? "fa";
         await bot.api.sendMessage(senderId, t(lang).bottleExpiredSender).catch(() => {});
       }
-      await cleanStaleFrequency();
+      const staleFreqIds = await cleanStaleFrequency();
+      for (const uid of staleFreqIds) {
+        const user = await getUserByTelegramId(uid);
+        const lang = (user?.language as "fa" | "en") ?? "fa";
+        await bot.api.sendMessage(uid, t(lang).freqTimeout, { reply_markup: mainMenuKeyboard(lang) }).catch(() => {});
+      }
     } catch (e) {
       logger.error({ err: e }, "Magic cron error");
     }

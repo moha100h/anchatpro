@@ -39,6 +39,32 @@ export const en = {
   insufficientCoins: "❌ Insufficient coins!\n\n💰 You need 1 coin to connect to a specific gender.\n\nBuy coins from the 💰 My Coins menu.",
   addedToQueue: "⏳ You've been added to the waiting queue!\n\nPress Cancel to leave the queue.",
   connected: "🎉 Connected!\n\n⚠️ Your identity is completely protected.\nYou can send messages, photos, videos, voice notes, and stickers.",
+
+  connectedWith: (p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }) => {
+    const name = p.firstName ?? "Anonymous";
+    const age  = p.age  ?? "?";
+    const pre  = p.gender === "male"   ? `with **Mr. ${name}**, age **${age}**`
+               : p.gender === "female" ? `with **Ms. ${name}**, age **${age}**`
+               : `with **${name}**, age **${age}**`;
+    const cityPart = p.city ? ` from **${p.city}**` : "";
+    return (
+      `🧚‍♂️ Anonymous chat ${pre}${cityPart} — connected!\n\n` +
+      `⚠️ Your identity is completely protected.\nYou can send messages, photos, videos, voice notes, and stickers.`
+    );
+  },
+
+  connectedWithMood: (p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }, mood: string) => {
+    const name = p.firstName ?? "Anonymous";
+    const age  = p.age  ?? "?";
+    const pre  = p.gender === "male"   ? `with **Mr. ${name}**, age **${age}**`
+               : p.gender === "female" ? `with **Ms. ${name}**, age **${age}**`
+               : `with **${name}**, age **${age}**`;
+    const cityPart = p.city ? ` from **${p.city}**` : "";
+    return (
+      `🧚‍♂️ Frequency matched!\n\n${pre}${cityPart} — both feeling ${mood} 🌊\n\n` +
+      `⚠️ Your identity is completely protected.\nYou can send messages, photos, videos, voice notes, and stickers.`
+    );
+  },
   alreadyInQueue: "⏳ You are already in the queue.",
   alreadyInChat: "💬 You are already in a chat.",
   alreadyInGroup: "👥 You are already in a group.",

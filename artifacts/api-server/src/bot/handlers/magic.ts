@@ -7,7 +7,7 @@
 import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
 import { t } from "../i18n/index.js";
-import { mainMenuKeyboard, magicMenuKeyboard, cancelKeyboard } from "../keyboards/main.js";
+import { mainMenuKeyboard, magicMenuKeyboard, cancelKeyboard, chatControlKeyboard } from "../keyboards/main.js";
 import {
   getFeatureConfig,
   consumeFeature,
@@ -189,12 +189,19 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
       const partnerId = await joinFrequency(userId, mood);
       if (partnerId) {
         await createChatSession(userId, partnerId);
-        const partnerUser = await getUserByTelegramId(partnerId);
+        const [myUser, partnerUser] = await Promise.all([
+          getUserByTelegramId(userId),
+          getUserByTelegramId(partnerId),
+        ]);
         const partnerLang = (partnerUser?.language as "fa" | "en") ?? "fa";
-        // Both go to main chat keyboard (they're now in a session)
-        await ctx.editMessageText(t(lang).freqConnected(moodLabel), { parse_mode: "Markdown" });
+        // Each sees the other person's profile + mood
+        await ctx.editMessageText(t(lang).connectedWithMood(partnerUser ?? {}, moodLabel), { parse_mode: "Markdown" });
+        await ctx.reply("👇", { reply_markup: chatControlKeyboard(lang) });
         await bot.api
-          .sendMessage(partnerId, t(partnerLang).freqConnected(moodLabel), { parse_mode: "Markdown" })
+          .sendMessage(partnerId, t(partnerLang).connectedWithMood(myUser ?? {}, moodLabel), { parse_mode: "Markdown" })
+          .catch(() => {});
+        await bot.api
+          .sendMessage(partnerId, "👇", { reply_markup: chatControlKeyboard(partnerLang) })
           .catch(() => {});
       } else {
         // Still searching — show cancel in the inline (not nav, actual cancel action)
@@ -240,10 +247,19 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
     await createChatSession(userId, partnerId);
     await updateBottleStatus(bottleId, "replied");
 
-    const partnerUser = await getUserByTelegramId(partnerId);
+    const [myUser, partnerUser] = await Promise.all([
+      getUserByTelegramId(userId),
+      getUserByTelegramId(partnerId),
+    ]);
     const partnerLang = (partnerUser?.language as "fa" | "en") ?? "fa";
-    await ctx.editMessageText(t(lang).bottleReplied);
-    await bot.api.sendMessage(partnerId, t(partnerLang).bottleReplied).catch(() => {});
+    await ctx.editMessageText(t(lang).connectedWith(partnerUser ?? {}), { parse_mode: "Markdown" });
+    await ctx.reply("👇", { reply_markup: chatControlKeyboard(lang) });
+    await bot.api
+      .sendMessage(partnerId, t(partnerLang).connectedWith(myUser ?? {}), { parse_mode: "Markdown" })
+      .catch(() => {});
+    await bot.api
+      .sendMessage(partnerId, "👇", { reply_markup: chatControlKeyboard(partnerLang) })
+      .catch(() => {});
   });
 
   bot.callbackQuery(/^bottle:ignore:(\d+)$/, async (ctx) => {

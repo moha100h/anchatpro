@@ -225,13 +225,13 @@ export const fa = {
     (inviteeReward > 0 ? `• دوست شما: **${inviteeReward} سکه هدیه**\n` : "") +
     `\n_فقط کاربرانی که ثبت‌نام را کامل کنند پاداش می‌دهند._`,
   referralLinkMsg: (link: string) =>
-    `🔗 **لینک دعوت اختصاصی شما:**\n\n` +
-    `[👆 کلیک کن و سریع عضو شو](${link})\n\n` +
-    `یا لینک زیر را کپی کن:\n${link}\n\n` +
+    `🔗 <b>لینک دعوت اختصاصی شما:</b>\n\n` +
+    `<a href="${link}">👆 کلیک کن و سریع عضو شو</a>\n\n` +
+    `یا لینک زیر را کپی کن:\n<code>${link}</code>\n\n` +
     `─────────────────\n` +
     `بنر آماده فوروارد 👇`,
   referralBanner: (link: string, inviterReward: number, inviteeReward: number) =>
-    `🌟 **ربات چت ناشناس — @anymschat\\_bot**\n\n` +
+    `🌟 <b>ربات چت ناشناس — @anymschat_bot</b>\n\n` +
     `یه ربات متفاوت برای ارتباط واقعی:\n\n` +
     `💬 با غریبه‌های جذاب چت کاملاً ناشناس\n` +
     `📩 پیام ناشناس بفرست، بدون اینکه شناخته بشی\n` +
@@ -241,8 +241,8 @@ export const fa = {
     `✉️ نامه به آینده‌ات بنویس\n` +
     `📡 بر اساس حالت الان، جفت ناشناس پیدا کن\n\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `🎁 **از طریق این لینک عضو شو و ${inviteeReward > 0 ? `${inviteeReward} سکه رایگان` : "سکه رایگان"} هدیه بگیر!**\n\n` +
-    `[👉 عضویت سریع اینجا کلیک کن](${link})`,
+    `🎁 <b>از طریق این لینک عضو شو و ${inviteeReward > 0 ? `${inviteeReward} سکه رایگان` : "سکه رایگان"} هدیه بگیر!</b>\n\n` +
+    `<a href="${link}">👉 عضویت سریع — اینجا کلیک کن</a>`,
   referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `🎁 **برنامه دعوت دوستان**\n\nکد دعوت: \`${code}\`\n\n` +
     `👥 دعوت‌شده‌ها: **${total}** نفر  |  💰 سکه: **${coins}**\n\n` +

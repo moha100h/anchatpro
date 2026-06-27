@@ -336,12 +336,12 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const inviterReward = parseInt(inviterRewardStr ?? "10", 10);
     const inviteeReward = parseInt(inviteeRewardStr ?? "5", 10);
 
-    // Message 1: link info (copyable)
-    await ctx.reply(t(lang).referralLinkMsg(link), { parse_mode: "Markdown" });
+    // Message 1: link info (copyable) — HTML to avoid URL underscore conflicts
+    await ctx.reply(t(lang).referralLinkMsg(link), { parse_mode: "HTML" });
 
-    // Message 2: forward-able promotional banner
+    // Message 2: forward-able promotional banner — HTML
     await ctx.reply(t(lang).referralBanner(link, inviterReward, inviteeReward), {
-      parse_mode: "Markdown",
+      parse_mode: "HTML",
     });
   });
 

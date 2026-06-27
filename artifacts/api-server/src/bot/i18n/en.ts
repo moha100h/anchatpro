@@ -541,6 +541,8 @@ export const en = {
   groupExpandSuccess: "✅ Limit successfully increased to **10 groups**!",
   groupExpandAlreadyMax: "✅ Your limit is already at the maximum (10 groups).",
   groupEnterBtn: "🚪 Enter Group",
+  groupDismissBtn: "🗑️ Remove from List",
+  groupDismissedOk: "✅ Removed from list.",
   groupExpandCreatedBtn: "⬆️ Expand created limit (30 coins)",
   groupExpandJoinedBtn: "⬆️ Expand joined limit (30 coins)",
   groupNoName: "No name",

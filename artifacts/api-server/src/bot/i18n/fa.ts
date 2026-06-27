@@ -555,6 +555,8 @@ export const fa = {
   groupExpandSuccess: "✅ ظرفیت با موفقیت به **۱۰ گروه** افزایش یافت!",
   groupExpandAlreadyMax: "✅ ظرفیت شما قبلاً به حداکثر (۱۰ گروه) رسیده است.",
   groupEnterBtn: "🚪 ورود به گروه",
+  groupDismissBtn: "🗑️ حذف از لیست",
+  groupDismissedOk: "✅ از لیست حذف شد.",
   groupExpandCreatedBtn: "⬆️ افزایش ظرفیت ساخت (۳۰ سکه)",
   groupExpandJoinedBtn: "⬆️ افزایش ظرفیت عضویت (۳۰ سکه)",
   groupNoName: "بدون نام",

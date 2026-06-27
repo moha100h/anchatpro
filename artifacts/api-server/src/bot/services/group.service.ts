@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { groupChatsTable, groupMembersTable, usersTable } from "@workspace/db";
-import { eq, and, isNull, isNotNull, ne, or } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, ne, or, not } from "drizzle-orm";
 import { randomBytes } from "crypto";
 
 const MIN_MEMBERS = 3;
@@ -47,6 +47,31 @@ export async function generateGroupUserId(userId: number, groupId: number): Prom
     .where(and(eq(groupMembersTable.groupId, groupId), isNull(groupMembersTable.leftAt)));
   const idx = members.findIndex((m) => m.userId === userId);
   return `#${((idx === -1 ? members.length : idx) + 1).toString().padStart(3, "0")}`;
+}
+
+/** Returns display name "👑 FirstName ***" / "⭐ FirstName ***" / "FirstName ***" for group chat messages */
+export async function getGroupMemberDisplayName(userId: number, groupId: number): Promise<string> {
+  const [[userRow], [memberRow]] = await Promise.all([
+    db.select({ firstName: usersTable.firstName })
+      .from(usersTable).where(eq(usersTable.telegramId, userId)).limit(1),
+    db.select({ isCreator: groupMembersTable.isCreator, isAdmin: groupMembersTable.isAdmin })
+      .from(groupMembersTable)
+      .where(and(eq(groupMembersTable.userId, userId), eq(groupMembersTable.groupId, groupId), isNull(groupMembersTable.leftAt)))
+      .limit(1),
+  ]);
+  const name = userRow?.firstName ?? "ناشناس";
+  const masked = `${name} ***`;
+  if (memberRow?.isCreator) return `👑 ${masked}`;
+  if (memberRow?.isAdmin)   return `⭐ ${masked}`;
+  return masked;
+}
+
+/** Mark a group as dismissed in the user's list (hides it from created/joined list) */
+export async function dismissGroupFromList(userId: number, groupId: number): Promise<void> {
+  await db
+    .update(groupMembersTable)
+    .set({ dismissed: true })
+    .where(and(eq(groupMembersTable.userId, userId), eq(groupMembersTable.groupId, groupId)));
 }
 
 export async function isGroupCreator(userId: number, groupId: number): Promise<boolean> {
@@ -335,11 +360,11 @@ export async function banMember(groupId: number, memberDbId: number): Promise<nu
 
 // ─── New functions: admin, expand, invite, creator-groups ─────────────────────
 
-/** Returns ALL groups where user is creator (including ended ones). */
+/** Returns ALL groups where user is creator (excluding dismissed ones). */
 export async function getCreatorGroups(
   userId: number
 ): Promise<Array<{ id: number; name: string | null; inviteToken: string | null; memberCount: number; maxMembers: number; status: string }>> {
-  const groups = await db
+  const rows = await db
     .select({
       id: groupChatsTable.id,
       name: groupChatsTable.name,
@@ -347,13 +372,18 @@ export async function getCreatorGroups(
       memberCount: groupChatsTable.memberCount,
       maxMembers: groupChatsTable.maxMembers,
       status: groupChatsTable.status,
+      dismissed: groupMembersTable.dismissed,
     })
     .from(groupChatsTable)
-    .where(eq(groupChatsTable.creatorId, userId));
-  return groups;
+    .leftJoin(
+      groupMembersTable,
+      and(eq(groupMembersTable.groupId, groupChatsTable.id), eq(groupMembersTable.userId, userId), eq(groupMembersTable.isCreator, true))
+    )
+    .where(and(eq(groupChatsTable.creatorId, userId), not(eq(groupMembersTable.dismissed, true))));
+  return rows.map(r => ({ id: r.id, name: r.name, inviteToken: r.inviteToken, memberCount: r.memberCount, maxMembers: r.maxMembers, status: r.status }));
 }
 
-/** ALL groups the user has ever been a member of (NOT the creator). Includes ended/left. */
+/** ALL groups the user has been a member of (NOT the creator), excluding dismissed. Includes ended/left. */
 export async function getJoinedGroups(
   userId: number
 ): Promise<Array<{ id: number; name: string | null; memberCount: number; maxMembers: number; isAdmin: boolean; status: string; leftAt: Date | null }>> {
@@ -372,7 +402,7 @@ export async function getJoinedGroups(
     .where(
       and(
         eq(groupMembersTable.userId, userId),
-        // creatorId can be NULL for public groups — ne() returns NULL for NULLs, so use OR
+        eq(groupMembersTable.dismissed, false),
         or(isNull(groupChatsTable.creatorId), ne(groupChatsTable.creatorId, userId))
       )
     );

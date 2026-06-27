@@ -24,6 +24,7 @@ export const groupMembersTable = pgTable("group_members", {
   isCreator: boolean("is_creator").default(false).notNull(),     // group owner
   isAdmin: boolean("is_admin").default(false).notNull(),         // promoted admin (up to 2 per group)
   isBanned: boolean("is_banned").default(false).notNull(),       // banned by creator (cannot rejoin this group)
+  dismissed: boolean("dismissed").default(false).notNull(),       // user hid this group from their list
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   leftAt: timestamp("left_at"),
 });

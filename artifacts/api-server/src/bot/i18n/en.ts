@@ -672,6 +672,90 @@ export const en = {
   enterUserId: "Enter the user's numeric ID:",
   enterMessage: "Enter the message:",
   done: "✅ Done",
+
+  // ─── Pro Anonymous Link ───────────────────────────────────────────────────────
+  proLinkBtnPerm: "💎 Pro Permanent Link",
+  proLinkBtnInApp: "⚡ In-App Link",
+  proLinkBtnInbox: (n: number) => n > 0 ? `📬 Pro Inbox | ${n} msgs` : "📬 Pro Inbox (empty)",
+  proLinkSubMenuTitle: (inboxCount: number) =>
+    `💎 **Pro Anonymous Link**\n\n📬 Unread pro messages: **${inboxCount}**\n\nSelect a section:`,
+  proPermLinkFeatures:
+    `💎 **Pro Permanent Link**\n\n` +
+    `One-time purchase — all features free forever:\n\n` +
+    `🔍 See sender identity (free)\n` +
+    `💬 Custom welcome message (free)\n` +
+    `🔄 Change link — 2x per day (free)\n` +
+    `✏️ Custom display name (free)\n` +
+    `🏷️ Custom link alias (free)\n` +
+    `📎 All file types supported`,
+  proPermLinkBuyConfirm: (cost: number) =>
+    `💎 **Buy Pro Permanent Link**\n\n` +
+    `One purchase unlocks all pro features **permanently**.\n\n` +
+    `💰 Cost: **${cost} coins** (one-time)\n\n` +
+    `Confirm?`,
+  proPermLinkActive: (link: string, displayName: string | null, alias: string | null, welcomeSet: boolean, enabled: boolean) =>
+    `💎 **Pro Permanent Link** ${enabled ? "✅ Active" : "❌ Disabled"}\n\n` +
+    `🔗 <code>${link}</code>\n\n` +
+    (displayName ? `✏️ Display name: <b>${displayName}</b>\n` : "") +
+    (alias ? `🏷️ Custom alias: active\n` : "") +
+    (welcomeSet ? `💬 Welcome message: active\n` : "") +
+    `\nShare this link to receive anonymous messages.`,
+  proInAppLinkFeatures: (revealCost: number, welcomeCost: number, changeCost: number) =>
+    `⚡ **In-App Link**\n\n` +
+    `Create a link — unlock pro features with coins:\n\n` +
+    `🔍 See sender: **${revealCost} coin** (per reveal)\n` +
+    `💬 Welcome message: **${welcomeCost} coins**\n` +
+    `🔄 Change link: **${changeCost} coins**\n` +
+    `✏️ Display name: free\n` +
+    `🏷️ Custom alias: free`,
+  proInAppLinkActive: (link: string, expiry: string, displayName: string | null, enabled: boolean) =>
+    `⚡ **In-App Link** ${enabled ? "✅ Active" : "❌ Disabled"}\n\n` +
+    `🔗 <code>${link}</code>\n\n` +
+    (displayName ? `✏️ Display name: <b>${displayName}</b>\n` : "") +
+    `📅 Expires: ${expiry}`,
+  proLinkWelcomeGreeting: (displayName: string, welcomeMsg: string) =>
+    `👋 <b>${displayName}</b> accepts anonymous messages\n\n💬 ${welcomeMsg}\n\n📝 Send your message:`,
+  proLinkDefaultGreeting: (displayName: string) =>
+    `👋 <b>${displayName}</b> accepts anonymous messages\n\n📝 Send your message:`,
+  proLinkDisabled: "❌ This link has been disabled by its owner.",
+  proLinkExpired: "⏰ This link has expired or is invalid.",
+  proMsgSentConfirm: "✅ Your anonymous message was sent!",
+  proMsgReceived: "📩 <b>You received a Pro anonymous message!</b>",
+  proRevealSenderInfo: (firstName: string, username: string | null, tgId: number) =>
+    `🔍 <b>Sender identity:</b>\n\n` +
+    `👤 Name: ${firstName}\n` +
+    (username ? `📛 Username: @${username}\n` : "") +
+    `🆔 ID: <a href="tg://user?id=${tgId}">${tgId}</a>`,
+  proSetWelcomePrompt: "💬 Write your welcome message:\n\n(Shown to senders before they type — max 500 characters)",
+  proWelcomeSet: "✅ Welcome message set.",
+  proSetDisplayNamePrompt: "✏️ Write your display name:\n\n(Max 50 characters — shown to senders)",
+  proDisplayNameSet: "✅ Display name set.",
+  proSetAliasPrompt: "🏷️ Write your custom link alias:\n\n(Letters, numbers and _ only — max 20 characters)",
+  proAliasSet: (link: string) => `✅ Custom alias set:\n<code>${link}</code>`,
+  proAliasTaken: "❌ This alias is already taken. Choose another.",
+  proAliasInvalid: "❌ Alias can only contain letters, numbers and _ (max 20 characters).",
+  proChangeLinkFree: (link: string, remaining: number) =>
+    `🔄 Link changed!\n\n🔗 New link:\n<code>${link}</code>\n\n📊 Free changes left today: ${remaining}`,
+  proChangeLinkCost: (link: string) => `🔄 Link changed!\n\n🔗 New link:\n<code>${link}</code>`,
+  proChangeLinkMaxReached: "❌ You've reached the daily free limit (2 changes).\n\nTry again tomorrow.",
+  proLinkToggledOn: "✅ Link enabled.",
+  proLinkToggledOff: "❌ Link disabled.",
+  proInboxEmpty: "📬 Your pro inbox is empty.",
+  proInboxHeader: (total: number, page: number, totalPages: number) =>
+    `📬 <b>Pro Inbox</b> — ${total} unread | Page ${page}/${totalPages}`,
+  proInboxMediaLabel: (type: string) => {
+    const labels: Record<string, string> = {
+      photo: "🖼️ Photo", video: "🎬 Video", voice: "🎤 Voice message",
+      sticker: "🎭 Sticker", animation: "🎞️ GIF", document: "📄 File",
+      audio: "🎵 Audio", video_note: "🎥 Video note",
+    };
+    return labels[type] ?? "📎 File";
+  },
+  proInboxMsgText: (n: number, date: string, preview: string, tier: string) =>
+    `📩 <b>Message ${n}</b> — ${tier === "pro_perm" ? "💎 Permanent" : "⚡ In-App"}\n` +
+    `📅 ${date}\n\n${preview}`,
+  proReplyPrompt: "💬 Write your reply:",
+  proReplySent: "✅ Reply sent.",
 };
 
 export type LangKeys = typeof en;

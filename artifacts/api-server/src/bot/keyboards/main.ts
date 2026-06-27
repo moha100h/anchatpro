@@ -187,6 +187,18 @@ export function myLinkMenuKeyboard(lang: Lang) {
     .persistent();
 }
 
+/** Persistent Pro Anonymous Link sub-menu — inbox count is dynamic */
+export function anonProSubMenuKeyboard(lang: Lang, proInboxCount: number) {
+  const i = t(lang);
+  return new Keyboard()
+    .text(i.proLinkBtnPerm).row()
+    .text(i.proLinkBtnInApp).row()
+    .text(i.proLinkBtnInbox(proInboxCount)).row()
+    .text(i.back)
+    .resized()
+    .persistent();
+}
+
 /** One-time timed link duration chooser */
 export function timedLinkKeyboard(lang: Lang) {
   const i = t(lang);

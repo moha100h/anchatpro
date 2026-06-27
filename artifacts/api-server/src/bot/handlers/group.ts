@@ -438,14 +438,6 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     await ctx.editMessageText("❌").catch(() => {});
   });
 
-  // ─── Anon Pro Link placeholder ────────────────────────────────────────────────
-  bot.hears(["🔗 ساخت لینک ناشناس پرو", "🔗 Create Pro Anon Link"], async (ctx) => {
-    const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    const lang = (user?.language as "fa" | "en") ?? "fa";
-    await ctx.reply(t(lang).anonProLinkComingSoon, { parse_mode: "Markdown" });
-  });
-
   // ─── Create group (paid, with creator privileges) ────────────────────────────
   bot.hears([/^ساخت گروه ناشناس/, /^Create Anonymous Group/], async (ctx) => {
     const tgId = ctx.from!.id;

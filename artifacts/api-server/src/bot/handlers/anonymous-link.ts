@@ -554,10 +554,11 @@ async function showInboxPage(
   const user = await getUserByTelegramId(tgId);
   const lang = (user?.language as "fa" | "en") ?? "fa";
 
-  // Only show unread messages
+  // Only show standard (non-pro) unread messages
   const unreadFilter = and(
     eq(anonymousMessagesTable.receiverId, tgId),
     eq(anonymousMessagesTable.isRead, false),
+    eq(anonymousMessagesTable.linkType, "standard"),
   );
 
   const [unreadRow] = await db

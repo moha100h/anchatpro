@@ -6,6 +6,7 @@ import { registerStartHandler } from "./handlers/start.js";
 import { registerMatchingHandlers } from "./handlers/matching.js";
 import { registerGroupHandlers, registerGroupMessageForwarder } from "./handlers/group.js";
 import { registerAnonLinkHandlers } from "./handlers/anonymous-link.js";
+import { registerProAnonLinkHandlers } from "./handlers/pro-anon-link.js";
 import { registerCoinHandlers } from "./handlers/coins.js";
 import { registerHelpHandlers } from "./handlers/help.js";
 import { registerSettingsHandlers } from "./handlers/settings.js";
@@ -58,6 +59,7 @@ export async function createBot(): Promise<Bot<BotContext>> {
   registerMatchingHandlers(bot);  // connect, gender pref, end chat, report, block, message forwarding
   registerGroupHandlers(bot);     // join/leave group, My Groups, named groups, admin promote
   registerAnonLinkHandlers(bot);  // /start anon_ links, send/reply anon messages, inbox
+  registerProAnonLinkHandlers(bot); // pro permanent + in-app anon links, pro inbox
   registerCoinHandlers(bot);      // coins menu, buy, packages, payment methods, receipt upload
   registerHelpHandlers(bot);      // help text
   registerSettingsHandlers(bot);  // settings menu, change gender/age/language (registered AFTER start.ts!)

@@ -698,6 +698,90 @@ export const fa = {
   enterUserId: "آیدی عددی کاربر را وارد کنید:",
   enterMessage: "متن پیام را وارد کنید:",
   done: "✅ انجام شد",
+
+  // ─── Pro Anonymous Link ───────────────────────────────────────────────────────
+  proLinkBtnPerm: "💎 لینک پرو دائمی",
+  proLinkBtnInApp: "⚡ لینک درون‌برنامه‌ای",
+  proLinkBtnInbox: (n: number) => n > 0 ? `📬 صندوق پرو | ${n} پیام` : "📬 صندوق پرو (خالی)",
+  proLinkSubMenuTitle: (inboxCount: number) =>
+    `💎 **لینک ناشناس پرو**\n\n📬 پیام‌های نخوانده پرو: **${inboxCount}**\n\nیک بخش را انتخاب کنید:`,
+  proPermLinkFeatures:
+    `💎 **لینک پرو دائمی**\n\n` +
+    `با یک‌بار خرید، تمام امکانات زیر همیشه رایگان:\n\n` +
+    `🔍 مشاهده هویت فرستنده (رایگان)\n` +
+    `💬 پیام خوش‌آمدگویی سفارشی (رایگان)\n` +
+    `🔄 تغییر لینک — ۲ بار در روز (رایگان)\n` +
+    `✏️ نام نمایشی سفارشی (رایگان)\n` +
+    `🏷️ لینک اختصاصی با نام دلخواه (رایگان)\n` +
+    `📎 پشتیبانی از همه فایل‌ها`,
+  proPermLinkBuyConfirm: (cost: number) =>
+    `💎 **خرید لینک پرو دائمی**\n\n` +
+    `با خرید این لینک، تمام امکانات پرو به صورت **دائمی** در اختیار شماست.\n\n` +
+    `💰 هزینه: **${cost} سکه** (یک‌بار)\n\n` +
+    `آیا تأیید می‌کنید؟`,
+  proPermLinkActive: (link: string, displayName: string | null, alias: string | null, welcomeSet: boolean, enabled: boolean) =>
+    `💎 **لینک پرو دائمی** ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n\n` +
+    `🔗 <code>${link}</code>\n\n` +
+    (displayName ? `✏️ نام نمایشی: <b>${displayName}</b>\n` : "") +
+    (alias ? `🏷️ لینک اختصاصی: فعال\n` : "") +
+    (welcomeSet ? `💬 پیام خوش‌آمدگویی: فعال\n` : "") +
+    `\nاز این لینک برای دریافت پیام ناشناس استفاده کنید.`,
+  proInAppLinkFeatures: (revealCost: number, welcomeCost: number, changeCost: number) =>
+    `⚡ **لینک درون‌برنامه‌ای**\n\n` +
+    `لینک را بسازید، امکانات پرو را با سکه فعال کنید:\n\n` +
+    `🔍 مشاهده فرستنده: **${revealCost} سکه** (هر بار)\n` +
+    `💬 پیام خوش‌آمدگویی: **${welcomeCost} سکه**\n` +
+    `🔄 تغییر لینک: **${changeCost} سکه**\n` +
+    `✏️ نام نمایشی: رایگان\n` +
+    `🏷️ لینک اختصاصی: رایگان`,
+  proInAppLinkActive: (link: string, expiry: string, displayName: string | null, enabled: boolean) =>
+    `⚡ **لینک درون‌برنامه‌ای** ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n\n` +
+    `🔗 <code>${link}</code>\n\n` +
+    (displayName ? `✏️ نام نمایشی: <b>${displayName}</b>\n` : "") +
+    `📅 انقضا: ${expiry}`,
+  proLinkWelcomeGreeting: (displayName: string, welcomeMsg: string) =>
+    `👋 <b>${displayName}</b> پیام ناشناس می‌پذیرد\n\n💬 ${welcomeMsg}\n\n📝 پیام خود را ارسال کنید:`,
+  proLinkDefaultGreeting: (displayName: string) =>
+    `👋 <b>${displayName}</b> پیام ناشناس می‌پذیرد\n\n📝 پیام خود را ارسال کنید:`,
+  proLinkDisabled: "❌ این لینک توسط صاحبش غیرفعال شده است.",
+  proLinkExpired: "⏰ این لینک منقضی شده یا معتبر نیست.",
+  proMsgSentConfirm: "✅ پیام ناشناس شما ارسال شد!",
+  proMsgReceived: "📩 <b>یک پیام ناشناس پرو دریافت کردید!</b>",
+  proRevealSenderInfo: (firstName: string, username: string | null, tgId: number) =>
+    `🔍 <b>هویت فرستنده:</b>\n\n` +
+    `👤 نام: ${firstName}\n` +
+    (username ? `📛 نام کاربری: @${username}\n` : "") +
+    `🆔 آیدی: <a href="tg://user?id=${tgId}">${tgId}</a>`,
+  proSetWelcomePrompt: "💬 پیام خوش‌آمدگویی را بنویسید:\n\n(این پیام به فرستندگان نشان داده می‌شود — حداکثر ۵۰۰ کاراکتر)",
+  proWelcomeSet: "✅ پیام خوش‌آمدگویی تنظیم شد.",
+  proSetDisplayNamePrompt: "✏️ نام نمایشی دلخواه خود را بنویسید:\n\n(حداکثر ۵۰ کاراکتر — این نام به فرستندگان نشان داده می‌شود)",
+  proDisplayNameSet: "✅ نام نمایشی تنظیم شد.",
+  proSetAliasPrompt: "🏷️ لینک اختصاصی دلخواه را بنویسید:\n\n(فقط حروف انگلیسی، اعداد و _ — حداکثر ۲۰ کاراکتر)",
+  proAliasSet: (link: string) => `✅ لینک اختصاصی تنظیم شد:\n<code>${link}</code>`,
+  proAliasTaken: "❌ این لینک قبلاً توسط کاربر دیگری استفاده شده. لینک دیگری انتخاب کنید.",
+  proAliasInvalid: "❌ لینک اختصاصی فقط می‌تواند شامل حروف انگلیسی، اعداد و _ باشد (حداکثر ۲۰ کاراکتر).",
+  proChangeLinkFree: (link: string, remaining: number) =>
+    `🔄 لینک تغییر کرد!\n\n🔗 لینک جدید:\n<code>${link}</code>\n\n📊 تغییر رایگان باقیمانده امروز: ${remaining}`,
+  proChangeLinkCost: (link: string) => `🔄 لینک تغییر کرد!\n\n🔗 لینک جدید:\n<code>${link}</code>`,
+  proChangeLinkMaxReached: "❌ امروز به حداکثر تغییر رایگان (۲ بار) رسیده‌اید.\n\nفردا دوباره امتحان کنید.",
+  proLinkToggledOn: "✅ لینک فعال شد.",
+  proLinkToggledOff: "❌ لینک غیرفعال شد.",
+  proInboxEmpty: "📬 صندوق پیام‌های پرو خالی است.",
+  proInboxHeader: (total: number, page: number, totalPages: number) =>
+    `📬 <b>صندوق پرو</b> — ${total} پیام خوانده‌نشده | صفحه ${page}/${totalPages}`,
+  proInboxMediaLabel: (type: string) => {
+    const labels: Record<string, string> = {
+      photo: "🖼️ تصویر", video: "🎬 ویدئو", voice: "🎤 پیام صوتی",
+      sticker: "🎭 استیکر", animation: "🎞️ گیف", document: "📄 فایل",
+      audio: "🎵 فایل صوتی", video_note: "🎥 ویدئوی دایره‌ای",
+    };
+    return labels[type] ?? "📎 فایل";
+  },
+  proInboxMsgText: (n: number, date: string, preview: string, tier: string) =>
+    `📩 <b>پیام ${n}</b> — ${tier === "pro_perm" ? "💎 دائمی" : "⚡ درون‌برنامه‌ای"}\n` +
+    `📅 ${date}\n\n${preview}`,
+  proReplyPrompt: "💬 پاسخ خود را بنویسید:",
+  proReplySent: "✅ پاسخ ارسال شد.",
 };
 
 export type LangKeys = typeof fa;

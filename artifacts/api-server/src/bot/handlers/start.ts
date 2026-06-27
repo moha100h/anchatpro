@@ -213,6 +213,96 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       await ctx.reply(t(lang).timedLinkInvalid);
     }
 
+    // ── 1d. Handle Pro Permanent link (ap_ prefix) ───────────────────────────
+    if (arg.startsWith("ap_")) {
+      const slug = arg.slice(3);
+      const { db, proAnonLinksTable } = await import("@workspace/db");
+      const { or } = await import("drizzle-orm");
+      const [proLink] = await db
+        .select()
+        .from(proAnonLinksTable)
+        .where(or(eqDrizzle(proAnonLinksTable.token, slug), eqDrizzle(proAnonLinksTable.alias, slug)))
+        .limit(1);
+
+      if (proLink && proLink.tier === "permanent") {
+        if (!proLink.isEnabled) {
+          await ctx.reply(t("fa").proLinkDisabled);
+          return;
+        }
+        if (proLink.userId === tgId) {
+          await ctx.reply("❌ نمی‌توانید برای خودتان پیام بفرستید.");
+          return;
+        }
+        const sender = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        const sLang = (sender.language as "fa" | "en") ?? "fa";
+
+        if (!sender.gender || !sender.age) {
+          ctx.session.step = `pending_pro:${proLink.userId}:${proLink.id}:permanent`;
+          await setUserLanguage(tgId, "fa");
+          await setUserSetupStep(tgId, "select_language");
+          const customWelcome = await getSetting("welcome_message");
+          if (customWelcome) await ctx.reply(customWelcome);
+          await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
+          return;
+        }
+
+        ctx.session.step = `pro_send:${proLink.userId}:${proLink.id}:permanent`;
+        const ownerName = proLink.displayName ?? (sLang === "fa" ? "کاربر" : "User");
+        const greeting = proLink.welcomeMessage
+          ? t(sLang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
+          : t(sLang).proLinkDefaultGreeting(ownerName);
+        await ctx.reply(greeting, { parse_mode: "HTML" });
+        return;
+      }
+    }
+
+    // ── 1e. Handle Pro In-App link (ai_ prefix) ───────────────────────────────
+    if (arg.startsWith("ai_")) {
+      const slug = arg.slice(3);
+      const { db, proAnonLinksTable } = await import("@workspace/db");
+      const { or } = await import("drizzle-orm");
+      const [proLink] = await db
+        .select()
+        .from(proAnonLinksTable)
+        .where(or(eqDrizzle(proAnonLinksTable.token, slug), eqDrizzle(proAnonLinksTable.alias, slug)))
+        .limit(1);
+
+      if (proLink && proLink.tier === "inapp") {
+        if (!proLink.isEnabled || (proLink.expiresAt && proLink.expiresAt < new Date())) {
+          const lang = "fa";
+          await ctx.reply(proLink.expiresAt && proLink.expiresAt < new Date() ? t(lang).proLinkExpired : t(lang).proLinkDisabled);
+          return;
+        }
+        if (proLink.userId === tgId) {
+          await ctx.reply("❌ نمی‌توانید برای خودتان پیام بفرستید.");
+          return;
+        }
+        const sender = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        const sLang = (sender.language as "fa" | "en") ?? "fa";
+
+        if (!sender.gender || !sender.age) {
+          ctx.session.step = `pending_pro:${proLink.userId}:${proLink.id}:inapp`;
+          await setUserLanguage(tgId, "fa");
+          await setUserSetupStep(tgId, "select_language");
+          const customWelcome = await getSetting("welcome_message");
+          if (customWelcome) await ctx.reply(customWelcome);
+          await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
+          return;
+        }
+
+        ctx.session.step = `pro_send:${proLink.userId}:${proLink.id}:inapp`;
+        const ownerName = proLink.displayName ?? (sLang === "fa" ? "کاربر" : "User");
+        const greeting = proLink.welcomeMessage
+          ? t(sLang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
+          : t(sLang).proLinkDefaultGreeting(ownerName);
+        await ctx.reply(greeting, { parse_mode: "HTML" });
+        return;
+      }
+      const lang = "fa";
+      await ctx.reply(t(lang).proLinkExpired);
+      return;
+    }
+
     // ── 2. Extract referral code (supports inv / ref_ / r_ formats) ─────────
     let referralCode: string | undefined;
     if (arg.startsWith("inv"))      referralCode = arg.slice(3);
@@ -402,6 +492,14 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         const receiverId = pendingStep.slice(13);
         ctx.session.step = `anon_send:${receiverId}`;
         await ctx.reply(t(lang).sendAnonMsg(lang === "fa" ? "کاربر" : "User"), { reply_markup: { remove_keyboard: true } });
+      } else if (pendingStep?.startsWith("pending_pro:")) {
+        // Format: pending_pro:OWNER_ID:LINK_ID:TIER
+        const parts = pendingStep.slice(12).split(":");
+        const ownerId = parts[0];
+        const linkId = parts[1];
+        const tier = parts[2];
+        ctx.session.step = `pro_send:${ownerId}:${linkId}:${tier}`;
+        await ctx.reply(lang === "fa" ? "📝 پیام خود را ارسال کنید:" : "📝 Send your message:", { reply_markup: { remove_keyboard: true } });
       } else {
         await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
       }

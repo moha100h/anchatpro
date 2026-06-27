@@ -947,7 +947,27 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     }
   });
 
-  // ─── Forward group messages ───────────────────────────────────────────────────
+  // NOTE: Group message forwarder is registered LAST via registerGroupMessageForwarder()
+  // in bot/index.ts so that all bot.hears handlers (inbox, anon-send, etc.) fire first.
+
+  // ─── Cleanup scheduler: end stale anonymous groups every hour ─────────────────
+  setInterval(async () => {
+    try {
+      const cleaned = await cleanupStaleAnonymousGroups();
+      if (cleaned > 0) console.log(`[group-cleanup] Ended ${cleaned} stale anonymous group(s).`);
+    } catch (e) {
+      console.error("[group-cleanup] Error:", e);
+    }
+  }, 60 * 60 * 1000); // every hour
+}
+
+/**
+ * Register the group message forwarder LAST — after all bot.hears() handlers
+ * (inbox, anon-send, help, settings, etc.) so that keyboard button presses are
+ * handled by their specific handlers first. If they return without calling next(),
+ * this forwarder never sees the message, preventing false group forwards.
+ */
+export function registerGroupMessageForwarder(bot: Bot<BotContext>): void {
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -964,12 +984,10 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       getGroupMemberDisplayName(tgId, groupId),
       getGroupName(groupId),
     ]);
-    // Prefix: "[GroupName]" or "[گروه]" fallback
     const groupLabel = groupName
       ? (lang === "fa" ? `گروه ${groupName}` : `Group: ${groupName}`)
       : (lang === "fa" ? "گروه" : "Group");
 
-    // Update last activity timestamp for anonymous group cleanup
     void updateGroupActivity(groupId);
 
     if (ctx.message.text) {
@@ -1009,14 +1027,4 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       }
     }
   });
-
-  // ─── Cleanup scheduler: end stale anonymous groups every hour ─────────────────
-  setInterval(async () => {
-    try {
-      const cleaned = await cleanupStaleAnonymousGroups();
-      if (cleaned > 0) console.log(`[group-cleanup] Ended ${cleaned} stale anonymous group(s).`);
-    } catch (e) {
-      console.error("[group-cleanup] Error:", e);
-    }
-  }, 60 * 60 * 1000); // every hour
 }

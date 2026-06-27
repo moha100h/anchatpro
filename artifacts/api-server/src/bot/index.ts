@@ -4,7 +4,7 @@ import { authMiddleware } from "./middleware/auth.js";
 import { rateLimitMiddleware } from "./middleware/rate-limit.js";
 import { registerStartHandler } from "./handlers/start.js";
 import { registerMatchingHandlers } from "./handlers/matching.js";
-import { registerGroupHandlers } from "./handlers/group.js";
+import { registerGroupHandlers, registerGroupMessageForwarder } from "./handlers/group.js";
 import { registerAnonLinkHandlers } from "./handlers/anonymous-link.js";
 import { registerCoinHandlers } from "./handlers/coins.js";
 import { registerHelpHandlers } from "./handlers/help.js";
@@ -56,13 +56,16 @@ export async function createBot(): Promise<Bot<BotContext>> {
   // so settings.ts handlers are reached correctly.
   registerStartHandler(bot);      // /start, language select, gender select (setup), age input (setup)
   registerMatchingHandlers(bot);  // connect, gender pref, end chat, report, block, message forwarding
-  registerGroupHandlers(bot);     // join/leave group, group message forwarding
-  registerAnonLinkHandlers(bot);  // /start anon_ links, send/reply anon messages
+  registerGroupHandlers(bot);     // join/leave group, My Groups, named groups, admin promote
+  registerAnonLinkHandlers(bot);  // /start anon_ links, send/reply anon messages, inbox
   registerCoinHandlers(bot);      // coins menu, buy, packages, payment methods, receipt upload
   registerHelpHandlers(bot);      // help text
   registerSettingsHandlers(bot);  // settings menu, change gender/age/language (registered AFTER start.ts!)
   registerAdminHandlers(bot);     // /admin, callbacks, text inputs for admin actions
   registerMagicHandlers(bot);     // 🌊 اقیانوس احساس: bottle, chain, letter, frequency
+  // MUST be last: group message forwarder runs only if no preceding handler consumed the message.
+  // This ensures keyboard buttons (inbox, help, etc.) fire before group forwarding.
+  registerGroupMessageForwarder(bot);
 
   // Global error handler
   bot.catch((err) => {

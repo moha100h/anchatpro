@@ -11,12 +11,14 @@ import { deductCoins } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
 import { db } from "@workspace/db";
 import { anonymousMessagesTable, timedAnonLinksTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, desc, count as countFn, and } from "drizzle-orm";
 import { reportUser, blockUser } from "../services/safety.service.js";
 import { t } from "../i18n/index.js";
 import { mainMenuKeyboard, myLinkMenuKeyboard, timedLinkKeyboard } from "../keyboards/main.js";
 import { anonMsgActionsKeyboard } from "../keyboards/inline.js";
 import { randomBytes } from "crypto";
+
+const PAGE_SIZE = 10;
 
 const DURATION_MAP: Record<string, number> = {
   "⏱️ ۱ ساعت": 1,
@@ -36,6 +38,10 @@ function formatExpiry(date: Date, lang: "fa" | "en"): string {
   return date.toLocaleString(lang === "fa" ? "fa-IR" : "en-GB");
 }
 
+function formatDate(date: Date, lang: "fa" | "en"): string {
+  return date.toLocaleString(lang === "fa" ? "fa-IR" : "en-GB");
+}
+
 async function getPermLinkCost(): Promise<number> {
   const v = await getSetting("perm_anon_link_cost");
   return v ? parseInt(v, 10) : DEFAULT_PERM_LINK_COST;
@@ -46,10 +52,20 @@ async function getTimedLinkCost(): Promise<number> {
   return v ? parseInt(v, 10) : DEFAULT_TIMED_LINK_COST;
 }
 
+async function getUnreadCount(tgId: number): Promise<number> {
+  const [row] = await db
+    .select({ cnt: countFn() })
+    .from(anonymousMessagesTable)
+    .where(and(
+      eq(anonymousMessagesTable.receiverId, tgId),
+      eq(anonymousMessagesTable.isRead, false),
+    ));
+  return Number(row?.cnt ?? 0);
+}
+
 function permLinkKeyboard(enabled: boolean, lang: "fa" | "en") {
-  const i = t(lang);
   return new InlineKeyboard().text(
-    enabled ? i.anonLinkToggleOffBtn : i.anonLinkToggleOnBtn,
+    enabled ? t(lang).anonLinkToggleOffBtn : t(lang).anonLinkToggleOnBtn,
     `anon_toggle:${enabled ? "off" : "on"}`
   );
 }
@@ -88,8 +104,9 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
+    const unread = await getUnreadCount(tgId);
 
-    await ctx.reply(t(lang).myLinkMenuTitle, {
+    await ctx.reply(t(lang).myLinkMenuTitle(unread), {
       parse_mode: "HTML",
       reply_markup: myLinkMenuKeyboard(lang),
     });
@@ -134,7 +151,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
           lang === "fa"
             ? `❌ سکه کافی ندارید!\n\n💰 موجودی: ${user.coins} سکه | هزینه: ${cost} سکه`
             : `❌ Not enough coins!\n\n💰 Balance: ${user.coins} | Cost: ${cost}`;
-        await ctx.reply(msg, { reply_markup: mainMenuKeyboard(lang) });
+        await ctx.reply(msg, { reply_markup: myLinkMenuKeyboard(lang) });
         return;
       }
 
@@ -154,15 +171,11 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     const cost = await getPermLinkCost();
     const result = await deductCoins(
-      tgId,
-      cost,
-      "magic_spend",
+      tgId, cost, "magic_spend",
       lang === "fa" ? "ساخت لینک ناشناس ثابت" : "Permanent anonymous link"
     );
     if (!result.success) {
-      await ctx.editMessageText(
-        lang === "fa" ? "❌ سکه کافی ندارید!" : "❌ Not enough coins!"
-      );
+      await ctx.editMessageText(lang === "fa" ? "❌ سکه کافی ندارید!" : "❌ Not enough coins!");
       return;
     }
 
@@ -203,7 +216,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     });
   });
 
-  // ─── Timed link: show duration keyboard with cost ─────────────────────────────
+  // ─── Timed link: show duration keyboard with cost ────────────────────────────
   bot.hears(
     ["⏱️ ساخت لینک مدت‌دار", "⏱️ Create Timed Link"],
     async (ctx) => {
@@ -222,16 +235,8 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
   // ─── Timed link: duration selected → show confirmation ───────────────────────
   bot.hears(
-    [
-      "⏱️ ۱ ساعت",
-      "⏱️ ۶ ساعت",
-      "⏱️ ۲۴ ساعت",
-      "📅 ۷ روز",
-      "⏱️ 1 Hour",
-      "⏱️ 6 Hours",
-      "⏱️ 24 Hours",
-      "📅 7 Days",
-    ],
+    ["⏱️ ۱ ساعت","⏱️ ۶ ساعت","⏱️ ۲۴ ساعت","📅 ۷ روز",
+     "⏱️ 1 Hour","⏱️ 6 Hours","⏱️ 24 Hours","📅 7 Days"],
     async (ctx) => {
       const tgId = ctx.from!.id;
       const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
@@ -248,19 +253,18 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
           lang === "fa"
             ? `❌ سکه کافی ندارید!\n\n💰 موجودی: ${user.coins} سکه | هزینه: ${cost} سکه`
             : `❌ Not enough coins!\n\n💰 Balance: ${user.coins} | Cost: ${cost}`;
-        await ctx.reply(msg, { reply_markup: mainMenuKeyboard(lang) });
+        await ctx.reply(msg, { reply_markup: myLinkMenuKeyboard(lang) });
         return;
       }
 
       const pendingToken = randomBytes(12).toString("hex");
       const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
       const expiryStr = formatExpiry(expiresAt, lang);
-      const durationLabel = text;
 
       const confirmMsg =
         lang === "fa"
-          ? `⏱️ <b>تأیید ساخت لینک مدت‌دار</b>\n\n⌛ مدت: ${durationLabel}\n📅 انقضا: ${expiryStr}\n💰 هزینه: <b>${cost} سکه</b>\n\nتأیید می‌کنید؟`
-          : `⏱️ <b>Confirm Timed Link</b>\n\n⌛ Duration: ${durationLabel}\n📅 Expires: ${expiryStr}\n💰 Cost: <b>${cost} coins</b>\n\nConfirm?`;
+          ? `⏱️ <b>تأیید ساخت لینک مدت‌دار</b>\n\n⌛ مدت: ${text}\n📅 انقضا: ${expiryStr}\n💰 هزینه: <b>${cost} سکه</b>\n\nتأیید می‌کنید؟`
+          : `⏱️ <b>Confirm Timed Link</b>\n\n⌛ Duration: ${text}\n📅 Expires: ${expiryStr}\n💰 Cost: <b>${cost} coins</b>\n\nConfirm?`;
 
       ctx.session.step = `timed_link_confirm:${hours}:${pendingToken}`;
 
@@ -283,27 +287,16 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
 
     const cost = await getTimedLinkCost();
     const result = await deductCoins(
-      tgId,
-      cost,
-      "magic_spend",
+      tgId, cost, "magic_spend",
       lang === "fa" ? "ساخت لینک ناشناس مدت‌دار" : "Timed anonymous link"
     );
     if (!result.success) {
-      await ctx.editMessageText(
-        lang === "fa" ? "❌ سکه کافی ندارید!" : "❌ Not enough coins!"
-      );
+      await ctx.editMessageText(lang === "fa" ? "❌ سکه کافی ندارید!" : "❌ Not enough coins!");
       return;
     }
 
     const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
-
-    await db.insert(timedAnonLinksTable).values({
-      userId: tgId,
-      token,
-      coinsCost: cost,
-      expiresAt,
-    });
-
+    await db.insert(timedAnonLinksTable).values({ userId: tgId, token, coinsCost: cost, expiresAt });
     ctx.session.step = undefined;
 
     const link = `https://t.me/${BOT_USERNAME}?start=t_${token}`;
@@ -326,7 +319,22 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     await ctx.editMessageText(lang === "fa" ? "❌ لغو شد." : "❌ Cancelled.");
   });
 
+  // ─── Inbox: show paginated received messages ──────────────────────────────────
+  bot.hears(
+    ["📬 صندوق پیام ناشناس من", "📬 My Anonymous Inbox"],
+    async (ctx) => {
+      await showInboxPage(ctx, bot, 0);
+    }
+  );
+
+  bot.callbackQuery(/^anon_inbox:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await showInboxPage(ctx, bot, parseInt(ctx.match![1], 10));
+  });
+
   // ─── Receive anonymous message (step: anon_send:{receiverId}) ────────────────
+  // NOTE: session.step is NOT cleared after send — user stays in send mode
+  // until they explicitly press the cancel button.
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
@@ -338,6 +346,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
     const receiverId = parseInt(step.replace("anon_send:", ""), 10);
 
+    // Determine content type
     let content: string | undefined;
     let fileId: string | undefined;
     let fileType: string | undefined;
@@ -372,9 +381,16 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       })
       .returning();
 
-    ctx.session.step = undefined;
-    await ctx.reply(t(lang).anonMsgSent, { reply_markup: mainMenuKeyboard(lang) });
+    // Keep session active — user stays in anon-send mode for multiple messages
+    // Show confirmation with cancel keyboard still visible
+    const receiverName = await getUserByTelegramId(receiverId)
+      .then(r => r?.firstName ?? (lang === "fa" ? "کاربر" : "User"));
 
+    await ctx.reply(t(lang).anonMsgSentKeep, {
+      reply_markup: cancelAnonKeyboard(receiverName, lang),
+    });
+
+    // Deliver to receiver — works regardless of receiver's bot state
     const receiver = await getUserByTelegramId(receiverId);
     const rLang = (receiver?.language as "fa" | "en") ?? "fa";
     const notifyText = t(rLang).anonMsgReceived;
@@ -423,13 +439,14 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
     ctx.session.step = `anon_reply:${msgId}`;
-    await ctx.editMessageReplyMarkup();
+    await ctx.editMessageReplyMarkup().catch(() => null);
     await ctx.reply(t(lang).replyPrompt);
     await ctx.answerCallbackQuery();
   });
 
   // ─── Block anon sender ───────────────────────────────────────────────────────
   bot.callbackQuery(/^anon_block:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
@@ -440,18 +457,22 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       .from(anonymousMessagesTable)
       .where(eq(anonymousMessagesTable.id, msgId))
       .limit(1);
-    if (msg?.senderId) await blockUser(tgId, msg.senderId, "anon_message");
+
+    if (msg?.senderId) {
+      await blockUser(tgId, msg.senderId, "anon_message");
+    }
     await db
       .update(anonymousMessagesTable)
       .set({ status: "blocked" })
       .where(eq(anonymousMessagesTable.id, msgId));
-    await ctx.editMessageReplyMarkup();
+
+    await ctx.editMessageReplyMarkup().catch(() => null);
     await ctx.reply(t(lang).userBlocked);
-    await ctx.answerCallbackQuery();
   });
 
   // ─── Report anon sender ──────────────────────────────────────────────────────
   bot.callbackQuery(/^anon_report:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
     const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
@@ -462,14 +483,17 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       .from(anonymousMessagesTable)
       .where(eq(anonymousMessagesTable.id, msgId))
       .limit(1);
-    if (msg?.senderId) await reportUser(tgId, msg.senderId, "Anonymous message report");
+
+    if (msg?.senderId) {
+      await reportUser(tgId, msg.senderId, "Anonymous message report");
+    }
     await db
       .update(anonymousMessagesTable)
       .set({ status: "blocked" })
       .where(eq(anonymousMessagesTable.id, msgId));
-    await ctx.editMessageReplyMarkup();
+
+    await ctx.editMessageReplyMarkup().catch(() => null);
     await ctx.reply(t(lang).reportSent);
-    await ctx.answerCallbackQuery();
   });
 
   // ─── Handle anon reply text ──────────────────────────────────────────────────
@@ -487,6 +511,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       .from(anonymousMessagesTable)
       .where(eq(anonymousMessagesTable.id, msgId))
       .limit(1);
+
     if (!original) {
       ctx.session.step = undefined;
       return;
@@ -496,15 +521,141 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       .update(anonymousMessagesTable)
       .set({ replyContent: ctx.message.text, repliedAt: new Date(), status: "replied" })
       .where(eq(anonymousMessagesTable.id, msgId));
+
     ctx.session.step = undefined;
     await ctx.reply(t(lang).replySent, { reply_markup: mainMenuKeyboard(lang) });
 
+    // Notify the original sender with proper format and replier's name
     if (original.senderId) {
+      const replierName = user?.firstName ?? (lang === "fa" ? "کاربر" : "User");
       const sender = await getUserByTelegramId(original.senderId);
       const sLang = (sender?.language as "fa" | "en") ?? "fa";
+      const replyNotify = t(sLang).yourReplyFromName(replierName) + ctx.message.text;
+
       await bot.api
-        .sendMessage(original.senderId, `${t(sLang).yourReply}\n\n${ctx.message.text}`)
+        .sendMessage(original.senderId, replyNotify)
         .catch(() => {});
     }
   });
+}
+
+// ─── Inbox helper — shared between hears and callbackQuery ────────────────────
+async function showInboxPage(
+  ctx: import("grammy").Context & { from?: import("grammy/types").User; session?: { step?: string } },
+  bot: Bot<BotContext>,
+  page: number
+) {
+  const tgId = ctx.from!.id;
+  const user = await getUserByTelegramId(tgId);
+  const lang = (user?.language as "fa" | "en") ?? "fa";
+
+  // Count totals
+  const [totalRow] = await db
+    .select({ cnt: countFn() })
+    .from(anonymousMessagesTable)
+    .where(eq(anonymousMessagesTable.receiverId, tgId));
+  const total = Number(totalRow?.cnt ?? 0);
+
+  const [unreadRow] = await db
+    .select({ cnt: countFn() })
+    .from(anonymousMessagesTable)
+    .where(and(
+      eq(anonymousMessagesTable.receiverId, tgId),
+      eq(anonymousMessagesTable.isRead, false),
+    ));
+  const unread = Number(unreadRow?.cnt ?? 0);
+
+  if (total === 0) {
+    await ctx.reply(t(lang).anonInboxEmpty, { reply_markup: myLinkMenuKeyboard(lang) });
+    return;
+  }
+
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const offset = page * PAGE_SIZE;
+
+  // Fetch page
+  const messages = await db
+    .select()
+    .from(anonymousMessagesTable)
+    .where(eq(anonymousMessagesTable.receiverId, tgId))
+    .orderBy(desc(anonymousMessagesTable.createdAt))
+    .limit(PAGE_SIZE)
+    .offset(offset);
+
+  // Mark fetched messages as read
+  const msgIds = messages.map((m) => m.id);
+  for (const id of msgIds) {
+    await db
+      .update(anonymousMessagesTable)
+      .set({ isRead: true })
+      .where(eq(anonymousMessagesTable.id, id));
+  }
+
+  // Send header
+  const header = t(lang).anonInboxHeader(total, unread, page + 1, totalPages);
+  await bot.api.sendMessage(tgId, header, { parse_mode: "HTML" }).catch(() => null);
+
+  // Send each message
+  for (let i = 0; i < messages.length; i++) {
+    const msg = messages[i];
+    const num = offset + i + 1;
+    const dateStr = formatDate(msg.createdAt, lang);
+
+    let displayContent: string;
+    if (msg.content) {
+      displayContent = msg.content.length > 300 ? msg.content.slice(0, 300) + "…" : msg.content;
+    } else if (msg.fileType) {
+      displayContent = t(lang).anonInboxMediaLabel(msg.fileType);
+    } else {
+      displayContent = "?";
+    }
+
+    const msgText = t(lang).anonInboxMsgText(num, dateStr, displayContent);
+    const statusTag =
+      msg.status === "replied"
+        ? (lang === "fa" ? " ✅ پاسخ داده شد" : " ✅ Replied")
+        : msg.status === "blocked"
+        ? (lang === "fa" ? " 🚫 مسدود" : " 🚫 Blocked")
+        : "";
+
+    // Only show action buttons for pending (non-blocked, non-replied already actioned) messages
+    const showActions = msg.status === "pending";
+
+    await bot.api
+      .sendMessage(tgId, msgText + statusTag, {
+        parse_mode: "HTML",
+        reply_markup: showActions ? anonMsgActionsKeyboard(msg.id, lang) : undefined,
+      })
+      .catch(() => null);
+
+    // If it's a media message, send the media too
+    if (msg.fileId) {
+      if (msg.fileType === "photo") {
+        await bot.api.sendPhoto(tgId, msg.fileId).catch(() => null);
+      } else if (msg.fileType === "video") {
+        await bot.api.sendVideo(tgId, msg.fileId).catch(() => null);
+      } else if (msg.fileType === "voice") {
+        await bot.api.sendVoice(tgId, msg.fileId).catch(() => null);
+      } else if (msg.fileType === "sticker") {
+        await bot.api.sendSticker(tgId, msg.fileId).catch(() => null);
+      }
+    }
+  }
+
+  // Pagination footer
+  const navKb = new InlineKeyboard();
+  if (page > 0) {
+    navKb.text(t(lang).anonInboxPrevBtn(page), `anon_inbox:${page - 1}`);
+  }
+  if (page + 1 < totalPages) {
+    if (page > 0) navKb.row();
+    navKb.text(t(lang).anonInboxNextBtn(page + 2), `anon_inbox:${page + 1}`);
+  }
+
+  if (page > 0 || page + 1 < totalPages) {
+    const sep = lang === "fa" ? "─── پایان صفحه ───" : "─── End of page ───";
+    await bot.api
+      .sendMessage(tgId, sep, { reply_markup: navKb })
+      .catch(() => null);
+  }
 }

@@ -613,7 +613,22 @@ export const fa = {
   // ─── My Link sub-menu ─────────────────────────────────────────────────────────
   myLinkBtnPermanent: "🔗 لینک ثابت ناشناس من",
   myLinkBtnTimed: "⏱️ ساخت لینک مدت‌دار",
-  myLinkMenuTitle: "🔗 **لینک ناشناس من**\n\nنوع لینک را انتخاب کنید:",
+  myLinkBtnInbox: "📬 صندوق پیام ناشناس من",
+  myLinkMenuTitle: (unread: number) =>
+    `🔗 **لینک ناشناس من**\n\n` +
+    (unread > 0 ? `📬 شما **${unread}** پیام ناشناس خوانده‌نشده دارید!\n\n` : "") +
+    `نوع لینک را انتخاب کنید:`,
+  anonMsgSentKeep: "✅ پیام ارسال شد!\n\nمی‌توانید پیام دیگری بفرستید یا از دکمه انصراف استفاده کنید.",
+  anonInboxEmpty: "📭 صندوق پیام ناشناس شما خالی است.",
+  anonInboxHeader: (total: number, unread: number, page: number, totalPages: number) =>
+    `📬 <b>صندوق پیام ناشناس</b>\n\n📨 ${total} پیام | 🔴 ${unread} خوانده‌نشده\n📄 صفحه ${page} از ${totalPages}:`,
+  anonInboxMsgText: (num: number, date: string, content: string) =>
+    `📩 <b>پیام #${num}</b>\n🕐 ${date}\n\n${content}`,
+  anonInboxNextBtn: (page: number) => `صفحه بعد (${page}) ←`,
+  anonInboxPrevBtn: (page: number) => `→ صفحه قبل (${page})`,
+  anonInboxMediaLabel: (type: string): string =>
+    type === "photo" ? "[📷 عکس]" : type === "video" ? "[🎥 ویدیو]" : type === "voice" ? "[🎙 صدا]" : type === "sticker" ? "[😀 استیکر]" : "[فایل]",
+  yourReplyFromName: (name: string) => `📤 پاسخ پیام از ${name}:\n\n`,
 
   // ─── Timed anonymous link ─────────────────────────────────────────────────────
   timedLinkTitle: "⏱️ **لینک ناشناس مدت‌دار**\n\nچه مدت این لینک فعال باشد؟",

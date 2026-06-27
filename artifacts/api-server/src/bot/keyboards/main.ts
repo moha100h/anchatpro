@@ -181,6 +181,7 @@ export function myLinkMenuKeyboard(lang: Lang) {
   return new Keyboard()
     .text(i.myLinkBtnPermanent).row()
     .text(i.myLinkBtnTimed).row()
+    .text(i.myLinkBtnInbox).row()
     .text(i.back)
     .resized()
     .persistent();

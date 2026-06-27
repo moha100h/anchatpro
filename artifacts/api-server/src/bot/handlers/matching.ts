@@ -319,6 +319,8 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user?.isInChat) return next();
+    // If user is in anon-reply or anon-send mode, skip chat forwarding
+    if (ctx.session.step?.startsWith("anon_reply:") || ctx.session.step?.startsWith("anon_send:")) return next();
 
     const session = await getActiveSession(tgId);
     if (!session) return next();

@@ -599,7 +599,22 @@ export const en = {
   // ─── My Link sub-menu ─────────────────────────────────────────────────────────
   myLinkBtnPermanent: "🔗 My Permanent Anonymous Link",
   myLinkBtnTimed: "⏱️ Create Timed Link",
-  myLinkMenuTitle: "🔗 **My Anonymous Link**\n\nChoose link type:",
+  myLinkBtnInbox: "📬 My Anonymous Inbox",
+  myLinkMenuTitle: (unread: number) =>
+    `🔗 **My Anonymous Link**\n\n` +
+    (unread > 0 ? `📬 You have **${unread}** unread anonymous messages!\n\n` : "") +
+    `Choose link type:`,
+  anonMsgSentKeep: "✅ Message sent!\n\nYou can send another message or press cancel to go back.",
+  anonInboxEmpty: "📭 Your anonymous inbox is empty.",
+  anonInboxHeader: (total: number, unread: number, page: number, totalPages: number) =>
+    `📬 <b>Anonymous Inbox</b>\n\n📨 ${total} messages | 🔴 ${unread} unread\n📄 Page ${page} of ${totalPages}:`,
+  anonInboxMsgText: (num: number, date: string, content: string) =>
+    `📩 <b>Message #${num}</b>\n🕐 ${date}\n\n${content}`,
+  anonInboxNextBtn: (page: number) => `Next page (${page}) →`,
+  anonInboxPrevBtn: (page: number) => `← Previous page (${page})`,
+  anonInboxMediaLabel: (type: string): string =>
+    type === "photo" ? "[📷 Photo]" : type === "video" ? "[🎥 Video]" : type === "voice" ? "[🎙 Voice]" : type === "sticker" ? "[😀 Sticker]" : "[File]",
+  yourReplyFromName: (name: string) => `📤 Reply from ${name}:\n\n`,
 
   // ─── Timed anonymous link ─────────────────────────────────────────────────────
   timedLinkTitle: "⏱️ **Timed Anonymous Link**\n\nHow long should this link stay active?",

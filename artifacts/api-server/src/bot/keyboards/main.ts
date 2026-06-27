@@ -6,7 +6,7 @@ export function magicMenuKeyboard(lang: Lang) {
   return new Keyboard()
     .text(i.magicBtnBottle).text(i.magicBtnChain).row()
     .text(i.magicBtnLetter).text(i.magicBtnFreq).row()
-    .text(i.back)
+    .text(i.magicBtnHelp).text(i.back)
     .resized()
     .persistent();
 }
@@ -16,8 +16,8 @@ export function mainMenuKeyboard(lang: Lang) {
   return new Keyboard()
     .text(i.menuConnect).text(i.menuGroup).row()
     .text(i.menuCreateGroup).text(i.menuMyLink).row()
-    .text(i.menuCoins).text(i.menuReferral).row()
     .text(i.menuMagic).row()
+    .text(i.menuCoins).text(i.menuReferral).row()
     .text(i.menuHelp).text(i.menuSettings)
     .resized()
     .persistent();
@@ -85,7 +85,7 @@ export function settingsKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
     .text(i.changeGender).text(i.changeAge).row()
-    .text(i.changeLanguage).row()
+    .text(i.changeLanguage).text(i.changeCity).row()
     .text(i.back)
     .resized()
     .oneTime();

@@ -1,7 +1,7 @@
 /**
  * 🌊 اقیانوس احساس — Magic features handler
- * Navigation: Reply Keyboard (persistent sub-menu) — no inline nav clutter
- * Inline keyboards used ONLY for transient one-time choices (mood, letter delay)
+ * Flow: button click → show confirm+cost (inline ✅/❌) → on confirm: deduct coins → proceed
+ * Navigation: Reply Keyboard (persistent sub-menu) — inline only for transient choices
  */
 
 import { Bot, InlineKeyboard } from "grammy";
@@ -28,10 +28,18 @@ import { getUserByTelegramId } from "../services/user.service.js";
 import { db, bottleMessagesTable, chainsTable, chainLinksTable, usersTable } from "@workspace/db";
 import { eq, ne, and, notInArray } from "drizzle-orm";
 
+// ─── Shared confirm inline keyboard ──────────────────────────────────────────
+function confirmKeyboard(feature: string, lang: "fa" | "en") {
+  const i = t(lang);
+  return new InlineKeyboard()
+    .text(i.confirm, `magic:confirm:${feature}`)
+    .text(i.cancel, "magic:cancel");
+}
+
 export function registerMagicHandlers(bot: Bot<BotContext>): void {
 
   // ────────────────────────────────────────────────────────────────────────────
-  // Main magic menu button → switch to sub-keyboard (no inline buttons)
+  // Main magic menu button → switch to sub-keyboard
   // ────────────────────────────────────────────────────────────────────────────
   bot.hears([/^🌊 اقیانوس/, /^🌊 Ocean/], async (ctx, next) => {
     if (!ctx.dbUser) return next();
@@ -43,93 +51,184 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // 🍾 پیام در بطری
+  // 📖 راهنما — per-feature help (in magic sub-menu)
   // ────────────────────────────────────────────────────────────────────────────
-  bot.hears([/^🍾 پیام در بطری/, /^🍾 Message in a Bottle/], async (ctx, next) => {
+  bot.hears([/^📖 راهنما/, /^📖 Help Guide/], async (ctx, next) => {
     if (!ctx.dbUser) return next();
-    const lang   = (ctx.dbUser.language as "fa" | "en") ?? "fa";
-    const userId = ctx.from!.id;
-
-    const result = await consumeFeature(userId, "bottle");
-    if (!result.ok) {
-      const cfg = await getFeatureConfig("bottle");
-      await ctx.reply(
-        result.reason === "disabled" ? t(lang).magicDisabled
-        : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
-        : t(lang).magicNotEnoughCoins(cfg.cost),
-        { reply_markup: magicMenuKeyboard(lang) }
-      );
-      return;
-    }
-    ctx.session.magicStep = "bottle_write";
-    await ctx.reply(t(lang).bottleAskMessage, {
+    const lang = (ctx.dbUser.language as "fa" | "en") ?? "fa";
+    const i = t(lang);
+    await ctx.reply(i.magicHelpMenu, {
       parse_mode: "Markdown",
-      reply_markup: cancelKeyboard(lang),
+      reply_markup: new InlineKeyboard()
+        .text(i.magicBtnBottle, "magic:help:bottle").row()
+        .text(i.magicBtnChain,  "magic:help:chain").row()
+        .text(i.magicBtnLetter, "magic:help:letter").row()
+        .text(i.magicBtnFreq,   "magic:help:freq"),
+    });
+  });
+
+  bot.callbackQuery("magic:help:bottle", async (ctx) => {
+    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(t(lang).magicHelpBottle, { parse_mode: "Markdown" });
+  });
+  bot.callbackQuery("magic:help:chain", async (ctx) => {
+    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(t(lang).magicHelpChain, { parse_mode: "Markdown" });
+  });
+  bot.callbackQuery("magic:help:letter", async (ctx) => {
+    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(t(lang).magicHelpLetter, { parse_mode: "Markdown" });
+  });
+  bot.callbackQuery("magic:help:freq", async (ctx) => {
+    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(t(lang).magicHelpFreq, { parse_mode: "Markdown" });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // Shared cancel → back to magic menu (no action taken, no coins spent)
+  // ────────────────────────────────────────────────────────────────────────────
+  bot.callbackQuery("magic:cancel", async (ctx) => {
+    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText(t(lang).cancelledAction);
+    await ctx.reply(t(lang).magicSubTitle, {
+      parse_mode: "Markdown",
+      reply_markup: magicMenuKeyboard(lang),
     });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // 🔗 زنجیر احساس
+  // 🍾 پیام در بطری — Step 1: show confirm
+  // ────────────────────────────────────────────────────────────────────────────
+  bot.hears([/^🍾 پیام در بطری/, /^🍾 Message in a Bottle/], async (ctx, next) => {
+    if (!ctx.dbUser) return next();
+    const lang = (ctx.dbUser.language as "fa" | "en") ?? "fa";
+    const cfg = await getFeatureConfig("bottle");
+    if (!cfg.enabled) {
+      await ctx.reply(t(lang).magicDisabled, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+    await ctx.reply(t(lang).magicConfirmBottle(cfg.cost, cfg.dailyLimit), {
+      parse_mode: "Markdown",
+      reply_markup: confirmKeyboard("bottle", lang),
+    });
+  });
+
+  // Step 2: confirmed → deduct + prompt
+  bot.callbackQuery("magic:confirm:bottle", async (ctx) => {
+    const lang   = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const userId = ctx.from.id;
+    await ctx.answerCallbackQuery();
+
+    const result = await consumeFeature(userId, "bottle");
+    if (!result.ok) {
+      const cfg = await getFeatureConfig("bottle");
+      await ctx.editMessageText(
+        result.reason === "disabled" ? t(lang).magicDisabled
+        : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
+        : t(lang).magicNotEnoughCoins(cfg.cost),
+      );
+      await ctx.reply(t(lang).magicSubTitle, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+
+    ctx.session.magicStep = "bottle_write";
+    await ctx.editMessageText(t(lang).bottleAskMessage, { parse_mode: "Markdown" });
+    await ctx.reply("✏️", { reply_markup: cancelKeyboard(lang) });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
+  // 🔗 زنجیر احساس — Step 1: show confirm
   // ────────────────────────────────────────────────────────────────────────────
   bot.hears([/^🔗 زنجیر احساس/, /^🔗 Emotion Chain/], async (ctx, next) => {
     if (!ctx.dbUser) return next();
-    const lang   = (ctx.dbUser.language as "fa" | "en") ?? "fa";
-    const userId = ctx.from!.id;
+    const lang = (ctx.dbUser.language as "fa" | "en") ?? "fa";
+    const cfg = await getFeatureConfig("chain");
+    if (!cfg.enabled) {
+      await ctx.reply(t(lang).magicDisabled, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+    await ctx.reply(t(lang).magicConfirmChain(cfg.cost, cfg.dailyLimit), {
+      parse_mode: "Markdown",
+      reply_markup: confirmKeyboard("chain", lang),
+    });
+  });
 
-    // Check for a waiting chain first
+  // Step 2: confirmed → deduct + claim/create chain + prompt
+  bot.callbackQuery("magic:confirm:chain", async (ctx) => {
+    const lang   = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const userId = ctx.from.id;
+    await ctx.answerCallbackQuery();
+
+    const result = await consumeFeature(userId, "chain");
+    if (!result.ok) {
+      const cfg = await getFeatureConfig("chain");
+      await ctx.editMessageText(
+        result.reason === "disabled" ? t(lang).magicDisabled
+        : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
+        : t(lang).magicNotEnoughCoins(cfg.cost),
+      );
+      await ctx.reply(t(lang).magicSubTitle, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+
+    // Try to claim a waiting chain; fall back to starting a new one
     const waiting = await claimChainForUser(userId);
     if (waiting) {
       const links = await getChainLinks(waiting.id);
       const prevText = links.map((l) => l.message).join(" / ");
       ctx.session.magicStep = "chain_write";
       ctx.session.magicChainId = waiting.id;
-      await ctx.reply(t(lang).chainAskNext(waiting.currentStep, prevText), {
-        parse_mode: "Markdown",
-        reply_markup: cancelKeyboard(lang),
-      });
-      return;
+      await ctx.editMessageText(t(lang).chainAskNext(waiting.currentStep, prevText), { parse_mode: "Markdown" });
+      await ctx.reply("✏️", { reply_markup: cancelKeyboard(lang) });
+    } else {
+      ctx.session.magicStep = "chain_write";
+      ctx.session.magicChainId = undefined;
+      await ctx.editMessageText(t(lang).chainAskFirst, { parse_mode: "Markdown" });
+      await ctx.reply("✏️", { reply_markup: cancelKeyboard(lang) });
     }
-
-    const result = await consumeFeature(userId, "chain");
-    if (!result.ok) {
-      const cfg = await getFeatureConfig("chain");
-      await ctx.reply(
-        result.reason === "disabled" ? t(lang).magicDisabled
-        : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
-        : t(lang).magicNotEnoughCoins(cfg.cost),
-        { reply_markup: magicMenuKeyboard(lang) }
-      );
-      return;
-    }
-    ctx.session.magicStep = "chain_write";
-    ctx.session.magicChainId = undefined;
-    await ctx.reply(t(lang).chainAskFirst, {
-      parse_mode: "Markdown",
-      reply_markup: cancelKeyboard(lang),
-    });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // ✉️ نامه به آینده
+  // ✉️ نامه به آینده — Step 1: show confirm
   // ────────────────────────────────────────────────────────────────────────────
   bot.hears([/^✉️ نامه به آینده/, /^✉️ Letter to the Future/], async (ctx, next) => {
     if (!ctx.dbUser) return next();
-    const lang   = (ctx.dbUser.language as "fa" | "en") ?? "fa";
-    const userId = ctx.from!.id;
+    const lang = (ctx.dbUser.language as "fa" | "en") ?? "fa";
+    const cfg = await getFeatureConfig("letter");
+    if (!cfg.enabled) {
+      await ctx.reply(t(lang).magicDisabled, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+    await ctx.reply(t(lang).magicConfirmLetter(cfg.cost, cfg.dailyLimit), {
+      parse_mode: "Markdown",
+      reply_markup: confirmKeyboard("letter", lang),
+    });
+  });
+
+  // Step 2: confirmed → deduct + show delay selection
+  bot.callbackQuery("magic:confirm:letter", async (ctx) => {
+    const lang   = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const userId = ctx.from.id;
+    await ctx.answerCallbackQuery();
 
     const result = await consumeFeature(userId, "letter");
     if (!result.ok) {
       const cfg = await getFeatureConfig("letter");
-      await ctx.reply(
+      await ctx.editMessageText(
         result.reason === "disabled" ? t(lang).magicDisabled
         : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
         : t(lang).magicNotEnoughCoins(cfg.cost),
-        { reply_markup: magicMenuKeyboard(lang) }
       );
+      await ctx.reply(t(lang).magicSubTitle, { reply_markup: magicMenuKeyboard(lang) });
       return;
     }
-    // Delay selection: inline (transient one-time choice, not navigation)
-    await ctx.reply(t(lang).letterAskDelay, {
+
+    await ctx.editMessageText(t(lang).letterAskDelay, {
       parse_mode: "Markdown",
       reply_markup: new InlineKeyboard()
         .text(t(lang).letterDelay7,  "magic:letter:7").row()
@@ -150,35 +249,66 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
   }
 
   // ────────────────────────────────────────────────────────────────────────────
-  // 📡 فرکانس ناشناس
+  // 📡 فرکانس ناشناس — Step 1: show confirm
   // ────────────────────────────────────────────────────────────────────────────
   bot.hears([/^📡 فرکانس ناشناس/, /^📡 Anonymous Frequency/], async (ctx, next) => {
     if (!ctx.dbUser) return next();
     const lang   = (ctx.dbUser.language as "fa" | "en") ?? "fa";
     const userId = ctx.from!.id;
 
+    // Block if already in chat or queue
+    if (ctx.dbUser.isInChat) {
+      await ctx.reply(t(lang).alreadyInChat, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+
+    const cfg = await getFeatureConfig("frequency");
+    if (!cfg.enabled) {
+      await ctx.reply(t(lang).magicDisabled, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+    await ctx.reply(t(lang).magicConfirmFreq(cfg.cost, cfg.dailyLimit), {
+      parse_mode: "Markdown",
+      reply_markup: confirmKeyboard("freq", lang),
+    });
+  });
+
+  // Step 2: confirmed → deduct + show mood selection
+  bot.callbackQuery("magic:confirm:freq", async (ctx) => {
+    const lang   = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const userId = ctx.from.id;
+    await ctx.answerCallbackQuery();
+
+    // Re-check chat state (user might have connected elsewhere while reading confirm)
+    const freshUser = await getUserByTelegramId(userId);
+    if (freshUser?.isInChat) {
+      await ctx.editMessageText(t(lang).alreadyInChat);
+      return;
+    }
+
     const result = await consumeFeature(userId, "frequency");
     if (!result.ok) {
       const cfg = await getFeatureConfig("frequency");
-      await ctx.reply(
+      await ctx.editMessageText(
         result.reason === "disabled" ? t(lang).magicDisabled
         : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
         : t(lang).magicNotEnoughCoins(cfg.cost),
-        { reply_markup: magicMenuKeyboard(lang) }
       );
+      await ctx.reply(t(lang).magicSubTitle, { reply_markup: magicMenuKeyboard(lang) });
       return;
     }
-    // Mood selection: inline (transient one-time choice)
+
     const kb = new InlineKeyboard();
     for (const [mood, label] of Object.entries(MOOD_LABELS)) {
       kb.text(label, `magic:freq:${mood}`).row();
     }
-    await ctx.reply(t(lang).freqAskMood, {
+    await ctx.editMessageText(t(lang).freqAskMood, {
       parse_mode: "Markdown",
       reply_markup: kb,
     });
   });
 
+  // Mood selected → match or queue
   for (const mood of Object.keys(MOOD_LABELS) as Mood[]) {
     bot.callbackQuery(`magic:freq:${mood}`, async (ctx) => {
       const lang      = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
@@ -194,7 +324,6 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
           getUserByTelegramId(partnerId),
         ]);
         const partnerLang = (partnerUser?.language as "fa" | "en") ?? "fa";
-        // Each sees the other person's profile + mood
         await ctx.editMessageText(t(lang).connectedWithMood(partnerUser ?? {}, moodLabel), { parse_mode: "Markdown" });
         await ctx.reply("👇", { reply_markup: chatControlKeyboard(lang) });
         await bot.api
@@ -204,7 +333,6 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
           .sendMessage(partnerId, "👇", { reply_markup: chatControlKeyboard(partnerLang) })
           .catch(() => {});
       } else {
-        // Still searching — show cancel in the inline (not nav, actual cancel action)
         await ctx.editMessageText(t(lang).freqSearching(moodLabel), {
           parse_mode: "Markdown",
           reply_markup: new InlineKeyboard().text(t(lang).freqCancelBtn, "magic:freq:cancel"),
@@ -225,11 +353,11 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
   });
 
   // ────────────────────────────────────────────────────────────────────────────
-  // Bottle reply / ignore callbacks (from delivery message)
+  // Bottle reply / ignore callbacks
   // ────────────────────────────────────────────────────────────────────────────
   bot.callbackQuery(/^bottle:reply:(\d+)$/, async (ctx) => {
     const bottleId = parseInt(ctx.match[1]!, 10);
-    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const lang     = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
     await ctx.answerCallbackQuery();
 
     const [bottle] = await db
@@ -238,12 +366,20 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
       .where(eq(bottleMessagesTable.id, bottleId));
 
     if (!bottle || bottle.status !== "delivered") {
-      await ctx.editMessageText("❌ این پیام دیگر قابل پاسخ نیست.");
+      await ctx.editMessageText(lang === "fa" ? "❌ این پیام دیگر قابل پاسخ نیست." : "❌ This message can no longer be replied to.");
       return;
     }
 
     const userId    = ctx.from.id;
     const partnerId = bottle.senderId;
+
+    // Guard: can't reply if already in chat
+    const freshUser = await getUserByTelegramId(userId);
+    if (freshUser?.isInChat) {
+      await ctx.editMessageText(t(lang).alreadyInChat);
+      return;
+    }
+
     await createChatSession(userId, partnerId);
     await updateBottleStatus(bottleId, "replied");
 
@@ -272,7 +408,6 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
 
   // ────────────────────────────────────────────────────────────────────────────
   // Text input handler — bottle / chain / letter
-  // Intercepts BEFORE the global text handler; uses next() if not in magic step
   // ────────────────────────────────────────────────────────────────────────────
   bot.on("message:text", async (ctx, next) => {
     const step = ctx.session.magicStep;
@@ -291,7 +426,6 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
       }
       const bottleId = await sendBottle(userId, text);
 
-      // Deliver to a random active user
       const candidates = await db
         .select({ telegramId: usersTable.telegramId, language: usersTable.language })
         .from(usersTable)
@@ -323,7 +457,7 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
         await joinOrCreateChain(userId, text, 10);
 
       if (isComplete) {
-        const links = await getChainLinks(chainId);
+        const links    = await getChainLinks(chainId);
         const fullText = links.map((l, i) => `${i + 1}. ${l.message}`).join("\n");
         for (const pid of participantIds) {
           const pu = await getUserByTelegramId(pid);
@@ -364,14 +498,14 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
             .set({ currentHolder: pick.telegramId })
             .where(eq(chainsTable.id, chainId));
 
-          const links = await getChainLinks(chainId);
+          const links    = await getChainLinks(chainId);
           const prevText = links.map((l) => l.message).join(" / ");
-          const pl = (pick.language as "fa" | "en") ?? "fa";
+          const pl       = (pick.language as "fa" | "en") ?? "fa";
           await bot.api
             .sendMessage(pick.telegramId, t(pl).chainAskNext(chainStep + 1, prevText), {
               parse_mode: "Markdown",
               reply_markup: new InlineKeyboard()
-                .text(`🔗 ${chainStep + 1}/10 — ادامه زنجیر`, "magic:chain:continue"),
+                .text(`🔗 ${chainStep + 1}/10 — ${pl === "fa" ? "ادامه زنجیر" : "Continue Chain"}`, "magic:chain:continue"),
             })
             .catch(() => {});
         }
@@ -395,11 +529,10 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
     return next();
   });
 
-  // Chain continue button (sent to next participant via delivery message)
+  // Chain continue button (sent to next participant via delivery notification)
   bot.callbackQuery("magic:chain:continue", async (ctx) => {
     const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
     await ctx.answerCallbackQuery();
-    // Just redirect — the hears handler will pick up the actual chain claim
     await ctx.reply(t(lang).magicSubTitle, {
       parse_mode: "Markdown",
       reply_markup: magicMenuKeyboard(lang),

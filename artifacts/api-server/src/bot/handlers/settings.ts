@@ -83,6 +83,18 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).selectAge, { reply_markup: cancelKeyboard(lang) });
   });
 
+  // ─── Initiate city change ────────────────────────────────────────────────────
+  bot.hears([/^🏙️ تغییر شهر/, /^🏙️ Change City/], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await setUserSetupStep(tgId, "change_city");
+    const prompt = lang === "fa"
+      ? "🏙️ شهر جدید خود را وارد کنید:\n(برای پاک کردن شهر، یک نقطه «.» بفرستید)"
+      : "🏙️ Enter your new city:\n(Send a dot «.» to clear your city)";
+    await ctx.reply(prompt, { reply_markup: cancelKeyboard(lang) });
+  });
+
   // ─── Initiate language change ────────────────────────────────────────────────
   bot.hears([/^🌐 تغییر زبان/, /^🌐 Change Language/], async (ctx) => {
     const tgId = ctx.from!.id;
@@ -134,6 +146,20 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
 
     const lang = ctx.message!.text === "🇮🇷 فارسی" ? "fa" : "en";
     await setUserLanguage(tgId, lang);
+    await setUserSetupStep(tgId, null);
+    await ctx.reply(t(lang).profileUpdated, { reply_markup: mainMenuKeyboard(lang) });
+  });
+
+  // ─── Handle city input (change_city step) ───────────────────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (user?.setupStep !== "change_city") return next();
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const raw  = ctx.message.text.trim();
+    const city = raw === "." ? null : raw.slice(0, 64);
+    await updateUser(tgId, { city });
     await setUserSetupStep(tgId, null);
     await ctx.reply(t(lang).profileUpdated, { reply_markup: mainMenuKeyboard(lang) });
   });

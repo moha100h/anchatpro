@@ -29,6 +29,7 @@ export const en = {
   magicBtnChain:   "🔗 Emotion Chain",
   magicBtnLetter:  "✉️ Letter to the Future",
   magicBtnFreq:    "📡 Anonymous Frequency",
+  magicBtnHelp:    "📖 Help Guide",
   magicSubTitle:   "🌊 Ocean of Emotions\n\nChoose a feature:",
 
   // ─── Matching ────────────────────────────────────────────────────────────────
@@ -341,6 +342,38 @@ export const en = {
     `Write yourself a letter. Receive it in 7–90 days.\n\n` +
     `📡 *Anonymous Frequency* — ${cfg.freqCost} coins\n` +
     `Choose your mood. Connect with someone who feels the same.`,
+  // ─ Confirm (shown before coin deduction) ─
+  magicConfirmBottle: (cost: number, daily: number) =>
+    `🍾 **Message in a Bottle**\n\n` +
+    `Write an anonymous message and release it into the ocean.\n` +
+    `The system delivers it to a random user.\n` +
+    `If they reply → anonymous chat begins 💬\n\n` +
+    `💰 Cost: **${cost} coins**\n` +
+    `📊 Daily limit: **${daily} times**\n\n` +
+    `Ready to continue?`,
+  magicConfirmChain: (cost: number, daily: number) =>
+    `🔗 **Emotion Chain**\n\n` +
+    `Write one sentence — if a chain is waiting you'll continue it, otherwise a new chain starts!\n` +
+    `After 10 people, the full chain is sent to everyone 🎉\n\n` +
+    `💰 Cost: **${cost} coins**\n` +
+    `📊 Daily limit: **${daily} times**\n\n` +
+    `Ready to continue?`,
+  magicConfirmLetter: (cost: number, daily: number) =>
+    `✉️ **Letter to the Future**\n\n` +
+    `Write a letter to yourself today.\n` +
+    `Choose a delivery time: 7, 30, 60, or 90 days.\n` +
+    `It arrives exactly on that day 📅\n\n` +
+    `💰 Cost: **${cost} coins**\n` +
+    `📊 Daily limit: **${daily} times**\n\n` +
+    `Ready to continue?`,
+  magicConfirmFreq: (cost: number, daily: number) =>
+    `📡 **Anonymous Frequency**\n\n` +
+    `Choose your current feeling.\n` +
+    `You'll be connected with someone feeling exactly the same 🌊\n\n` +
+    `💰 Cost: **${cost} coins**\n` +
+    `📊 Daily limit: **${daily} times**\n\n` +
+    `Ready to continue?`,
+
   magicHelpMenu: "📖 **Ocean of Emotions Help**\n\nChoose a section:",
   magicHelpBottle:
     `🍾 **Message in a Bottle**\n\n` +

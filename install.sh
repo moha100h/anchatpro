@@ -159,6 +159,12 @@ PORT=5000
 EOF
 echo "✅ .env created"
 
+# Export all env vars so every subsequent command (drizzle-kit, build, pm2) can see them
+set -a
+# shellcheck source=/dev/null
+source .env
+set +a
+
 # ─── 7. Install JS dependencies ──────────────────────────────────────────────
 
 echo ""

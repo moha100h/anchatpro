@@ -170,12 +170,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const wallet = await getSetting("crypto_wallet") ?? "تنظیم نشده";
     const reviewGroup = await getSetting("payment_review_group") ?? "تنظیم نشده";
     const createCost = await getSetting("group_create_cost") ?? "3";
+    const joinCost   = await getSetting("group_join_cost")   ?? "3";
     await ctx.reply(
       `💳 **تنظیمات پرداخت**\n\n` +
       `شماره کارت: ${cardNo}\n` +
       `کیف ارز دیجیتال: ${wallet}\n` +
       `گروه بررسی: ${reviewGroup}\n` +
-      `هزینه ساخت گروه: ${createCost} سکه`,
+      `هزینه ساخت گروه: ${createCost} سکه\n` +
+      `هزینه پیوستن به گروه: ${joinCost} سکه`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -184,6 +186,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "تنظیم کیف ارز دیجیتال", callback_data: "pay_set:crypto_wallet" }],
             [{ text: "تنظیم گروه بررسی", callback_data: "pay_set:payment_review_group" }],
             [{ text: "تنظیم هزینه ساخت گروه", callback_data: "pay_set:group_create_cost" }],
+            [{ text: "تنظیم هزینه پیوستن به گروه", callback_data: "pay_set:group_join_cost" }],
             [{ text: "غیرفعال/فعال کارت", callback_data: "pay_toggle:card" }],
             [{ text: "غیرفعال/فعال کریپتو", callback_data: "pay_toggle:crypto" }],
           ]
@@ -376,6 +379,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       crypto_wallet: "آدرس کیف پول",
       payment_review_group: "آیدی گروه بررسی",
       group_create_cost: "هزینه ساخت گروه (سکه)",
+      group_join_cost: "هزینه پیوستن به گروه (سکه)",
     };
     await ctx.reply(`${labels[key] ?? key} را وارد کنید:`);
     await ctx.answerCallbackQuery();

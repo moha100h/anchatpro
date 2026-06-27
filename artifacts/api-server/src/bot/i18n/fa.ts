@@ -18,6 +18,8 @@ export const fa = {
   menuGroup: "👥 گروه ناشناس",
   menuCreateGroup: "🆕 ساخت گروه ناشناس",
   menuMyLink: "🔗 لینک ناشناس من",
+  menuAnonProLink: "🔗 ساخت لینک ناشناس پرو",
+  anonProLinkComingSoon: "🔗 **ساخت لینک ناشناس پرو**\n\n✨ به زودی...\n\nبا این امکان می‌توانید لینک‌های ناشناس ویژه و قدرتمندتری بسازید.",
   menuCoins: "💰 سکه‌های من",
   menuHelp: "📋 راهنما و قوانین",
   menuSettings: "⚙️ تنظیمات",
@@ -528,10 +530,20 @@ export const fa = {
   magicHelpMenuTitle: "📖 **راهنمای ناشناس از ما بهترون**\n\nیک ویژگی را برای توضیحات انتخاب کنید:",
 
   // ─── Group sub-menu & management ─────────────────────────────────────────────
-  groupSubMenuJoin: "👥 پیوستن به گروه ناشناس",
+  groupSubMenuJoin: "👥 پیوستن به گروه‌های ناشناس",
   groupSubMenuMine: "📋 گروه‌های من",
+  groupMyGroupsCreated: "🏗️ گروه‌های ساخته‌ام",
+  groupMyGroupsJoined: "👤 گروه‌های عضو شده",
   myGroupsEmpty: "📋 شما هنوز گروهی نساخته‌اید.\n\nبرای ساخت گروه از «🆕 ساخت گروه ناشناس» استفاده کنید.",
   myGroupsTitle: "📋 **گروه‌های من:**\n\n",
+  myGroupsCreatedTitle: "🏗️ **گروه‌های ساخته‌ام:**\n\n",
+  myGroupsJoinedTitle: "👤 **گروه‌های عضو شده:**\n\n",
+  myGroupsCreatedEmpty: "🏗️ هنوز هیچ گروهی نساخته‌اید.\n\nاز «🆕 ساخت گروه ناشناس» گروه بسازید.",
+  myGroupsJoinedEmpty: "👤 هنوز عضو هیچ گروهی نیستید.\n\nاز «👥 پیوستن به گروه‌های ناشناس» وارد گروه شوید.",
+  groupInfoLineJoined: (name: string, count: number, max: number, role: string) =>
+    `📌 **${name}**\n👥 ${count}/${max} عضو | نقش: ${role}\n`,
+  groupJoinCostInfo: (cost: number) =>
+    `👥 **پیوستن به گروه ناشناس**\n\n💰 هزینه: **${cost} سکه**\n\nبا پرداخت سکه وارد یک گروه ناشناس می‌شوید.\n\nتأیید می‌کنید؟`,
   groupNoName: "بدون نام",
   groupInviteLinkBtn: "🔗 لینک دعوت گروه",
   groupAdminPromoteBtn: "⭐ ارتقا به ادمین",

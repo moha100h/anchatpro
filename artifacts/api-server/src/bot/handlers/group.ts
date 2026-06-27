@@ -16,6 +16,7 @@ import {
   kickMember,
   banMember,
   getCreatorGroups,
+  getJoinedGroups,
   promoteToAdmin,
   getGroupAdminCount,
   expandGroupLimit,
@@ -31,6 +32,7 @@ import {
   groupCreatorKeyboard,
   groupAdminKeyboard,
   groupSubMenuKeyboard,
+  groupMyGroupsKeyboard,
 } from "../keyboards/main.js";
 
 function buildMemberKeyboard(
@@ -78,8 +80,8 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).menuGroup, { reply_markup: groupSubMenuKeyboard(lang) });
   });
 
-  // ─── Join public anonymous group ─────────────────────────────────────────────
-  bot.hears(["👥 پیوستن به گروه ناشناس", "👥 Join Anonymous Group"], async (ctx) => {
+  // ─── Join public anonymous group — show cost confirm ─────────────────────────
+  bot.hears(["👥 پیوستن به گروه‌های ناشناس", "👥 Join Anonymous Groups"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
@@ -89,20 +91,49 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (user.isInGroup) { await ctx.reply(t(lang).alreadyInGroup); return; }
     if (user.isInQueue) { await ctx.reply(t(lang).alreadyInQueue); return; }
 
-    const result = await deductCoins(tgId, 1, "group_cost", "Join anonymous group");
+    const costStr = await getSetting("group_join_cost");
+    const cost = costStr ? parseInt(costStr, 10) : 3;
+
+    const kb = new InlineKeyboard()
+      .text(t(lang).confirm, "group:join:confirm")
+      .text(t(lang).cancel,  "group:join:cancel");
+    await ctx.reply(t(lang).groupJoinCostInfo(cost), {
+      parse_mode: "Markdown",
+      reply_markup: kb,
+    });
+  });
+
+  // ─── Join confirm callback ────────────────────────────────────────────────────
+  bot.callbackQuery("group:join:confirm", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    if (user.isInChat)  { await ctx.editMessageText(t(lang).alreadyInChat).catch(() => {}); return; }
+    if (user.isInGroup) { await ctx.editMessageText(t(lang).alreadyInGroup).catch(() => {}); return; }
+
+    const costStr = await getSetting("group_join_cost");
+    const cost = costStr ? parseInt(costStr, 10) : 3;
+
+    const result = await deductCoins(tgId, cost, "group_cost", "Join anonymous group");
     if (!result.success) {
+      await ctx.editMessageText(t(lang).insufficientCoins).catch(() => {});
       await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
       return;
     }
+
+    await ctx.editMessageText("⏳").catch(() => {});
 
     const { groupId, memberCount, isNew } = await joinOrCreateGroup(tgId);
     const myAlias = await generateGroupUserId(tgId, groupId);
     const members = await getGroupMembers(groupId);
 
-    await ctx.reply(t(lang).groupJoined.replace("{count}", memberCount.toString()), {
+    await bot.api.sendMessage(tgId, t(lang).groupJoined.replace("{count}", memberCount.toString()), {
       reply_markup: groupControlKeyboard(lang),
-    });
-    if (isNew) await ctx.reply(t(lang).newGroupCreated);
+    }).catch(() => {});
+    if (isNew) await bot.api.sendMessage(tgId, t(lang).newGroupCreated).catch(() => {});
 
     for (const memberId of members) {
       if (memberId === tgId) continue;
@@ -122,8 +153,27 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     }
   });
 
-  // ─── My Groups ────────────────────────────────────────────────────────────────
+  // ─── Join cancel callback ─────────────────────────────────────────────────────
+  bot.callbackQuery("group:join:cancel", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await ctx.editMessageText("❌").catch(() => {});
+    await ctx.reply(t(lang).menuGroup, { reply_markup: groupSubMenuKeyboard(lang) });
+  });
+
+  // ─── My Groups (sub-menu) ─────────────────────────────────────────────────────
   bot.hears(["📋 گروه‌های من", "📋 My Groups"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+    await ctx.reply(t(lang).groupSubMenuMine, { reply_markup: groupMyGroupsKeyboard(lang) });
+  });
+
+  // ─── My Created Groups ────────────────────────────────────────────────────────
+  bot.hears(["🏗️ گروه‌های ساخته‌ام", "🏗️ Groups I Created"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
@@ -131,18 +181,50 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
 
     const groups = await getCreatorGroups(tgId);
     if (groups.length === 0) {
-      await ctx.reply(t(lang).myGroupsEmpty, { parse_mode: "Markdown" });
+      await ctx.reply(t(lang).myGroupsCreatedEmpty, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
       return;
     }
 
     const BOT_USERNAME = process.env["BOT_USERNAME"] ?? "bot";
-    let msg = t(lang).myGroupsTitle;
+    let msg = t(lang).myGroupsCreatedTitle;
     for (const g of groups) {
       const name = g.name ?? t(lang).groupNoName;
       const link = g.inviteToken ? `https://t.me/${BOT_USERNAME}?start=g_${g.inviteToken}` : "—";
       msg += t(lang).groupInfoLine(name, g.memberCount, g.maxMembers, link);
     }
-    await ctx.reply(msg, { parse_mode: "Markdown" });
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+  });
+
+  // ─── My Joined Groups ─────────────────────────────────────────────────────────
+  bot.hears(["👤 گروه‌های عضو شده", "👤 Groups I Joined"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const groups = await getJoinedGroups(tgId);
+    if (groups.length === 0) {
+      await ctx.reply(t(lang).myGroupsJoinedEmpty, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+      return;
+    }
+
+    let msg = t(lang).myGroupsJoinedTitle;
+    for (const g of groups) {
+      const name = g.name ?? t(lang).groupNoName;
+      const role = g.isAdmin
+        ? (lang === "fa" ? "⭐ ادمین" : "⭐ Admin")
+        : (lang === "fa" ? "👤 عضو"   : "👤 Member");
+      msg += t(lang).groupInfoLineJoined(name, g.memberCount, g.maxMembers, role);
+    }
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: groupMyGroupsKeyboard(lang) });
+  });
+
+  // ─── Anon Pro Link placeholder ────────────────────────────────────────────────
+  bot.hears(["🔗 ساخت لینک ناشناس پرو", "🔗 Create Pro Anon Link"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await ctx.reply(t(lang).anonProLinkComingSoon, { parse_mode: "Markdown" });
   });
 
   // ─── Create group (paid, with creator privileges) ────────────────────────────

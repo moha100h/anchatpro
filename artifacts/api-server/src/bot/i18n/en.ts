@@ -18,6 +18,8 @@ export const en = {
   menuGroup: "👥 Anonymous Group",
   menuCreateGroup: "🆕 Create Anonymous Group",
   menuMyLink: "🔗 My Anonymous Link",
+  menuAnonProLink: "🔗 Create Pro Anon Link",
+  anonProLinkComingSoon: "🔗 **Create Pro Anon Link**\n\n✨ Coming soon...\n\nThis feature will let you create more powerful anonymous links.",
   menuCoins: "💰 My Coins",
   menuHelp: "📋 Help & Rules",
   menuSettings: "⚙️ Settings",
@@ -514,10 +516,20 @@ export const en = {
   magicHelpMenuTitle: "📖 **Strangers Like Us Help**\n\nChoose a feature for its guide:",
 
   // ─── Group sub-menu & management ─────────────────────────────────────────────
-  groupSubMenuJoin: "👥 Join Anonymous Group",
+  groupSubMenuJoin: "👥 Join Anonymous Groups",
   groupSubMenuMine: "📋 My Groups",
+  groupMyGroupsCreated: "🏗️ Groups I Created",
+  groupMyGroupsJoined: "👤 Groups I Joined",
   myGroupsEmpty: "📋 You haven't created any groups yet.\n\nUse «🆕 Create Anonymous Group» to create one.",
   myGroupsTitle: "📋 **My Groups:**\n\n",
+  myGroupsCreatedTitle: "🏗️ **Groups I Created:**\n\n",
+  myGroupsJoinedTitle: "👤 **Groups I Joined:**\n\n",
+  myGroupsCreatedEmpty: "🏗️ You haven't created any groups yet.\n\nUse «🆕 Create Anonymous Group» to create one.",
+  myGroupsJoinedEmpty: "👤 You haven't joined any groups yet.\n\nUse «👥 Join Anonymous Groups» to join one.",
+  groupInfoLineJoined: (name: string, count: number, max: number, role: string) =>
+    `📌 **${name}**\n👥 ${count}/${max} members | Role: ${role}\n`,
+  groupJoinCostInfo: (cost: number) =>
+    `👥 **Join Anonymous Group**\n\n💰 Cost: **${cost} coins**\n\nYou'll be matched with an anonymous group.\n\nConfirm?`,
   groupNoName: "No name",
   groupInviteLinkBtn: "🔗 Group Invite Link",
   groupAdminPromoteBtn: "⭐ Promote to Admin",

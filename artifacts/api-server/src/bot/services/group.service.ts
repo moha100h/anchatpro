@@ -352,6 +352,31 @@ export async function getCreatorGroups(
   return groups;
 }
 
+/** Groups the user is currently a member of (but NOT the creator) */
+export async function getJoinedGroups(
+  userId: number
+): Promise<Array<{ id: number; name: string | null; memberCount: number; maxMembers: number; isAdmin: boolean }>> {
+  const rows = await db
+    .select({
+      id: groupChatsTable.id,
+      name: groupChatsTable.name,
+      memberCount: groupChatsTable.memberCount,
+      maxMembers: groupChatsTable.maxMembers,
+      isAdmin: groupMembersTable.isAdmin,
+    })
+    .from(groupMembersTable)
+    .innerJoin(groupChatsTable, eq(groupMembersTable.groupId, groupChatsTable.id))
+    .where(
+      and(
+        eq(groupMembersTable.userId, userId),
+        isNull(groupMembersTable.leftAt),
+        ne(groupChatsTable.creatorId, userId),
+        ne(groupChatsTable.status, "ended")
+      )
+    );
+  return rows;
+}
+
 /** Count of promoted admins (isAdmin=true, non-creator, currently in group) */
 export async function getGroupAdminCount(groupId: number): Promise<number> {
   const rows = await db

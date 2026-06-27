@@ -5,7 +5,7 @@ export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
     .text(i.menuConnect).text(i.menuGroup).row()
-    .text(i.menuCreateGroup).text(i.menuMyLink).row()
+    .text(i.menuAnonProLink).text(i.menuMyLink).row()
     .text(i.menuMagic).row()
     .text(i.menuCoins).text(i.menuReferral).row()
     .text(i.menuHelp).text(i.menuSettings)
@@ -92,12 +92,24 @@ export function groupAdminKeyboard(lang: Lang) {
     .persistent();
 }
 
-/** Group sub-menu: join or view my groups */
+/** Group sub-menu: 3 options + back */
 export function groupSubMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
-    .text(i.groupSubMenuJoin).row()
+    .text(i.menuCreateGroup).row()
     .text(i.groupSubMenuMine).row()
+    .text(i.groupSubMenuJoin).row()
+    .text(i.back)
+    .resized()
+    .persistent();
+}
+
+/** My Groups sub-menu: created vs joined */
+export function groupMyGroupsKeyboard(lang: Lang) {
+  const i = t(lang);
+  return new Keyboard()
+    .text(i.groupMyGroupsCreated).row()
+    .text(i.groupMyGroupsJoined).row()
     .text(i.back)
     .resized()
     .persistent();

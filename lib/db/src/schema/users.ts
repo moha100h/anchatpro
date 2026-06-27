@@ -27,6 +27,8 @@ export const usersTable = pgTable("users", {
   maxGroupsJoined: integer("max_groups_joined").default(5).notNull(),
   setupStep: varchar("setup_step", { length: 50 }),
   anonymousToken: varchar("anonymous_token", { length: 64 }).unique(),
+  anonLinkPaid: boolean("anon_link_paid").default(false).notNull(),
+  anonLinkEnabled: boolean("anon_link_enabled").default(true).notNull(),
   restrictedUntil: timestamp("restricted_until"),
   lastSeen: timestamp("last_seen").defaultNow(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

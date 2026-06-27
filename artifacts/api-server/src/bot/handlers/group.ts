@@ -933,6 +933,8 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user?.isInGroup) return next();
+    // If user is in anon-send or anon-reply mode, skip group forwarding
+    if (ctx.session.step?.startsWith("anon_send:") || ctx.session.step?.startsWith("anon_reply:")) return next();
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     const groupId = await getUserGroup(tgId);

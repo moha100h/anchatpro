@@ -149,10 +149,24 @@ export const fa = {
   replyPrompt: "پاسخ خود را وارد کنید:",
   replySent: "✅ پاسخ ارسال شد.",
   yourReply: "📤 پاسخ دریافت شد:",
-  sendAnonMsg: "پیام ناشناس خود را برای این کاربر بنویسید:",
+  sendAnonMsg: (name: string) => `📨 شما درحال ارسال پیام ناشناس به **${name}** هستید.\n\nپیام خود را بنویسید:`,
+  anonCancelSendBtn: (name: string) => `❌ انصراف از پیام دادن به ${name}`,
+  anonCancelledSend: "✅ ارسال پیام لغو شد.",
   anonMsgSent: "✅ پیام ناشناس شما ارسال شد.",
   blockSender: "🚫 بلاک فرستنده",
   reportSender: "🚨 گزارش فرستنده",
+  anonLinkDisabledForSender: "❌ این لینک توسط صاحبش غیرفعال شده است.",
+  anonLinkBuyConfirm: (cost: number) =>
+    `🔗 **لینک ناشناس ثابت**\n\nبا ساخت این لینک، هر کسی می‌تواند برای شما پیام ناشناس بفرستد.\n\n💰 هزینه ساخت: **${cost} سکه** (یک‌بار برای همیشه)\n\nتأیید می‌کنید؟`,
+  anonLinkActive: (link: string) =>
+    `🔗 **لینک ناشناس ثابت شما:**\n\n<code>${link}</code>\n\nاین لینک را به اشتراک بگذارید تا دیگران پیام ناشناس بفرستند.`,
+  anonLinkToggleOnBtn: "✅ فعال کردن لینک",
+  anonLinkToggleOffBtn: "❌ غیرفعال کردن لینک",
+  anonLinkNowEnabled: "✅ لینک ناشناس شما فعال شد.",
+  anonLinkNowDisabled: "❌ لینک ناشناس شما غیرفعال شد. دیگران نمی‌توانند پیام بفرستند.",
+  timedLinkBuyConfirm: (cost: number) =>
+    `⏱️ **لینک ناشناس مدت‌دار**\n\n💰 هزینه ساخت: **${cost} سکه**\n\nمدت لینک را انتخاب کنید:`,
+  timedLinkBuyTitle: (cost: number) => `⏱️ **ساخت لینک مدت‌دار** — هزینه: **${cost} سکه**\n\nچه مدت این لینک فعال باشد؟`,
 
   // ─── Coins ───────────────────────────────────────────────────────────────────
   coinsBalance: (n: number) => `💰 موجودی شما: **${n} سکه**`,

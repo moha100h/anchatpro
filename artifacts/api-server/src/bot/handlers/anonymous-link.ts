@@ -1,6 +1,14 @@
-import { Bot } from "grammy";
+import { Bot, InlineKeyboard, Keyboard } from "grammy";
 import type { BotContext } from "../context.js";
-import { getUserByTelegramId, getUserByAnonToken, refreshAnonToken } from "../services/user.service.js";
+import {
+  getUserByTelegramId,
+  getUserByAnonToken,
+  refreshAnonToken,
+  setAnonLinkEnabled,
+  setAnonLinkPaid,
+} from "../services/user.service.js";
+import { deductCoins } from "../services/coin.service.js";
+import { getSetting } from "../services/payment.service.js";
 import { db } from "@workspace/db";
 import { anonymousMessagesTable, timedAnonLinksTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -21,8 +29,54 @@ const DURATION_MAP: Record<string, number> = {
   "📅 7 Days": 168,
 };
 
+const DEFAULT_PERM_LINK_COST = 10;
+const DEFAULT_TIMED_LINK_COST = 3;
+
 function formatExpiry(date: Date, lang: "fa" | "en"): string {
   return date.toLocaleString(lang === "fa" ? "fa-IR" : "en-GB");
+}
+
+async function getPermLinkCost(): Promise<number> {
+  const v = await getSetting("perm_anon_link_cost");
+  return v ? parseInt(v, 10) : DEFAULT_PERM_LINK_COST;
+}
+
+async function getTimedLinkCost(): Promise<number> {
+  const v = await getSetting("timed_anon_link_cost");
+  return v ? parseInt(v, 10) : DEFAULT_TIMED_LINK_COST;
+}
+
+function permLinkKeyboard(enabled: boolean, lang: "fa" | "en") {
+  const i = t(lang);
+  return new InlineKeyboard().text(
+    enabled ? i.anonLinkToggleOffBtn : i.anonLinkToggleOnBtn,
+    `anon_toggle:${enabled ? "off" : "on"}`
+  );
+}
+
+function permLinkBuyKeyboard(lang: "fa" | "en") {
+  const [confirm, cancel] =
+    lang === "fa"
+      ? ["✅ تأیید و پرداخت", "❌ انصراف"]
+      : ["✅ Confirm & Pay", "❌ Cancel"];
+  return new InlineKeyboard()
+    .text(confirm, "anon_perm_buy")
+    .text(cancel, "anon_perm_cancel");
+}
+
+function timedLinkBuyKeyboard(lang: "fa" | "en", hours: number, token: string) {
+  const [confirm, cancel] =
+    lang === "fa"
+      ? ["✅ تأیید و پرداخت", "❌ انصراف"]
+      : ["✅ Confirm & Pay", "❌ Cancel"];
+  return new InlineKeyboard()
+    .text(confirm, `anon_timed_buy:${hours}:${token}`)
+    .text(cancel, "anon_timed_cancel");
+}
+
+export function cancelAnonKeyboard(receiverName: string, lang: "fa" | "en") {
+  const btnText = t(lang).anonCancelSendBtn(receiverName);
+  return new Keyboard().text(btnText).resized().persistent();
 }
 
 export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
@@ -31,48 +85,156 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   // ─── My Anonymous Link sub-menu ─────────────────────────────────────────────
   bot.hears([/^🔗 لینک ناشناس من/, /^🔗 My Anonymous Link/], async (ctx) => {
     const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     await ctx.reply(t(lang).myLinkMenuTitle, {
-      parse_mode: "Markdown",
+      parse_mode: "HTML",
       reply_markup: myLinkMenuKeyboard(lang),
     });
   });
 
-  // ─── Permanent anonymous link ────────────────────────────────────────────────
-  bot.hears(["🔗 لینک ثابت ناشناس من", "🔗 My Permanent Anonymous Link"], async (ctx) => {
-    const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    if (!user) return;
-    const lang = (user.language as "fa" | "en") ?? "fa";
+  // ─── Cancel anon send (persistent keyboard button) ──────────────────────────
+  bot.hears(
+    [/^❌ انصراف از پیام دادن به/, /^❌ Cancel sending to/],
+    async (ctx) => {
+      const tgId = ctx.from!.id;
+      const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+      const lang = (user?.language as "fa" | "en") ?? "fa";
+      ctx.session.step = undefined;
+      await ctx.reply(t(lang).anonCancelledSend, {
+        reply_markup: mainMenuKeyboard(lang),
+      });
+    }
+  );
 
+  // ─── Permanent anonymous link ────────────────────────────────────────────────
+  bot.hears(
+    ["🔗 لینک ثابت ناشناس من", "🔗 My Permanent Anonymous Link"],
+    async (ctx) => {
+      const tgId = ctx.from!.id;
+      const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+      if (!user) return;
+      const lang = (user.language as "fa" | "en") ?? "fa";
+
+      if (user.anonLinkPaid) {
+        const token = await refreshAnonToken(tgId);
+        const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
+        await ctx.reply(t(lang).anonLinkActive(link), {
+          parse_mode: "HTML",
+          reply_markup: permLinkKeyboard(user.anonLinkEnabled, lang),
+        });
+        return;
+      }
+
+      const cost = await getPermLinkCost();
+      if (user.coins < cost) {
+        const msg =
+          lang === "fa"
+            ? `❌ سکه کافی ندارید!\n\n💰 موجودی: ${user.coins} سکه | هزینه: ${cost} سکه`
+            : `❌ Not enough coins!\n\n💰 Balance: ${user.coins} | Cost: ${cost}`;
+        await ctx.reply(msg, { reply_markup: mainMenuKeyboard(lang) });
+        return;
+      }
+
+      await ctx.reply(t(lang).anonLinkBuyConfirm(cost), {
+        parse_mode: "HTML",
+        reply_markup: permLinkBuyKeyboard(lang),
+      });
+    }
+  );
+
+  // ─── Confirm buy permanent link ──────────────────────────────────────────────
+  bot.callbackQuery("anon_perm_buy", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    const cost = await getPermLinkCost();
+    const result = await deductCoins(
+      tgId,
+      cost,
+      "magic_spend",
+      lang === "fa" ? "ساخت لینک ناشناس ثابت" : "Permanent anonymous link"
+    );
+    if (!result.success) {
+      await ctx.editMessageText(
+        lang === "fa" ? "❌ سکه کافی ندارید!" : "❌ Not enough coins!"
+      );
+      return;
+    }
+
+    await setAnonLinkPaid(tgId);
     const token = await refreshAnonToken(tgId);
     const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
-    const msg = `${t(lang).myLink}\n\`${link}\`\n\n${t(lang).linkInfo}`;
-    await ctx.reply(msg, { parse_mode: "Markdown" });
-  });
-
-  // ─── Timed link: show duration keyboard ──────────────────────────────────────
-  bot.hears(["⏱️ ساخت لینک مدت‌دار", "⏱️ Create Timed Link"], async (ctx) => {
-    const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    if (!user) return;
-    const lang = (user.language as "fa" | "en") ?? "fa";
-
-    await ctx.reply(t(lang).timedLinkTitle, {
-      parse_mode: "Markdown",
-      reply_markup: timedLinkKeyboard(lang),
+    await ctx.editMessageText(t(lang).anonLinkActive(link), {
+      parse_mode: "HTML",
+      reply_markup: permLinkKeyboard(true, lang),
     });
   });
 
-  // ─── Timed link: duration selected ───────────────────────────────────────────
+  // ─── Cancel buy permanent link ───────────────────────────────────────────────
+  bot.callbackQuery("anon_perm_cancel", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await ctx.editMessageText(lang === "fa" ? "❌ لغو شد." : "❌ Cancelled.");
+  });
+
+  // ─── Toggle permanent link on/off ────────────────────────────────────────────
+  bot.callbackQuery(/^anon_toggle:(on|off)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const enable = ctx.match![1] === "on";
+
+    await setAnonLinkEnabled(tgId, enable);
+    const token = await refreshAnonToken(tgId);
+    const link = `https://t.me/${BOT_USERNAME}?start=a_${token}`;
+    const statusMsg = enable ? t(lang).anonLinkNowEnabled : t(lang).anonLinkNowDisabled;
+
+    await ctx.editMessageText(`${statusMsg}\n\n${t(lang).anonLinkActive(link)}`, {
+      parse_mode: "HTML",
+      reply_markup: permLinkKeyboard(enable, lang),
+    });
+  });
+
+  // ─── Timed link: show duration keyboard with cost ─────────────────────────────
   bot.hears(
-    ["⏱️ ۱ ساعت", "⏱️ ۶ ساعت", "⏱️ ۲۴ ساعت", "📅 ۷ روز", "⏱️ 1 Hour", "⏱️ 6 Hours", "⏱️ 24 Hours", "📅 7 Days"],
+    ["⏱️ ساخت لینک مدت‌دار", "⏱️ Create Timed Link"],
     async (ctx) => {
       const tgId = ctx.from!.id;
-      const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+      const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+      if (!user) return;
+      const lang = (user.language as "fa" | "en") ?? "fa";
+
+      const cost = await getTimedLinkCost();
+      await ctx.reply(t(lang).timedLinkBuyTitle(cost), {
+        parse_mode: "HTML",
+        reply_markup: timedLinkKeyboard(lang),
+      });
+    }
+  );
+
+  // ─── Timed link: duration selected → show confirmation ───────────────────────
+  bot.hears(
+    [
+      "⏱️ ۱ ساعت",
+      "⏱️ ۶ ساعت",
+      "⏱️ ۲۴ ساعت",
+      "📅 ۷ روز",
+      "⏱️ 1 Hour",
+      "⏱️ 6 Hours",
+      "⏱️ 24 Hours",
+      "📅 7 Days",
+    ],
+    async (ctx) => {
+      const tgId = ctx.from!.id;
+      const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
       if (!user) return;
       const lang = (user.language as "fa" | "en") ?? "fa";
 
@@ -80,31 +242,94 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       const hours = DURATION_MAP[text];
       if (!hours) return;
 
-      const token = randomBytes(12).toString("hex"); // 24 hex chars
+      const cost = await getTimedLinkCost();
+      if (user.coins < cost) {
+        const msg =
+          lang === "fa"
+            ? `❌ سکه کافی ندارید!\n\n💰 موجودی: ${user.coins} سکه | هزینه: ${cost} سکه`
+            : `❌ Not enough coins!\n\n💰 Balance: ${user.coins} | Cost: ${cost}`;
+        await ctx.reply(msg, { reply_markup: mainMenuKeyboard(lang) });
+        return;
+      }
+
+      const pendingToken = randomBytes(12).toString("hex");
       const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
-
-      await db.insert(timedAnonLinksTable).values({
-        userId: tgId,
-        token,
-        coinsCost: 0,
-        expiresAt,
-      });
-
-      const link = `https://t.me/${BOT_USERNAME}?start=t_${token}`;
       const expiryStr = formatExpiry(expiresAt, lang);
-      await ctx.reply(t(lang).timedLinkCreated(link, expiryStr), {
-        parse_mode: "Markdown",
-        reply_markup: myLinkMenuKeyboard(lang),
+      const durationLabel = text;
+
+      const confirmMsg =
+        lang === "fa"
+          ? `⏱️ <b>تأیید ساخت لینک مدت‌دار</b>\n\n⌛ مدت: ${durationLabel}\n📅 انقضا: ${expiryStr}\n💰 هزینه: <b>${cost} سکه</b>\n\nتأیید می‌کنید؟`
+          : `⏱️ <b>Confirm Timed Link</b>\n\n⌛ Duration: ${durationLabel}\n📅 Expires: ${expiryStr}\n💰 Cost: <b>${cost} coins</b>\n\nConfirm?`;
+
+      ctx.session.step = `timed_link_confirm:${hours}:${pendingToken}`;
+
+      await ctx.reply(confirmMsg, {
+        parse_mode: "HTML",
+        reply_markup: timedLinkBuyKeyboard(lang, hours, pendingToken),
       });
     }
   );
 
-  // NOTE: /start with anon_ / a_ / t_ prefixes handled in start.ts
+  // ─── Confirm buy timed link ──────────────────────────────────────────────────
+  bot.callbackQuery(/^anon_timed_buy:(\d+):([a-f0-9]+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    const hours = parseInt(ctx.match![1], 10);
+    const token = ctx.match![2];
+
+    const cost = await getTimedLinkCost();
+    const result = await deductCoins(
+      tgId,
+      cost,
+      "magic_spend",
+      lang === "fa" ? "ساخت لینک ناشناس مدت‌دار" : "Timed anonymous link"
+    );
+    if (!result.success) {
+      await ctx.editMessageText(
+        lang === "fa" ? "❌ سکه کافی ندارید!" : "❌ Not enough coins!"
+      );
+      return;
+    }
+
+    const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+    await db.insert(timedAnonLinksTable).values({
+      userId: tgId,
+      token,
+      coinsCost: cost,
+      expiresAt,
+    });
+
+    ctx.session.step = undefined;
+
+    const link = `https://t.me/${BOT_USERNAME}?start=t_${token}`;
+    const expiryStr = formatExpiry(expiresAt, lang);
+    const successMsg =
+      lang === "fa"
+        ? `✅ <b>لینک مدت‌دار ساخته شد!</b>\n\n🔗 لینک:\n<code>${link}</code>\n\n📅 انقضا: ${expiryStr}\n\nاین لینک را به اشتراک بگذارید.`
+        : `✅ <b>Timed link created!</b>\n\n🔗 Link:\n<code>${link}</code>\n\n📅 Expires: ${expiryStr}\n\nShare this link with others.`;
+
+    await ctx.editMessageText(successMsg, { parse_mode: "HTML" });
+  });
+
+  // ─── Cancel buy timed link ───────────────────────────────────────────────────
+  bot.callbackQuery("anon_timed_cancel", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    ctx.session.step = undefined;
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    await ctx.editMessageText(lang === "fa" ? "❌ لغو شد." : "❌ Cancelled.");
+  });
 
   // ─── Receive anonymous message (step: anon_send:{receiverId}) ────────────────
   bot.on("message", async (ctx, next) => {
     const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     if (!user) return next();
 
     const step = ctx.session.step;
@@ -117,40 +342,76 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     let fileId: string | undefined;
     let fileType: string | undefined;
 
-    if (ctx.message.text) content = ctx.message.text;
-    else if (ctx.message.photo) { fileId = ctx.message.photo.at(-1)!.file_id; fileType = "photo"; }
-    else if (ctx.message.video) { fileId = ctx.message.video.file_id; fileType = "video"; }
-    else if (ctx.message.voice) { fileId = ctx.message.voice.file_id; fileType = "voice"; }
-    else if (ctx.message.sticker) { fileId = ctx.message.sticker.file_id; fileType = "sticker"; }
+    if (ctx.message.text) {
+      content = ctx.message.text;
+    } else if (ctx.message.photo) {
+      fileId = ctx.message.photo.at(-1)!.file_id;
+      fileType = "photo";
+    } else if (ctx.message.video) {
+      fileId = ctx.message.video.file_id;
+      fileType = "video";
+    } else if (ctx.message.voice) {
+      fileId = ctx.message.voice.file_id;
+      fileType = "voice";
+    } else if (ctx.message.sticker) {
+      fileId = ctx.message.sticker.file_id;
+      fileType = "sticker";
+    }
 
-    const [msg] = await db.insert(anonymousMessagesTable).values({
-      receiverId,
-      senderId: tgId,
-      content: content ?? null,
-      fileId: fileId ?? null,
-      fileType: fileType ?? null,
-      status: "pending",
-      isRead: false,
-      createdAt: new Date(),
-    }).returning();
+    const [msg] = await db
+      .insert(anonymousMessagesTable)
+      .values({
+        receiverId,
+        senderId: tgId,
+        content: content ?? null,
+        fileId: fileId ?? null,
+        fileType: fileType ?? null,
+        status: "pending",
+        isRead: false,
+        createdAt: new Date(),
+      })
+      .returning();
 
     ctx.session.step = undefined;
     await ctx.reply(t(lang).anonMsgSent, { reply_markup: mainMenuKeyboard(lang) });
 
     const receiver = await getUserByTelegramId(receiverId);
     const rLang = (receiver?.language as "fa" | "en") ?? "fa";
-    const notifyText = `${t(rLang).anonMsgReceived}`;
+    const notifyText = t(rLang).anonMsgReceived;
 
     if (content) {
-      await bot.api.sendMessage(receiverId, `${notifyText}\n\n${content}`, { reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api
+        .sendMessage(receiverId, `${notifyText}\n\n${content}`, {
+          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+        })
+        .catch(() => null);
     } else if (fileId && fileType === "photo") {
-      await bot.api.sendPhoto(receiverId, fileId, { caption: notifyText, reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api
+        .sendPhoto(receiverId, fileId, {
+          caption: notifyText,
+          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+        })
+        .catch(() => null);
     } else if (fileId && fileType === "video") {
-      await bot.api.sendVideo(receiverId, fileId, { caption: notifyText, reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api
+        .sendVideo(receiverId, fileId, {
+          caption: notifyText,
+          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+        })
+        .catch(() => null);
     } else if (fileId && fileType === "voice") {
-      await bot.api.sendVoice(receiverId, fileId, { reply_markup: anonMsgActionsKeyboard(msg.id, rLang) }).catch(() => null);
+      await bot.api
+        .sendVoice(receiverId, fileId, {
+          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+        })
+        .catch(() => null);
     } else if (fileId && fileType === "sticker") {
       await bot.api.sendSticker(receiverId, fileId).catch(() => null);
+      await bot.api
+        .sendMessage(receiverId, notifyText, {
+          reply_markup: anonMsgActionsKeyboard(msg.id, rLang),
+        })
+        .catch(() => null);
     }
   });
 
@@ -158,7 +419,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   bot.callbackQuery(/^anon_reply:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
     ctx.session.step = `anon_reply:${msgId}`;
@@ -171,12 +432,19 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   bot.callbackQuery(/^anon_block:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
-    const [msg] = await db.select().from(anonymousMessagesTable).where(eq(anonymousMessagesTable.id, msgId)).limit(1);
+    const [msg] = await db
+      .select()
+      .from(anonymousMessagesTable)
+      .where(eq(anonymousMessagesTable.id, msgId))
+      .limit(1);
     if (msg?.senderId) await blockUser(tgId, msg.senderId, "anon_message");
-    await db.update(anonymousMessagesTable).set({ status: "blocked" }).where(eq(anonymousMessagesTable.id, msgId));
+    await db
+      .update(anonymousMessagesTable)
+      .set({ status: "blocked" })
+      .where(eq(anonymousMessagesTable.id, msgId));
     await ctx.editMessageReplyMarkup();
     await ctx.reply(t(lang).userBlocked);
     await ctx.answerCallbackQuery();
@@ -186,12 +454,19 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   bot.callbackQuery(/^anon_report:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const msgId = parseInt(ctx.match![1], 10);
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
-    const [msg] = await db.select().from(anonymousMessagesTable).where(eq(anonymousMessagesTable.id, msgId)).limit(1);
+    const [msg] = await db
+      .select()
+      .from(anonymousMessagesTable)
+      .where(eq(anonymousMessagesTable.id, msgId))
+      .limit(1);
     if (msg?.senderId) await reportUser(tgId, msg.senderId, "Anonymous message report");
-    await db.update(anonymousMessagesTable).set({ status: "blocked" }).where(eq(anonymousMessagesTable.id, msgId));
+    await db
+      .update(anonymousMessagesTable)
+      .set({ status: "blocked" })
+      .where(eq(anonymousMessagesTable.id, msgId));
     await ctx.editMessageReplyMarkup();
     await ctx.reply(t(lang).reportSent);
     await ctx.answerCallbackQuery();
@@ -200,24 +475,36 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
   // ─── Handle anon reply text ──────────────────────────────────────────────────
   bot.on("message:text", async (ctx, next) => {
     const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const user = ctx.dbUser ?? (await getUserByTelegramId(tgId));
     const step = ctx.session.step;
 
     if (!step?.startsWith("anon_reply:")) return next();
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
     const msgId = parseInt(step.replace("anon_reply:", ""), 10);
-    const [original] = await db.select().from(anonymousMessagesTable).where(eq(anonymousMessagesTable.id, msgId)).limit(1);
-    if (!original) { ctx.session.step = undefined; return; }
+    const [original] = await db
+      .select()
+      .from(anonymousMessagesTable)
+      .where(eq(anonymousMessagesTable.id, msgId))
+      .limit(1);
+    if (!original) {
+      ctx.session.step = undefined;
+      return;
+    }
 
-    await db.update(anonymousMessagesTable).set({ replyContent: ctx.message.text, repliedAt: new Date(), status: "replied" }).where(eq(anonymousMessagesTable.id, msgId));
+    await db
+      .update(anonymousMessagesTable)
+      .set({ replyContent: ctx.message.text, repliedAt: new Date(), status: "replied" })
+      .where(eq(anonymousMessagesTable.id, msgId));
     ctx.session.step = undefined;
     await ctx.reply(t(lang).replySent, { reply_markup: mainMenuKeyboard(lang) });
 
     if (original.senderId) {
       const sender = await getUserByTelegramId(original.senderId);
       const sLang = (sender?.language as "fa" | "en") ?? "fa";
-      await bot.api.sendMessage(original.senderId, `${t(sLang).yourReply}\n\n${ctx.message.text}`).catch(() => {});
+      await bot.api
+        .sendMessage(original.senderId, `${t(sLang).yourReply}\n\n${ctx.message.text}`)
+        .catch(() => {});
     }
   });
 }

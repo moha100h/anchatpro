@@ -126,6 +126,16 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       const receiver = await getUserByAnonToken(token);
       if (receiver && receiver.telegramId !== tgId) {
         const sender = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        const lang = (sender.language as "fa" | "en") ?? "fa";
+
+        // Check if receiver has disabled their link
+        if (!receiver.anonLinkEnabled) {
+          await ctx.reply(t(lang).anonLinkDisabledForSender, {
+            reply_markup: sender.gender && sender.age ? mainMenuKeyboard(lang) : undefined,
+          });
+          return;
+        }
+
         if (!sender.gender || !sender.age) {
           // New/incomplete user → save pending anon + start setup
           ctx.session.step = `pending_anon:${receiver.telegramId}`;
@@ -136,10 +146,15 @@ export function registerStartHandler(bot: Bot<BotContext>) {
           await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
           return;
         }
+
         // Existing complete user → go directly to anon send
         ctx.session.step = `anon_send:${receiver.telegramId}`;
-        const lang = (sender.language as "fa" | "en") ?? "fa";
-        await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+        const receiverName = receiver.firstName ?? (lang === "fa" ? "کاربر" : "User");
+        const { cancelAnonKeyboard } = await import("./anonymous-link.js");
+        await ctx.reply(t(lang).sendAnonMsg(receiverName), {
+          parse_mode: "HTML",
+          reply_markup: cancelAnonKeyboard(receiverName, lang),
+        });
         return;
       }
       // Invalid token or self-link → fall through to normal /start
@@ -157,6 +172,19 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       if (timedLink && timedLink.expiresAt > new Date() && timedLink.userId !== tgId) {
         const sender = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+        const lang = (sender.language as "fa" | "en") ?? "fa";
+
+        // Get receiver info for name display and enabled check
+        const timedReceiver = await getUserByTelegramId(timedLink.userId);
+
+        // Check if receiver has disabled their link
+        if (timedReceiver && !timedReceiver.anonLinkEnabled) {
+          await ctx.reply(t(lang).anonLinkDisabledForSender, {
+            reply_markup: sender.gender && sender.age ? mainMenuKeyboard(lang) : undefined,
+          });
+          return;
+        }
+
         if (!sender.gender || !sender.age) {
           ctx.session.step = `pending_anon:${timedLink.userId}`;
           await setUserLanguage(tgId, "fa");
@@ -166,9 +194,14 @@ export function registerStartHandler(bot: Bot<BotContext>) {
           await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
           return;
         }
-        const lang = (sender.language as "fa" | "en") ?? "fa";
+
         ctx.session.step = `anon_send:${timedLink.userId}`;
-        await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+        const receiverName = timedReceiver?.firstName ?? (lang === "fa" ? "کاربر" : "User");
+        const { cancelAnonKeyboard } = await import("./anonymous-link.js");
+        await ctx.reply(t(lang).sendAnonMsg(receiverName), {
+          parse_mode: "HTML",
+          reply_markup: cancelAnonKeyboard(receiverName, lang),
+        });
         return;
       }
       // Expired / invalid → show message
@@ -312,7 +345,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       if (pendingStep?.startsWith("pending_anon:")) {
         const receiverId = pendingStep.slice(13);
         ctx.session.step = `anon_send:${receiverId}`;
-        await ctx.reply(t(lang).sendAnonMsg, { reply_markup: { remove_keyboard: true } });
+        await ctx.reply(t(lang).sendAnonMsg(lang === "fa" ? "کاربر" : "User"), { reply_markup: { remove_keyboard: true } });
       } else {
         await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
       }

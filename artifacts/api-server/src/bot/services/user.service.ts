@@ -82,6 +82,14 @@ export async function updateUser(telegramId: number, data: Partial<Omit<User, "t
   await db.update(usersTable).set({ ...data, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
 }
 
+export async function setAnonLinkEnabled(telegramId: number, enabled: boolean): Promise<void> {
+  await db.update(usersTable).set({ anonLinkEnabled: enabled, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
+}
+
+export async function setAnonLinkPaid(telegramId: number): Promise<void> {
+  await db.update(usersTable).set({ anonLinkPaid: true, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
+}
+
 export async function setUserLanguage(telegramId: number, lang: "fa" | "en"): Promise<void> {
   await db.update(usersTable).set({ language: lang, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
 }

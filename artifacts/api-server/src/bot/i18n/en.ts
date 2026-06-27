@@ -149,10 +149,24 @@ export const en = {
   replyPrompt: "Enter your reply:",
   replySent: "✅ Reply sent.",
   yourReply: "📤 Reply received:",
-  sendAnonMsg: "Write your anonymous message for this user:",
+  sendAnonMsg: (name: string) => `📨 You are sending an anonymous message to **${name}**.\n\nWrite your message:`,
+  anonCancelSendBtn: (name: string) => `❌ Cancel sending to ${name}`,
+  anonCancelledSend: "✅ Message sending cancelled.",
   anonMsgSent: "✅ Your anonymous message has been sent.",
   blockSender: "🚫 Block Sender",
   reportSender: "🚨 Report Sender",
+  anonLinkDisabledForSender: "❌ This link has been disabled by its owner.",
+  anonLinkBuyConfirm: (cost: number) =>
+    `🔗 **Permanent Anonymous Link**\n\nWith this link, anyone can send you anonymous messages.\n\n💰 Cost: **${cost} coins** (one-time, lifetime)\n\nConfirm?`,
+  anonLinkActive: (link: string) =>
+    `🔗 **Your Permanent Anonymous Link:**\n\n<code>${link}</code>\n\nShare this link so others can send you anonymous messages.`,
+  anonLinkToggleOnBtn: "✅ Enable Link",
+  anonLinkToggleOffBtn: "❌ Disable Link",
+  anonLinkNowEnabled: "✅ Your anonymous link is now enabled.",
+  anonLinkNowDisabled: "❌ Your anonymous link is disabled. Others cannot send you messages.",
+  timedLinkBuyConfirm: (cost: number) =>
+    `⏱️ **Timed Anonymous Link**\n\n💰 Cost: **${cost} coins**\n\nChoose link duration:`,
+  timedLinkBuyTitle: (cost: number) => `⏱️ **Create Timed Link** — Cost: **${cost} coins**\n\nHow long should the link stay active?`,
 
   // ─── Coins ───────────────────────────────────────────────────────────────────
   coinsBalance: (n: number) => `💰 Your balance: **${n} coins**`,

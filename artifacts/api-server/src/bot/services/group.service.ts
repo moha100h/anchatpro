@@ -90,6 +90,67 @@ export async function isGroupCreator(userId: number, groupId: number): Promise<b
   return !!member;
 }
 
+/**
+ * Returns the role of a user in a group based on the group record and member table.
+ * For creator: checks groupChatsTable.creatorId (no leftAt dependency).
+ * For admin: checks groupMembersTable.isAdmin (no leftAt dependency).
+ * Also re-activates the member record (clears leftAt, sets isInGroup) if they were inactive.
+ * Returns "creator" | "admin" | "member" | "none".
+ */
+export async function reactivateAndGetRole(
+  userId: number,
+  groupId: number
+): Promise<"creator" | "admin" | "member" | "none"> {
+  // Check the group record for creator
+  const [group] = await db
+    .select({ creatorId: groupChatsTable.creatorId, status: groupChatsTable.status })
+    .from(groupChatsTable)
+    .where(eq(groupChatsTable.id, groupId))
+    .limit(1);
+  if (!group || group.status === "ended") return "none";
+
+  // Find any member record for this user (active or previously left)
+  const [member] = await db
+    .select()
+    .from(groupMembersTable)
+    .where(and(eq(groupMembersTable.userId, userId), eq(groupMembersTable.groupId, groupId)))
+    .orderBy(groupMembersTable.id)
+    .limit(1);
+  if (!member || member.isBanned) return "none";
+
+  // Re-activate if they left previously
+  if (member.leftAt !== null) {
+    await db
+      .update(groupMembersTable)
+      .set({ leftAt: null })
+      .where(eq(groupMembersTable.id, member.id));
+    await db
+      .update(usersTable)
+      .set({ isInGroup: true, updatedAt: new Date() })
+      .where(eq(usersTable.telegramId, userId));
+    // Update group memberCount
+    const activeMembers = await db
+      .select({ id: groupMembersTable.id })
+      .from(groupMembersTable)
+      .where(and(eq(groupMembersTable.groupId, groupId), isNull(groupMembersTable.leftAt)));
+    await db
+      .update(groupChatsTable)
+      .set({ memberCount: activeMembers.length, status: activeMembers.length >= 3 ? "active" : "forming" })
+      .where(eq(groupChatsTable.id, groupId));
+  } else {
+    // Make sure isInGroup flag is set
+    await db
+      .update(usersTable)
+      .set({ isInGroup: true, updatedAt: new Date() })
+      .where(eq(usersTable.telegramId, userId));
+  }
+
+  const isCreator = group.creatorId === userId || member.isCreator;
+  if (isCreator) return "creator";
+  if (member.isAdmin) return "admin";
+  return "member";
+}
+
 export async function isUserBannedFromGroup(userId: number, groupId: number): Promise<boolean> {
   const [banned] = await db
     .select()

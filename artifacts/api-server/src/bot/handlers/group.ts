@@ -29,6 +29,7 @@ import {
   getGroupInviteToken,
   updateGroupActivity,
   cleanupStaleAnonymousGroups,
+  reactivateAndGetRole,
 } from "../services/group.service.js";
 import { containsBadWord, issueWarning } from "../services/safety.service.js";
 import { t } from "../i18n/index.js";
@@ -282,15 +283,19 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const [creator, admin] = await Promise.all([
-      isGroupCreator(tgId, groupId),
-      isGroupAdmin(tgId, groupId),
-    ]);
+    // Re-activates member if they had previously left, and checks role via creatorId (no leftAt dependency)
+    const role = await reactivateAndGetRole(tgId, groupId);
+
+    if (role === "none") {
+      const msg = lang === "fa" ? "❌ این گروه دیگر فعال نیست." : "❌ This group is no longer active.";
+      await ctx.reply(msg);
+      return;
+    }
 
     let kb;
-    if (creator)    kb = groupCreatorKeyboard(lang);
-    else if (admin) kb = groupAdminKeyboard(lang);
-    else            kb = groupControlKeyboard(lang);
+    if (role === "creator") kb = groupCreatorKeyboard(lang);
+    else if (role === "admin") kb = groupAdminKeyboard(lang);
+    else kb = groupControlKeyboard(lang);
 
     const groupMembers = await getGroupMembers(groupId);
     const memberCount = groupMembers.length;

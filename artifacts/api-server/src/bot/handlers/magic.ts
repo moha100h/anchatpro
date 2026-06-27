@@ -373,10 +373,19 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
     const userId    = ctx.from.id;
     const partnerId = bottle.senderId;
 
-    // Guard: can't reply if already in chat
-    const freshUser = await getUserByTelegramId(userId);
+    // Guard: can't reply if already in chat (either side)
+    const [freshUser, senderUser] = await Promise.all([
+      getUserByTelegramId(userId),
+      getUserByTelegramId(partnerId),
+    ]);
     if (freshUser?.isInChat) {
       await ctx.editMessageText(t(lang).alreadyInChat);
+      return;
+    }
+    if (senderUser?.isInChat) {
+      await ctx.editMessageText(lang === "fa"
+        ? "❌ فرستنده این پیام الان در یک چت دیگر است. بعداً امتحان کن."
+        : "❌ The sender is currently in another chat. Try again later.");
       return;
     }
 
@@ -466,8 +475,14 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
             .sendMessage(pid, t(pl).chainComplete(fullText), { parse_mode: "Markdown" })
             .catch(() => {});
         }
+        // Return magic menu keyboard to current user
+        await ctx.reply(t(lang).magicSubTitle, {
+          parse_mode: "Markdown",
+          reply_markup: magicMenuKeyboard(lang),
+        });
       } else {
-        await ctx.reply(t(lang).chainSent, {
+        const remaining = 10 - chainStep;
+        await ctx.reply(t(lang).chainSent(remaining), {
           parse_mode: "Markdown",
           reply_markup: magicMenuKeyboard(lang),
         });
@@ -530,12 +545,43 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
   });
 
   // Chain continue button (sent to next participant via delivery notification)
+  // Directly consumes feature and puts user into chain_write step
   bot.callbackQuery("magic:chain:continue", async (ctx) => {
-    const lang = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const lang   = (ctx.dbUser?.language as "fa" | "en") ?? "fa";
+    const userId = ctx.from.id;
     await ctx.answerCallbackQuery();
-    await ctx.reply(t(lang).magicSubTitle, {
-      parse_mode: "Markdown",
-      reply_markup: magicMenuKeyboard(lang),
-    });
+
+    const result = await consumeFeature(userId, "chain");
+    if (!result.ok) {
+      const cfg = await getFeatureConfig("chain");
+      await ctx.editMessageText(
+        result.reason === "disabled" ? t(lang).magicDisabled
+        : result.reason === "limit"  ? t(lang).magicLimitReached(cfg.dailyLimit)
+        : t(lang).magicNotEnoughCoins(cfg.cost),
+      );
+      await ctx.reply(t(lang).magicSubTitle, { reply_markup: magicMenuKeyboard(lang) });
+      return;
+    }
+
+    // Find the chain assigned to this user
+    const chainRow = await db
+      .select()
+      .from(chainsTable)
+      .where(and(eq(chainsTable.status, "active"), eq(chainsTable.currentHolder, userId)))
+      .limit(1)
+      .then((r) => r[0]);
+
+    if (chainRow) {
+      const prevLinks = await getChainLinks(chainRow.id);
+      const prevText  = prevLinks.map((l) => l.message).join(" / ");
+      ctx.session.magicStep = "chain_write";
+      await ctx.editMessageText(t(lang).chainAskNext(chainRow.currentStep, prevText), { parse_mode: "Markdown" });
+      await ctx.reply("✏️", { reply_markup: cancelKeyboard(lang) });
+    } else {
+      // No chain assigned — fall back to normal flow (start new chain)
+      ctx.session.magicStep = "chain_write";
+      await ctx.editMessageText(t(lang).chainAskFirst, { parse_mode: "Markdown" });
+      await ctx.reply("✏️", { reply_markup: cancelKeyboard(lang) });
+    }
   });
 }

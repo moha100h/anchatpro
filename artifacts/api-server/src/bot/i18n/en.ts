@@ -490,7 +490,8 @@ export const en = {
   chainAskFirst: "🔗 **Emotion Chain**\n\nWrite the first sentence to start the chain:",
   chainAskNext: (step: number, prev: string) =>
     `🔗 **Emotion Chain — Step ${step} of 10**\n\nWritten so far:\n_${prev}_\n\nYour turn. Add the next sentence:`,
-  chainSent: "🔗 Your sentence was added to the chain! Wait for 9 more people...",
+  chainSent: (remaining: number) =>
+    `🔗 Your sentence was added to the chain! Wait for ${remaining} more people...`,
   chainComplete: (text: string) => `🎉 **Emotion Chain complete!**\n\nThis story was built by 10 anonymous people:\n\n${text}\n\n🌊 Beautiful!`,
   chainNoChain: "🔗 No chain waiting right now. Starting a new one!",
   letterAskDelay: "✉️ **Letter to the Future**\n\nWhen would you like to receive this letter?",

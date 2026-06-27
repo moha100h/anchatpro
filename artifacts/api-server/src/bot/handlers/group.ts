@@ -81,14 +81,27 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     if (user.isInGroup) {
-      // Verify — isInGroup can stay true if bot crashed during a group session
       const actualGroupId = await getUserGroup(tgId);
       if (actualGroupId !== null) {
-        await ctx.reply(t(lang).alreadyInGroup);
+        // User IS in a group — restore their keyboard instead of showing an error
+        const [creator, admin, groupName, myAlias] = await Promise.all([
+          isGroupCreator(tgId, actualGroupId),
+          isGroupAdmin(tgId, actualGroupId),
+          getGroupName(actualGroupId),
+          generateGroupUserId(tgId, actualGroupId),
+        ]);
+        const kb = creator ? groupCreatorKeyboard(lang) : admin ? groupAdminKeyboard(lang) : groupControlKeyboard(lang);
+        const displayName = groupName ?? (lang === "fa" ? "بدون نام" : "Unnamed");
+        await ctx.reply(
+          lang === "fa"
+            ? `👥 شما در گروه **${displayName}** هستید.\n🆔 نام شما: ${myAlias}\n\nپیام بفرستید یا از دکمه‌های زیر استفاده کنید:`
+            : `👥 You are in group **${displayName}**.\n🆔 Your alias: ${myAlias}\n\nSend a message or use the buttons below:`,
+          { parse_mode: "Markdown", reply_markup: kb }
+        );
         return;
       }
+      // Stale flag — clear it and fall through to sub-menu
       await updateUser(tgId, { isInGroup: false });
-      // Fall through — flag was stale; show group sub-menu normally
     }
 
     await ctx.reply(t(lang).menuGroup, { reply_markup: groupSubMenuKeyboard(lang) });

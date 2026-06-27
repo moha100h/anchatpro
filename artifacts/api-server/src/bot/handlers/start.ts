@@ -20,6 +20,7 @@ import {
   getExistingMembership,
   reactivateAndGetRole,
   getUserGroup,
+  leaveGroup,
 } from "../services/group.service.js";
 import { eq as eqDrizzle } from "drizzle-orm";
 import { t } from "../i18n/index.js";
@@ -246,13 +247,33 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       }
     }
 
-    // Clear stale isInGroup — can get stuck if bot crashed during group session
+    // If user is in a group, leave them gracefully on /start (reset action)
     if (user.isInGroup) {
       const actualGroupId = await getUserGroup(tgId);
-      if (actualGroupId === null) await updateUser(tgId, { isInGroup: false });
+      if (actualGroupId === null) {
+        // Stale flag — just clear it
+        await updateUser(tgId, { isInGroup: false });
+      } else {
+        // Genuinely in a group — leave and notify remaining members
+        const leaveResult = await leaveGroup(tgId);
+        if (leaveResult) {
+          const remainingMembers = await getGroupMembers(leaveResult.groupId);
+          const notifyMsg = lang === "fa" ? "یکی از اعضا گروه را ترک کرد." : "A member left the group.";
+          for (const memberId of remainingMembers) {
+            if (memberId === tgId) continue;
+            const mUser = await getUserByTelegramId(memberId);
+            const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+            if (leaveResult.groupActuallyEnded) {
+              await bot.api.sendMessage(memberId, t(mLang).groupEnded, { reply_markup: mainMenuKeyboard(mLang) }).catch(() => {});
+            } else {
+              await bot.api.sendMessage(memberId, notifyMsg).catch(() => {});
+            }
+          }
+        }
+      }
     }
 
-    // Also clear stale session step
+    // Clear stale session step
     if (ctx.session.step) ctx.session.step = undefined;
 
     await processReferralReward(tgId);

@@ -118,7 +118,7 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
   // ─── Handle gender selection (change_gender step) ────────────────────────────
   // Registered AFTER start.ts hears handler which calls next() when step !== "select_gender"
   bot.hears(
-    [/^(👦 مرد|👧 زن|🌈 سایر|👦 Male|👧 Female|🌈 Other)$/],
+    [/^(👦 پسر|👧 دختر|👦 مرد|👧 زن|🌈 سایر|👦 Male|👧 Female|🌈 Other)$/],
     async (ctx) => {
       const tgId = ctx.from!.id;
       const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -127,8 +127,8 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
 
       const text = ctx.message!.text ?? "";
       const gender =
-        text.includes("مرد") || text.includes("Male") ? "male"
-        : text.includes("زن") || text.includes("Female") ? "female"
+        text.includes("پسر") || text.includes("مرد") || text.includes("Male") ? "male"
+        : text.includes("دختر") || text.includes("زن") || text.includes("Female") ? "female"
         : "other";
 
       await updateUser(tgId, { gender });

@@ -38,7 +38,7 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
 
   // ─── Gender preference selection ─────────────────────────────────────────────
   bot.hears(
-    [/^👧 زن$/, /^👦 مرد$/, /^🎲 هر کسی$/, /^👧 Female$/, /^👦 Male$/, /^🎲 Anyone$/],
+    [/^👧 (دختر|زن)$/, /^👦 (پسر|مرد)$/, /^🎲 هر کسی$/, /^👧 Female$/, /^👦 Male$/, /^🎲 Anyone$/],
     async (ctx) => {
       const tgId = ctx.from!.id;
       const user = ctx.dbUser ?? await getUserByTelegramId(tgId);

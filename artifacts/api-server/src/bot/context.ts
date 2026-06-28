@@ -26,6 +26,7 @@ export interface SessionData {
   adminPkgStep?: string;
   adminPkgCoins?: number;
   adminPkgPrice?: number;
+  adminPkgLabel?: string;
   adminPkgCardPrice?: number;
   adminPkgCryptoPrice?: number;
   adminPkgTetrapayPrice?: number;

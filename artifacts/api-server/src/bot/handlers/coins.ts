@@ -24,7 +24,7 @@ import {
 } from "../services/payment.service.js";
 import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { t } from "../i18n/index.js";
-import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard, coinsPackagesKeyboard } from "../keyboards/main.js";
+import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard, coinsPackagesKeyboard, coinsGatewayKeyboard } from "../keyboards/main.js";
 import { packagesKeyboard, paymentMethodKeyboard, paymentReviewKeyboard } from "../keyboards/inline.js";
 
 /** Translate a coin transaction type + description to Persian */
@@ -93,6 +93,151 @@ function buildTrustWalletLink(wallet: string, amountUsdt: number): string {
   );
 }
 
+// ─── Shared payment-processing helper ────────────────────────────────────────
+// Called after gateway + package + optional-discount are all known.
+// Handles card / crypto / gateway payment paths identically for both text and
+// inline purchase flows.
+async function handlePaymentByMethod(
+  ctx: any,
+  bot: Bot<BotContext>,
+  lang: "fa" | "en",
+  tgId: number,
+  method: "card" | "crypto" | "gateway",
+  pkgId: number,
+  discPct: number,
+  discCode: number | undefined,
+): Promise<void> {
+  // ── TetraPay online gateway ─────────────────────────────────────────────────
+  if (method === "gateway") {
+    await ctx.reply(t(lang).gatewayCreating);
+    let payment;
+    try {
+      payment = await createPayment(tgId, pkgId, "gateway", { discountPercent: discPct, discountCodeId: discCode });
+    } catch {
+      await ctx.reply(lang === "fa" ? "❌ خطا در ایجاد پرداخت. لطفاً دوباره امتحان کنید." : "❌ Failed to create payment. Please try again.");
+      return;
+    }
+    if (discCode) { await useDiscountCode(discCode).catch(() => {}); }
+    ctx.session.pendingPaymentMethod    = "gateway";
+    ctx.session.pendingPaymentPackageId = undefined;
+
+    const desc   = lang === "fa" ? `خرید ${payment.coins} سکه` : `Purchase ${payment.coins} coins`;
+    const result = await createTetraPayOrder(payment.id, tgId, payment.price * 10, desc);
+    if (!result.success) {
+      await ctx.reply(t(lang).gatewayError(result.error ?? "Gateway error"));
+      return;
+    }
+    const info = t(lang).gatewayPaymentInfo(payment.price);
+    const kb   = new InlineKeyboard();
+    if (result.paymentUrlBot) kb.url(t(lang).openPaymentBot, result.paymentUrlBot).row();
+    if (result.paymentUrlWeb) kb.url(t(lang).openPaymentWeb, result.paymentUrlWeb);
+    await ctx.reply(info, { parse_mode: "Markdown", reply_markup: kb });
+    return;
+  }
+
+  // ── Card payment ────────────────────────────────────────────────────────────
+  if (method === "card") {
+    const [cardNo, holderName, bankName] = await Promise.all([
+      getSetting("card_number"),
+      getSetting("card_holder_name"),
+      getSetting("card_bank_name"),
+    ]);
+    let payment;
+    try {
+      payment = await createPayment(tgId, pkgId, "card", { discountPercent: discPct, discountCodeId: discCode });
+    } catch {
+      await ctx.reply(lang === "fa" ? "❌ خطا در ایجاد پرداخت." : "❌ Failed to create payment.");
+      return;
+    }
+    if (discCode) { await useDiscountCode(discCode).catch(() => {}); }
+    ctx.session.pendingPaymentMethod    = "card";
+    ctx.session.pendingPaymentPackageId = undefined;
+
+    const priceStr = payment.price.toLocaleString("fa-IR");
+    const info = lang === "fa"
+      ? `💳 <b>اطلاعات پرداخت کارت‌به‌کارت</b>\n\n` +
+        (bankName   ? `🏦 بانک: <b>${bankName}</b>\n`        : "") +
+        (holderName ? `👤 صاحب کارت: <b>${holderName}</b>\n` : "") +
+        `💳 شماره کارت:\n<code>${cardNo ?? "6219-8610-0000-0000"}</code>\n\n` +
+        `💰 مبلغ: <b>${priceStr} تومان</b>` +
+        (discPct > 0 ? ` 🔥 <i>(تخفیف ${discPct}% اعمال شد)</i>` : "") +
+        `\n\n📸 پس از واریز، تصویر رسید را ارسال کنید.`
+      : `💳 <b>Bank Card Payment</b>\n\n` +
+        (bankName   ? `🏦 Bank: <b>${bankName}</b>\n`     : "") +
+        (holderName ? `👤 Holder: <b>${holderName}</b>\n` : "") +
+        `💳 Card:\n<code>${cardNo ?? "6219-8610-0000-0000"}</code>\n\n` +
+        `💰 Amount: <b>${payment.price.toLocaleString()} IRT</b>` +
+        (discPct > 0 ? ` 🔥 <i>(${discPct}% discount applied)</i>` : "") +
+        `\n\n📸 Send receipt photo after transfer.`;
+
+    await ctx.reply(info, { parse_mode: "HTML" });
+    await ctx.reply(t(lang).uploadReceipt, {
+      reply_markup: { keyboard: [[{ text: t(lang).cancel }]], resize_keyboard: true, one_time_keyboard: true },
+    });
+    return;
+  }
+
+  // ── Crypto payment ──────────────────────────────────────────────────────────
+  if (method === "crypto") {
+    const currencies = await getCryptoCurrencies();
+    if (currencies.length > 1) {
+      // Multi-currency: let user pick
+      const currKb = new InlineKeyboard();
+      currencies.forEach((c, i) => { currKb.text(`${c.symbol} (${c.network})`, `crypto_buy:${i}`).row(); });
+      await ctx.reply(
+        lang === "fa" ? "💱 ارز دیجیتال خود را انتخاب کنید:" : "💱 Select your cryptocurrency:",
+        { reply_markup: currKb }
+      );
+      return;
+    }
+
+    const c       = currencies[0];
+    const wallet  = c?.address ?? (await getSetting("crypto_wallet")) ?? "TYour...WalletAddress";
+    const symbol  = c?.symbol  ?? "USDT";
+    const network = c?.network ?? "TRC20";
+    const name    = c?.name    ?? "Tether";
+    const cgId    = c?.coinGeckoId ?? "tether";
+
+    let payment;
+    try {
+      payment = await createPayment(tgId, pkgId, "crypto", { discountPercent: discPct, discountCodeId: discCode });
+    } catch {
+      await ctx.reply(lang === "fa" ? "❌ خطا در ایجاد پرداخت." : "❌ Failed to create payment.");
+      return;
+    }
+    if (discCode) { await useDiscountCode(discCode).catch(() => {}); }
+    ctx.session.pendingPaymentMethod    = "crypto";
+    ctx.session.pendingPaymentPackageId = undefined;
+
+    const priceIrt = await fetchCryptoPriceWithFallback(cgId);
+    const amountRaw = priceIrt && priceIrt > 0 ? payment.price / priceIrt : payment.price / 30_000;
+    const amountStr = amountRaw < 0.001 ? `${amountRaw.toFixed(8)} ${symbol}` : `${amountRaw.toFixed(6)} ${symbol}`;
+
+    const info = lang === "fa"
+      ? `₿ <b>پرداخت با ${name} (${network})</b>\n\n` +
+        `💰 مبلغ: <b>${amountStr}</b>` +
+        (discPct > 0 ? ` 🔥 <i>(تخفیف ${discPct}% اعمال شد)</i>` : "") +
+        `\n📋 آدرس کیف پول:\n<code>${wallet}</code>\n\n` +
+        `⚠️ <b>فقط شبکه ${network} قبول می‌شود</b>\n📸 پس از انتقال، رسید را ارسال کنید.`
+      : `₿ <b>Pay with ${name} (${network})</b>\n\n` +
+        `💰 Amount: <b>${amountStr}</b>\n📋 Wallet:\n<code>${wallet}</code>\n\n` +
+        `⚠️ <b>Only ${network} network accepted</b>\n📸 Send receipt after transfer.`;
+
+    let linkKb: InlineKeyboard | undefined;
+    if (symbol === "USDT" && network === "TRC20") {
+      linkKb = new InlineKeyboard().url(
+        t(lang).cryptoPaymentLinkBtn,
+        `https://link.trustwallet.com/send?coin=10001_0xa614f803B6FD780986A42c78Ec9c7f77e6DeD13&address=${encodeURIComponent(wallet)}&amount=${amountRaw}`
+      );
+    }
+
+    await ctx.reply(info, { parse_mode: "HTML", reply_markup: linkKb });
+    await ctx.reply(t(lang).uploadReceipt, {
+      reply_markup: { keyboard: [[{ text: t(lang).cancel }]], resize_keyboard: true, one_time_keyboard: true },
+    });
+  }
+}
+
 export function registerCoinHandlers(bot: Bot<BotContext>) {
   // ─── Cancel handler (pending payment) ─────────────────────────────────────
   // Fires AFTER matching.ts cancel handler (which already called next() if not in queue).
@@ -111,14 +256,18 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       return;
     }
 
-    // Cancel buying flow (package selection or discount code input)
-    if (ctx.session.step === "buying:package" || ctx.session.step === "buying:discount_code") {
+    // Cancel buying flow (gateway / package / discount steps)
+    if (
+      ctx.session.step === "buying:gateway" ||
+      ctx.session.step === "buying:package" ||
+      ctx.session.step === "buying:discount_code"
+    ) {
       ctx.session.step = undefined;
+      ctx.session.pendingPaymentMethod    = undefined;
       ctx.session.pendingPaymentPackageId = undefined;
       ctx.session.pendingDiscountCodeId   = undefined;
       ctx.session.pendingDiscountPercent  = undefined;
-      const { coinsSubMenuKeyboard: coinSub } = await import("../keyboards/main.js");
-      await ctx.reply(t(lang).paymentCancelled, { reply_markup: coinSub(lang) });
+      await ctx.reply(t(lang).paymentCancelled, { reply_markup: coinsSubMenuKeyboard(lang) });
       return;
     }
 
@@ -175,25 +324,111 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     await ctx.reply(msg, { parse_mode: "Markdown" });
   });
 
-  // ─── Buy Coins (text button) → persistent keyboard ────────────────────────
+  // ─── Buy Coins (text button) → STEP 1: gateway selection ─────────────────
   bot.hears(["🛒 خرید سکه", "🛒 Buy Coins"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const packages = await getPackages();
-    if (packages.length === 0) {
-      await ctx.reply(lang === "fa" ? "در حال حاضر بسته‌ای موجود نیست." : "No packages available.");
+    const [cardOn, cryptoOn, gatewayOn] = await Promise.all([
+      isMethodEnabled("card"),
+      isMethodEnabled("crypto"),
+      isMethodEnabled("gateway"),
+    ]);
+
+    if (!cardOn && !cryptoOn && !gatewayOn) {
+      await ctx.reply(
+        lang === "fa"
+          ? "⚠️ در حال حاضر هیچ روش پرداختی فعال نیست. لطفاً بعداً امتحان کنید."
+          : "⚠️ No payment methods available right now. Please try later."
+      );
       return;
     }
-    ctx.session.step = "buying:package";
+
+    ctx.session.step                = "buying:gateway";
+    ctx.session.pendingPaymentMethod    = undefined;
     ctx.session.pendingPaymentPackageId = undefined;
-    ctx.session.pendingDiscountCodeId = undefined;
-    ctx.session.pendingDiscountPercent = undefined;
+    ctx.session.pendingDiscountCodeId   = undefined;
+    ctx.session.pendingDiscountPercent  = undefined;
+
     await ctx.reply(
-      lang === "fa" ? "💰 یک بسته سکه انتخاب کنید:" : "💰 Select a coin package:",
-      { reply_markup: coinsPackagesKeyboard(packages, lang) }
+      lang === "fa"
+        ? "💰 *خرید سکه*\n\nابتدا روش پرداخت خود را انتخاب کنید:"
+        : "💰 *Buy Coins*\n\nFirst, choose your payment method:",
+      {
+        parse_mode:   "Markdown",
+        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn }),
+      }
+    );
+  });
+
+  // ─── STEP 1 handler: gateway button tapped ─────────────────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    if (ctx.session.step !== "buying:gateway") return next();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const text = ctx.message.text;
+
+    // Back → coins sub-menu
+    if (/^🔙/.test(text)) {
+      ctx.session.step = undefined;
+      await ctx.reply(t(lang).coinsBalance(user?.coins ?? 0), {
+        parse_mode:   "Markdown",
+        reply_markup: coinsSubMenuKeyboard(lang),
+      });
+      return;
+    }
+
+    // Detect gateway emoji
+    let method: "card" | "crypto" | "gateway" | null = null;
+    if (/💳/.test(text))  method = "card";
+    else if (/₿/.test(text))  method = "crypto";
+    else if (/🌐/.test(text)) method = "gateway";
+
+    if (!method) return next();
+
+    // Verify still enabled
+    const enabled = await isMethodEnabled(method);
+    if (!enabled) {
+      await ctx.reply(
+        lang === "fa"
+          ? "❌ این روش پرداخت فعلاً غیرفعال است. روش دیگری انتخاب کنید."
+          : "❌ This payment method is currently disabled. Choose another."
+      );
+      return;
+    }
+
+    const packages = await getPackages();
+    if (packages.length === 0) {
+      ctx.session.step = undefined;
+      await ctx.reply(
+        lang === "fa" ? "⚠️ در حال حاضر بسته‌ای موجود نیست." : "⚠️ No packages available.",
+        { reply_markup: coinsSubMenuKeyboard(lang) }
+      );
+      return;
+    }
+
+    ctx.session.pendingPaymentMethod    = method;
+    ctx.session.step                    = "buying:package";
+    ctx.session.pendingPaymentPackageId = undefined;
+    ctx.session.pendingDiscountCodeId   = undefined;
+    ctx.session.pendingDiscountPercent  = undefined;
+
+    const methodLabel =
+      method === "card"    ? (lang === "fa" ? "💳 کارت‌به‌کارت"           : "💳 Card")
+      : method === "crypto"  ? (lang === "fa" ? "₿ ارز دیجیتال"              : "₿ Crypto")
+      :                        (lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway");
+
+    await ctx.reply(
+      lang === "fa"
+        ? `✅ روش: *${methodLabel}*\n\n💎 اکنون یک بسته سکه انتخاب کنید:`
+        : `✅ Method: *${methodLabel}*\n\n💎 Now select a coin package:`,
+      {
+        parse_mode:   "Markdown",
+        reply_markup: coinsPackagesKeyboard(packages, lang, method),
+      }
     );
   });
 
@@ -256,19 +491,29 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
   });
 
   bot.callbackQuery("discount:skip", async (ctx) => {
-    const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const tgId   = ctx.from!.id;
+    const user   = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang   = (user?.language as "fa" | "en") ?? "fa";
+    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | undefined;
+    const pkgId  = ctx.session.pendingPaymentPackageId;
     ctx.session.pendingDiscountCodeId  = undefined;
     ctx.session.pendingDiscountPercent = undefined;
     await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+    await ctx.answerCallbackQuery();
+
+    // Text-keyboard flow: method already chosen in step 1
+    if (method && pkgId) {
+      await handlePaymentByMethod(ctx, bot, lang, tgId, method, pkgId, 0, undefined);
+      return;
+    }
+
+    // Inline flow fallback: show method keyboard
     const enabled = {
       card:    await isMethodEnabled("card"),
       crypto:  await isMethodEnabled("crypto"),
       gateway: await isMethodEnabled("gateway"),
     };
     await ctx.reply(t(lang).selectPaymentMethod, { reply_markup: paymentMethodKeyboard(lang, enabled) });
-    await ctx.answerCallbackQuery();
   });
 
   // ─── Payment method selected ──────────────────────────────────────────────
@@ -530,53 +775,84 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     }
   });
 
-  // ─── Text: package selection (persistent keyboard) ───────────────────────
+  // ─── STEP 2: package selection (persistent reply-keyboard) ───────────────
   bot.on("message:text", async (ctx, next) => {
     if (ctx.session.step !== "buying:package") return next();
-    const tgId = ctx.from!.id;
-    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
-    const lang = (user?.language as "fa" | "en") ?? "fa";
-    const text = ctx.message.text;
+    const tgId   = ctx.from!.id;
+    const user   = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang   = (user?.language as "fa" | "en") ?? "fa";
+    const text   = ctx.message.text;
+    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | undefined;
 
-    // Back button
+    // Back → return to gateway selection
     if (/^🔙/.test(text)) {
-      ctx.session.step = undefined;
+      ctx.session.step                = "buying:gateway";
+      ctx.session.pendingPaymentMethod    = undefined;
       ctx.session.pendingPaymentPackageId = undefined;
       ctx.session.pendingDiscountCodeId   = undefined;
       ctx.session.pendingDiscountPercent  = undefined;
-      await ctx.reply(t(lang).coinsBalance(user?.coins ?? 0), {
-        parse_mode:   "Markdown",
-        reply_markup: coinsSubMenuKeyboard(lang),
-      });
+      const [cardOn, cryptoOn, gatewayOn] = await Promise.all([
+        isMethodEnabled("card"),
+        isMethodEnabled("crypto"),
+        isMethodEnabled("gateway"),
+      ]);
+      await ctx.reply(
+        lang === "fa" ? "💰 روش پرداخت را انتخاب کنید:" : "💰 Choose your payment method:",
+        { reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn }) }
+      );
       return;
     }
 
-    // Match "💎 N سکه | ..." or "💎 label | ..."
-    const match = text.match(/💎\s*(\d+)/);
-    if (!match) return next();
-    const coins = parseInt(match[1], 10);
+    // Reconstruct button text for each package and find the one that matches
     const packages = await getPackages();
-    const pkg = packages.find(p => p.coins === coins);
+    const pkg = packages.find(p => {
+      const effectivePrice =
+        method === "card"    && p.cardPrice    ? p.cardPrice    :
+        method === "crypto"  && p.cryptoPrice  ? p.cryptoPrice  :
+        method === "gateway" && p.tetrapayPrice ? p.tetrapayPrice :
+        p.price;
+      const priceStr   = effectivePrice.toLocaleString("fa-IR");
+      const hasDisc    = (p.discountPercent ?? 0) > 0;
+      const label      = p.label ?? (lang === "fa" ? `${p.coins} سکه` : `${p.coins} coins`);
+      const expected =
+        lang === "fa"
+          ? hasDisc
+            ? `💎 ${label} | ${priceStr} تومان 🔥-${p.discountPercent}%`
+            : `💎 ${label} | ${priceStr} تومان`
+          : hasDisc
+            ? `💎 ${p.coins} coins | ${effectivePrice.toLocaleString()} IRT 🔥-${p.discountPercent}%`
+            : `💎 ${p.coins} coins | ${effectivePrice.toLocaleString()} IRT`;
+      return text === expected;
+    });
+
     if (!pkg) return next();
 
-    ctx.session.step = undefined;
+    ctx.session.step                = undefined;
     ctx.session.pendingPaymentPackageId = pkg.id;
     ctx.session.pendingDiscountCodeId   = undefined;
     ctx.session.pendingDiscountPercent  = undefined;
 
-    const priceStr = pkg.price.toLocaleString("fa-IR");
+    // Effective price for this method
+    const effectivePrice =
+      method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
+      method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
+      method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+      pkg.price;
+    const priceStr = effectivePrice.toLocaleString("fa-IR");
     const discPct  = pkg.discountPercent ?? 0;
 
     const discKb = new InlineKeyboard()
       .text(lang === "fa" ? "🏷️ دارم کد تخفیف" : "🏷️ I have a discount code", "discount:enter").row()
-      .text(lang === "fa" ? "⏭️ ندارم، ادامه"   : "⏭️ Skip, continue",         "discount:skip");
+      .text(lang === "fa" ? "⏭️ ندارم، ادامه"   : "⏭️ Skip, continue",          "discount:skip");
 
     const msg = lang === "fa"
-      ? `✅ بسته انتخاب شد: *${pkg.coins} سکه*\n` +
+      ? `✅ *بسته انتخاب شد: ${pkg.label ?? pkg.coins + " سکه"}*\n` +
         `💵 قیمت: *${priceStr} تومان*` +
         (discPct > 0 ? ` 🔥 (${discPct}% تخفیف)` : "") +
-        `\n\nآیا کد تخفیف دارید؟`
-      : `✅ Package: *${pkg.coins} coins*\n💵 Price: *${priceStr} IRT*\n\nDiscount code?`;
+        `\n\n🏷️ آیا کد تخفیف دارید؟`
+      : `✅ *Package: ${pkg.coins} coins*\n💵 Price: *${effectivePrice.toLocaleString()} IRT*` +
+        (discPct > 0 ? ` 🔥 (${discPct}% off)` : "") +
+        `\n\n🏷️ Do you have a discount code?`;
 
     await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: discKb });
   });
@@ -615,6 +891,19 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       { parse_mode: "Markdown" }
     );
 
+    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | undefined;
+    const pkgId  = ctx.session.pendingPaymentPackageId;
+
+    // Text-keyboard flow: method already chosen
+    if (method && pkgId) {
+      await handlePaymentByMethod(
+        ctx, bot, lang, tgId, method, pkgId,
+        result.discountPercent ?? 0, result.codeId
+      );
+      return;
+    }
+
+    // Inline flow fallback: show method selection
     const enabled = {
       card:    await isMethodEnabled("card"),
       crypto:  await isMethodEnabled("crypto"),

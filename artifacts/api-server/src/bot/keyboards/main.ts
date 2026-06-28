@@ -226,26 +226,47 @@ export function timedLinkKeyboard(lang: Lang) {
     .oneTime();
 }
 
-/** Persistent package selection keyboard (coin packages as reply-keyboard buttons) */
-export function coinsPackagesKeyboard(packages: PaymentPackage[], lang: Lang) {
+/** STEP 1: Gateway selection keyboard — shown first when buying coins */
+export function coinsGatewayKeyboard(
+  lang: Lang,
+  enabled: { card: boolean; crypto: boolean; gateway: boolean }
+) {
+  const kb = new Keyboard();
+  if (enabled.card)    kb.text(lang === "fa" ? "💳 پرداخت کارت‌به‌کارت" : "💳 Card Payment").row();
+  if (enabled.crypto)  kb.text(lang === "fa" ? "₿ ارز دیجیتال (کریپتو)" : "₿ Cryptocurrency").row();
+  if (enabled.gateway) kb.text(lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway (TetraPay)").row();
+  kb.text(lang === "fa" ? "🔙 بازگشت" : "🔙 Back");
+  return kb.resized().persistent();
+}
+
+/** STEP 2: Package selection keyboard — shows per-gateway price if set */
+export function coinsPackagesKeyboard(
+  packages: PaymentPackage[],
+  lang: Lang,
+  method?: "card" | "crypto" | "gateway"
+) {
   const kb = new Keyboard();
   for (const pkg of packages) {
-    const priceStr = pkg.price.toLocaleString("fa-IR");
+    // Resolve effective price for this gateway
+    const effectivePrice =
+      method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
+      method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
+      method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+      pkg.price;
+
+    const priceStr = effectivePrice.toLocaleString("fa-IR");
     const hasDiscount = (pkg.discountPercent ?? 0) > 0;
+    const label = pkg.label ?? (lang === "fa" ? `${pkg.coins} سکه` : `${pkg.coins} coins`);
+
     let btnText: string;
     if (lang === "fa") {
       btnText = hasDiscount
-        ? `💎 ${pkg.coins} سکه | ${priceStr} تومان 🔥-${pkg.discountPercent}%`
-        : `💎 ${pkg.coins} سکه | ${priceStr} تومان`;
-      if (pkg.label) {
-        btnText = hasDiscount
-          ? `💎 ${pkg.label} | ${priceStr} تومان 🔥-${pkg.discountPercent}%`
-          : `💎 ${pkg.label} | ${priceStr} تومان`;
-      }
+        ? `💎 ${label} | ${priceStr} تومان 🔥-${pkg.discountPercent}%`
+        : `💎 ${label} | ${priceStr} تومان`;
     } else {
       btnText = hasDiscount
-        ? `💎 ${pkg.coins} coins | ${pkg.price.toLocaleString()} IRT 🔥-${pkg.discountPercent}%`
-        : `💎 ${pkg.coins} coins | ${pkg.price.toLocaleString()} IRT`;
+        ? `💎 ${pkg.coins} coins | ${effectivePrice.toLocaleString()} IRT 🔥-${pkg.discountPercent}%`
+        : `💎 ${pkg.coins} coins | ${effectivePrice.toLocaleString()} IRT`;
     }
     kb.text(btnText).row();
   }

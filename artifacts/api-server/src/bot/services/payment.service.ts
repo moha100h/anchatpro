@@ -33,6 +33,9 @@ export async function createPackage(data: {
   originalPrice?: number;
   discountPercent?: number;
   label?: string;
+  cardPrice?: number;
+  cryptoPrice?: number;
+  tetrapayPrice?: number;
 }) {
   const [pkg] = await db
     .insert(paymentPackagesTable)
@@ -43,6 +46,9 @@ export async function createPackage(data: {
       discountPercent: data.discountPercent ?? 0,
       currency: "IRT",
       label: data.label ?? null,
+      cardPrice: data.cardPrice ?? null,
+      cryptoPrice: data.cryptoPrice ?? null,
+      tetrapayPrice: data.tetrapayPrice ?? null,
       isActive: true,
       createdAt: new Date(),
     })
@@ -59,6 +65,9 @@ export async function updatePackage(
     discountPercent?: number;
     label?: string | null;
     isActive?: boolean;
+    cardPrice?: number | null;
+    cryptoPrice?: number | null;
+    tetrapayPrice?: number | null;
   }
 ) {
   await db.update(paymentPackagesTable).set(data).where(eq(paymentPackagesTable.id, id));
@@ -79,10 +88,17 @@ export async function createPayment(
   const pkg = await getPackageById(packageId);
   if (!pkg) throw new Error("Package not found");
 
+  // Use per-gateway override price if set, otherwise fall back to base price
+  const basePrice =
+    method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
+    method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
+    method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+    pkg.price;
+
   const discountPct = options?.discountPercent ?? 0;
   const finalPrice = discountPct > 0
-    ? Math.round(pkg.price * (100 - discountPct) / 100)
-    : pkg.price;
+    ? Math.round(basePrice * (100 - discountPct) / 100)
+    : basePrice;
 
   const [payment] = await db
     .insert(paymentsTable)

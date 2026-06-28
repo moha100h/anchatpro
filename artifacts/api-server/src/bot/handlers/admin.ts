@@ -32,6 +32,8 @@ import {
   sendBackup,
   verifyBackupGroup,
   getBackupConfig,
+  parseBackupBuffer,
+  restoreFromBackup,
 } from "../services/backup.service.js";
 import {
   setSetting,
@@ -647,10 +649,16 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       msg += "_هیچ بسته‌ای وجود ندارد_\n";
     } else {
       for (const pkg of packages) {
-        const status = pkg.isActive ? "✅" : "❌";
-        const disc   = (pkg.discountPercent ?? 0) > 0 ? ` 🔥-${pkg.discountPercent}%` : "";
-        const label  = pkg.label ? ` (${pkg.label})` : "";
-        msg += `${status} ${pkg.coins} سکه${label} | ${pkg.price.toLocaleString("fa-IR")} تومان${disc} — #${pkg.id}\n`;
+        const status   = pkg.isActive ? "✅" : "❌";
+        const disc     = (pkg.discountPercent ?? 0) > 0 ? ` 🔥-${pkg.discountPercent}%` : "";
+        const label    = pkg.label ? ` (${pkg.label})` : "";
+        const gwPrices = [
+          pkg.cardPrice    ? `💳${pkg.cardPrice.toLocaleString("fa-IR")}`    : null,
+          pkg.cryptoPrice  ? `₿$${pkg.cryptoPrice}`                         : null,
+          pkg.tetrapayPrice ? `🌐${pkg.tetrapayPrice.toLocaleString("fa-IR")}` : null,
+        ].filter(Boolean).join(" | ");
+        const gwStr = gwPrices ? ` [${gwPrices}]` : "";
+        msg += `${status} ${pkg.coins} سکه${label} | ${pkg.price.toLocaleString("fa-IR")} تومان${disc}${gwStr} — #${pkg.id}\n`;
         kb.push([
           { text: `✏️ ویرایش #${pkg.id}`,     callback_data: `admin_pkg:edit:${pkg.id}` },
           { text: pkg.isActive ? `🚫 غیرفعال` : `✅ فعال`, callback_data: `admin_pkg:toggle:${pkg.id}` },
@@ -889,9 +897,15 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   // ── Callbacks: package CRUD ───────────────────────────────────────────────────
   bot.callbackQuery("admin_pkg:create", async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
-    ctx.session.adminAction   = "admin_pkg_create_coins";
-    ctx.session.adminPkgStep  = "coins";
-    await ctx.reply("📦 *ساخت بسته جدید*\n\n*مرحله ۱/۴:* تعداد سکه را وارد کنید:", { parse_mode: "Markdown" });
+    ctx.session.adminAction       = "admin_pkg_create_coins";
+    ctx.session.adminPkgStep      = "coins";
+    ctx.session.adminPkgCoins     = undefined;
+    ctx.session.adminPkgPrice     = undefined;
+    ctx.session.adminPkgDiscount  = undefined;
+    ctx.session.adminPkgCardPrice    = undefined;
+    ctx.session.adminPkgCryptoPrice  = undefined;
+    ctx.session.adminPkgTetrapayPrice = undefined;
+    await ctx.reply("📦 *ساخت بسته جدید*\n\n*مرحله ۱/۷:* تعداد سکه را وارد کنید:", { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
   });
 
@@ -899,16 +913,29 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const id = parseInt(ctx.match![1], 10);
     ctx.session.adminPkgEditId = id;
-    await ctx.reply(`✏️ ویرایش بسته #${id}\n\nکدام فیلد را ویرایش می‌کنید؟`, {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "💎 تعداد سکه",     callback_data: `pkg_edit_field:${id}:coins`    }],
-          [{ text: "💵 قیمت (تومان)", callback_data: `pkg_edit_field:${id}:price`    }],
-          [{ text: "🔥 درصد تخفیف",  callback_data: `pkg_edit_field:${id}:discount` }],
-          [{ text: "🏷️ عنوان",        callback_data: `pkg_edit_field:${id}:label`    }],
-        ],
-      },
-    });
+    const pkg = await getPackageById(id);
+    const cardStr    = pkg?.cardPrice    ? `💳 کارت: ${pkg.cardPrice.toLocaleString("fa-IR")} تومان`       : "💳 کارت: پایه";
+    const cryptoStr  = pkg?.cryptoPrice  ? `₿ کریپتو: $${pkg.cryptoPrice}`                                : "₿ کریپتو: پایه";
+    const tetrapayStr = pkg?.tetrapayPrice ? `🌐 TetraPay: ${pkg.tetrapayPrice.toLocaleString("fa-IR")} تومان` : "🌐 TetraPay: پایه";
+    await ctx.reply(
+      `✏️ ویرایش بسته #${id}\n\n` +
+      `💎 سکه: ${pkg?.coins ?? "?"} | 💵 پایه: ${(pkg?.price ?? 0).toLocaleString("fa-IR")} تومان\n` +
+      `${cardStr}\n${cryptoStr}\n${tetrapayStr}\n\n` +
+      `کدام فیلد را ویرایش می‌کنید؟`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "💎 تعداد سکه",           callback_data: `pkg_edit_field:${id}:coins`         }],
+            [{ text: "💵 قیمت پایه (تومان)",   callback_data: `pkg_edit_field:${id}:price`         }],
+            [{ text: "🔥 درصد تخفیف",         callback_data: `pkg_edit_field:${id}:discount`      }],
+            [{ text: "🏷️ عنوان",               callback_data: `pkg_edit_field:${id}:label`         }],
+            [{ text: "💳 قیمت کارت (تومان)",   callback_data: `pkg_edit_field:${id}:card_price`    }],
+            [{ text: "₿ قیمت کریپتو ($USD)",  callback_data: `pkg_edit_field:${id}:crypto_price`  }],
+            [{ text: "🌐 قیمت TetraPay (تومان)", callback_data: `pkg_edit_field:${id}:tetrapay_price` }],
+          ],
+        },
+      }
+    );
     await ctx.answerCallbackQuery();
   });
 
@@ -922,19 +949,22 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.answerCallbackQuery("✅");
   });
 
-  bot.callbackQuery(/^pkg_edit_field:(\d+):(coins|price|discount|label)$/, async (ctx) => {
+  bot.callbackQuery(/^pkg_edit_field:(\d+):(coins|price|discount|label|card_price|crypto_price|tetrapay_price)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const id    = parseInt(ctx.match![1], 10);
     const field = ctx.match![2]!;
     ctx.session.adminPkgEditId = id;
     ctx.session.adminAction    = `pkg_edit:${id}:${field}`;
     const labels: Record<string, string> = {
-      coins:    "تعداد سکه (عدد مثبت)",
-      price:    "قیمت تومان (عدد مثبت)",
-      discount: "درصد تخفیف ۰-۱۰۰",
-      label:    "عنوان بسته (یا - برای حذف)",
+      coins:          "تعداد سکه (عدد مثبت)",
+      price:          "قیمت پایه تومان (عدد مثبت)",
+      discount:       "درصد تخفیف ۰-۱۰۰",
+      label:          "عنوان بسته (یا - برای حذف)",
+      card_price:     "قیمت کارت (تومان) — یا - برای استفاده از قیمت پایه",
+      crypto_price:   "قیمت کریپتو ($USD عدد صحیح) — یا - برای استفاده از قیمت پایه",
+      tetrapay_price: "قیمت TetraPay (تومان) — یا - برای استفاده از قیمت پایه",
     };
-    await ctx.reply(`✏️ مقدار جدید *${labels[field]}* را وارد کنید:`, { parse_mode: "Markdown" });
+    await ctx.reply(`✏️ مقدار جدید *${labels[field] ?? field}* را وارد کنید:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
   });
 
@@ -1139,6 +1169,124 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (!code) return;
     const verified = await verifyBackupGroup(ctx.chat.id, code);
     await ctx.reply(verified ? "✅ گروه بکاپ با موفقیت تأیید شد!" : "❌ کد نادرست است.");
+  });
+
+  // ── Backup restore: admin sends .json.gz (or .json) document to bot ──────────
+  bot.on("message:document", async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id)) return next();
+    const doc = ctx.message.document;
+
+    // Only pick up files that look like our backups
+    const fileName = doc.file_name ?? "";
+    if (!fileName.match(/backup.*\.(json(\.gz)?|gz)$/i)) return next();
+
+    await ctx.reply("⏳ در حال دریافت و بررسی فایل بکاپ...");
+
+    try {
+      // Download via Telegram File API
+      const fileInfo = await bot.api.getFile(doc.file_id);
+      const fileUrl  = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${fileInfo.file_path}`;
+      const resp     = await fetch(fileUrl);
+      if (!resp.ok) {
+        await ctx.reply("❌ دانلود فایل ناموفق بود.");
+        return;
+      }
+      const buf  = Buffer.from(await resp.arrayBuffer());
+      const data = parseBackupBuffer(buf);
+
+      const meta  = data._meta;
+      const stats = meta.stats ?? {};
+      const ts    = meta.timestamp ? new Date(meta.timestamp).toLocaleString("fa-IR") : "نامشخص";
+
+      // Store file_id in session for restore confirm
+      ctx.session.adminAction = `restore_confirm:${doc.file_id}`;
+
+      await ctx.reply(
+        `📦 *فایل بکاپ شناسایی شد*\n\n` +
+        `🕐 تاریخ: \`${ts}\`\n` +
+        `🔢 نسخه: ${meta.backupVersion}\n\n` +
+        `📊 *آمار:*\n` +
+        `• 👥 کاربران: *${(stats.users ?? 0).toLocaleString()}*\n` +
+        `• 💰 تراکنش‌ها: *${(stats.transactions ?? 0).toLocaleString()}*\n` +
+        `• 💳 پرداخت‌ها: *${(stats.payments ?? 0).toLocaleString()}*\n` +
+        `• 👥 گروه‌ها: *${stats.groups ?? 0}*\n` +
+        `• 📩 پیام‌های ناشناس: *${(stats.anonMessages ?? 0).toLocaleString()}*\n` +
+        `• 🚨 گزارش‌ها: *${(stats.reports ?? 0).toLocaleString()}*\n\n` +
+        `⚠️ *این عملیات داده‌های موجود را با upsert بازنویسی می‌کند!*\n` +
+        `برای تأیید یا لغو انتخاب کنید:`,
+        {
+          parse_mode:   "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "✅ بله، بازیابی شود", callback_data: "backup:restore_go" }],
+              [{ text: "❌ لغو",               callback_data: "backup:restore_cancel" }],
+            ],
+          },
+        }
+      );
+    } catch (err: any) {
+      if (err?.message === "NOT_A_BACKUP") {
+        await ctx.reply("❌ این فایل یک بکاپ معتبر نیست.");
+      } else {
+        console.error("Backup parse error:", err);
+        await ctx.reply(`❌ خطا در پردازش فایل: ${err?.message ?? "خطای نامشخص"}`);
+      }
+    }
+  });
+
+  // ── Restore confirm ──────────────────────────────────────────────────────────
+  bot.callbackQuery("backup:restore_go", async (ctx) => {
+    if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery("❌"); return; }
+    await ctx.answerCallbackQuery("⏳ در حال بازیابی...");
+
+    const action  = ctx.session.adminAction ?? "";
+    const fileId  = action.startsWith("restore_confirm:") ? action.slice("restore_confirm:".length) : null;
+    ctx.session.adminAction = undefined;
+
+    if (!fileId) {
+      await ctx.reply("❌ فایل بکاپ یافت نشد. لطفاً مجدداً فایل را ارسال کنید.");
+      return;
+    }
+
+    const progressMsg = await ctx.reply("⏳ *در حال بازیابی اطلاعات...*\nاین فرایند ممکن است چند دقیقه طول بکشد.", { parse_mode: "Markdown" });
+
+    try {
+      const fileInfo = await bot.api.getFile(fileId);
+      const fileUrl  = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${fileInfo.file_path}`;
+      const resp     = await fetch(fileUrl);
+      const buf      = Buffer.from(await resp.arrayBuffer());
+      const data     = parseBackupBuffer(buf);
+
+      const result = await restoreFromBackup(data);
+
+      const restoredLines = Object.entries(result.restored)
+        .filter(([, n]) => n > 0)
+        .map(([k, n]) => `• ${k}: *${n.toLocaleString()}*`)
+        .join("\n");
+
+      const skippedTotal = Object.values(result.skipped).reduce((a, b) => a + b, 0);
+
+      await bot.api.editMessageText(
+        ctx.chat!.id,
+        progressMsg.message_id,
+        `✅ *بازیابی کامل شد!*\n\n` +
+        `📊 *بازیابی شده:*\n${restoredLines || "—"}\n\n` +
+        (skippedTotal > 0 ? `⚠️ نادیده گرفته شده: ${skippedTotal}\n\n` : "") +
+        (result.errors.length > 0 ? `❌ خطاهای جزئی (${result.errors.length}):\n${result.errors.slice(0, 5).join("\n")}\n\n` : "") +
+        `_سیستم آماده استفاده است._`,
+        { parse_mode: "Markdown" }
+      ).catch(() => {});
+
+    } catch (err: any) {
+      console.error("Restore error:", err);
+      await ctx.reply(`❌ خطا در بازیابی: ${err?.message ?? "خطای نامشخص"}`);
+    }
+  });
+
+  bot.callbackQuery("backup:restore_cancel", async (ctx) => {
+    ctx.session.adminAction = undefined;
+    await ctx.editMessageText("❌ بازیابی لغو شد.").catch(() => {});
+    await ctx.answerCallbackQuery("لغو شد");
   });
 
   // ── Callback: force join sub-actions ─────────────────────────────────────────
@@ -1429,7 +1577,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       }
       ctx.session.adminPkgCoins  = coins;
       ctx.session.adminAction    = "admin_pkg_create_price";
-      await ctx.reply(`✅ سکه: *${coins}*\n\n*مرحله ۲/۴:* قیمت (تومان) را وارد کنید:`, { parse_mode: "Markdown" });
+      await ctx.reply(`✅ سکه: *${coins}*\n\n*مرحله ۲/۷:* قیمت پایه (تومان) را وارد کنید:`, { parse_mode: "Markdown" });
       return;
     }
 
@@ -1443,7 +1591,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       ctx.session.adminPkgPrice = price;
       ctx.session.adminAction   = "admin_pkg_create_discount";
       await ctx.reply(
-        `✅ قیمت: *${price.toLocaleString("fa-IR")}* تومان\n\n*مرحله ۳/۴:* درصد تخفیف (۰ = بدون تخفیف):`,
+        `✅ قیمت پایه: *${price.toLocaleString("fa-IR")}* تومان\n\n*مرحله ۳/۷:* درصد تخفیف (۰ = بدون تخفیف):`,
         { parse_mode: "Markdown" }
       );
       return;
@@ -1459,23 +1607,88 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       ctx.session.adminPkgDiscount = disc;
       ctx.session.adminAction      = "admin_pkg_create_label";
       await ctx.reply(
-        `✅ تخفیف: *${disc}%*\n\n*مرحله ۴/۴:* عنوان بسته (یا - برای پیش‌فرض):`,
+        `✅ تخفیف: *${disc}%*\n\n*مرحله ۴/۷:* عنوان بسته (یا - برای پیش‌فرض):`,
         { parse_mode: "Markdown" }
       );
       return;
     }
 
     if (action === "admin_pkg_create_label") {
-      const coins    = ctx.session.adminPkgCoins    ?? 10;
-      const price    = ctx.session.adminPkgPrice    ?? 10000;
-      const discount = ctx.session.adminPkgDiscount ?? 0;
-      const label    = (text === "-" || text === "رد") ? null : text;
-      const origPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+      const label = (text === "-" || text === "رد") ? null : text;
+      ctx.session.adminPkgLabel = label ?? "";
+      ctx.session.adminAction   = "admin_pkg_create_card_price";
+      await ctx.reply(
+        `✅ عنوان: *${label ?? "پیش‌فرض"}*\n\n` +
+        `*مرحله ۵/۷:* قیمت ویژه کارت (تومان)\n` +
+        `_یا دقیقاً \`-\` بفرستید تا از قیمت پایه استفاده شود:_`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
 
-      ctx.session.adminPkgCoins    = undefined;
-      ctx.session.adminPkgPrice    = undefined;
-      ctx.session.adminPkgDiscount = undefined;
-      ctx.session.adminPkgStep     = undefined;
+    if (action === "admin_pkg_create_card_price") {
+      if (text.trim() === "-") {
+        ctx.session.adminPkgCardPrice = undefined;
+      } else {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        ctx.session.adminPkgCardPrice = v;
+      }
+      ctx.session.adminAction = "admin_pkg_create_crypto_price";
+      await ctx.reply(
+        `✅ قیمت کارت: *${ctx.session.adminPkgCardPrice ? ctx.session.adminPkgCardPrice.toLocaleString("fa-IR") + " تومان" : "قیمت پایه"}*\n\n` +
+        `*مرحله ۶/۷:* قیمت ویژه کریپتو ($USD — عدد صحیح)\n` +
+        `_یا دقیقاً \`-\` بفرستید تا از قیمت پایه استفاده شود:_`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "admin_pkg_create_crypto_price") {
+      if (text.trim() === "-") {
+        ctx.session.adminPkgCryptoPrice = undefined;
+      } else {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        ctx.session.adminPkgCryptoPrice = v;
+      }
+      ctx.session.adminAction = "admin_pkg_create_tetrapay_price";
+      await ctx.reply(
+        `✅ قیمت کریپتو: *${ctx.session.adminPkgCryptoPrice ? "$" + ctx.session.adminPkgCryptoPrice : "قیمت پایه"}*\n\n` +
+        `*مرحله ۷/۷:* قیمت ویژه TetraPay (تومان)\n` +
+        `_یا دقیقاً \`-\` بفرستید تا از قیمت پایه استفاده شود:_`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "admin_pkg_create_tetrapay_price") {
+      if (text.trim() === "-") {
+        ctx.session.adminPkgTetrapayPrice = undefined;
+      } else {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        ctx.session.adminPkgTetrapayPrice = v;
+      }
+
+      const coins         = ctx.session.adminPkgCoins    ?? 10;
+      const price         = ctx.session.adminPkgPrice    ?? 10000;
+      const discount      = ctx.session.adminPkgDiscount ?? 0;
+      const label         = ctx.session.adminPkgLabel === "" ? null : (ctx.session.adminPkgLabel ?? null);
+      const origPrice     = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+      const cardPrice     = ctx.session.adminPkgCardPrice;
+      const cryptoPrice   = ctx.session.adminPkgCryptoPrice;
+      const tetrapayPrice = ctx.session.adminPkgTetrapayPrice;
+
+      // Clear temp session
+      ctx.session.adminPkgCoins         = undefined;
+      ctx.session.adminPkgPrice         = undefined;
+      ctx.session.adminPkgDiscount      = undefined;
+      ctx.session.adminPkgStep          = undefined;
+      ctx.session.adminPkgLabel         = undefined;
+      ctx.session.adminPkgCardPrice     = undefined;
+      ctx.session.adminPkgCryptoPrice   = undefined;
+      ctx.session.adminPkgTetrapayPrice = undefined;
 
       const pkg = await createPackage({
         coins,
@@ -1483,13 +1696,19 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         originalPrice: origPrice,
         discountPercent: discount,
         label: label ?? undefined,
+        cardPrice,
+        cryptoPrice,
+        tetrapayPrice,
       });
       await ctx.reply(
         `📦 *بسته جدید ساخته شد!*\n\n` +
         `💎 سکه: *${pkg.coins}*\n` +
-        `💵 قیمت: *${pkg.price.toLocaleString("fa-IR")}* تومان\n` +
+        `💵 قیمت پایه: *${pkg.price.toLocaleString("fa-IR")}* تومان\n` +
         (discount > 0 ? `🔥 تخفیف: *${discount}%*\n` : "") +
         (label ? `🏷️ عنوان: *${label}*\n` : "") +
+        (cardPrice    ? `💳 کارت: *${cardPrice.toLocaleString("fa-IR")}* تومان\n`    : "") +
+        (cryptoPrice  ? `₿ کریپتو: *$${cryptoPrice}*\n`                             : "") +
+        (tetrapayPrice ? `🌐 TetraPay: *${tetrapayPrice.toLocaleString("fa-IR")}* تومان\n` : "") +
         `✅ شناسه: #${pkg.id}`,
         { parse_mode: "Markdown" }
       );
@@ -1514,8 +1733,33 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         await updatePackage(id, { discountPercent: v });
       } else if (field === "label") {
         await updatePackage(id, { label: text === "-" ? null : text });
+      } else if (field === "card_price") {
+        if (text.trim() === "-") {
+          await updatePackage(id, { cardPrice: null });
+        } else {
+          const v = parseInt(text, 10);
+          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          await updatePackage(id, { cardPrice: v });
+        }
+      } else if (field === "crypto_price") {
+        if (text.trim() === "-") {
+          await updatePackage(id, { cryptoPrice: null });
+        } else {
+          const v = parseInt(text, 10);
+          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          await updatePackage(id, { cryptoPrice: v });
+        }
+      } else if (field === "tetrapay_price") {
+        if (text.trim() === "-") {
+          await updatePackage(id, { tetrapayPrice: null });
+        } else {
+          const v = parseInt(text, 10);
+          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          await updatePackage(id, { tetrapayPrice: v });
+        }
       }
       ctx.session.adminPkgEditId = undefined;
+      ctx.session.adminAction    = undefined;
       await ctx.reply(`✅ بسته #${id} با موفقیت ویرایش شد.`);
       return;
     }
@@ -1847,8 +2091,12 @@ async function showBackupSection(ctx: BotContext): Promise<void> {
   const status = config?.isVerified
     ? `✅ تنظیم شده (گروه: \`${config.chatId}\`)`
     : "❌ تنظیم نشده";
+  const lastBackup = config?.lastBackupAt
+    ? `\n🕐 آخرین بکاپ: \`${new Date(config.lastBackupAt).toLocaleString("fa-IR")}\``
+    : "";
   await ctx.reply(
-    `💾 *تنظیمات بکاپ*\n\nوضعیت: ${status}`,
+    `💾 *تنظیمات بکاپ*\n\nوضعیت: ${status}${lastBackup}\n\n` +
+    `📥 *بازیابی:* برای بازیابی، فایل \`backup_*.json.gz\` را مستقیم به ربات ارسال کنید.`,
     {
       parse_mode: "Markdown",
       reply_markup: {

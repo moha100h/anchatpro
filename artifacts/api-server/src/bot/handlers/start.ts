@@ -10,7 +10,7 @@ import {
   getUserByReferralCode,
   getUserReferral,
 } from "../services/user.service.js";
-import { processReferralReward, deductCoins } from "../services/coin.service.js";
+import { processReferralReward, deductCoins, addCoins } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
 import { getActiveSession, endChatSession } from "../services/matching.service.js";
 import {
@@ -473,6 +473,15 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       // Finish setup
       await setUserSetupStep(tgId, null);
 
+      // ── Signup bonus: all new users get coins on first registration ──────
+      const signupBonusStr = await getSetting("signup_bonus");
+      const signupBonus = signupBonusStr ? parseInt(signupBonusStr, 10) : 15;
+      if (signupBonus > 0) {
+        await addCoins(tgId, signupBonus, "referral_reward", "Signup welcome bonus");
+        await ctx.reply(t(lang).signupBonus(signupBonus), { parse_mode: "Markdown" });
+      }
+
+      // ── Referral reward: extra coins for joining via referral link ────────
       const referralResult = await processReferralReward(tgId);
       if (referralResult) {
         if (referralResult.inviterCoins > 0) {

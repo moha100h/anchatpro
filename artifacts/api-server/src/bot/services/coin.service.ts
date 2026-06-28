@@ -69,8 +69,8 @@ export async function processReferralReward(
     .where(eq(adminSettingsTable.key, "referral_reward_invitee"))
     .limit(1);
 
-  const inviterCoins = inviterSetting?.value ? parseInt(inviterSetting.value, 10) : 5;
-  const inviteeCoins = inviteeSetting?.value ? parseInt(inviteeSetting.value, 10) : 0;
+  const inviterCoins = inviterSetting?.value ? parseInt(inviterSetting.value, 10) : 10;
+  const inviteeCoins = inviteeSetting?.value ? parseInt(inviteeSetting.value, 10) : 5;
 
   if (inviterCoins > 0) {
     await addCoins(referral.referrerId, inviterCoins, "referral_reward", `Referral reward for inviting user ${referredId}`);

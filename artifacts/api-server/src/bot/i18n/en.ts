@@ -6,6 +6,7 @@ export const en = {
   selectCity: "🏙️ Enter your city:\n\n(Send a dot «.» to skip this step)",
   invalidAge: "❌ Invalid age! Please enter a number between 13 and 100.",
   profileComplete: "✅ Your profile has been set up successfully!\n\nWelcome to the main menu:",
+  signupBonus: (n: number) => `🎁 **${n} bonus coins** added to your account as a welcome gift!`,
   profileUpdated: "✅ Profile updated successfully!",
 
   // ─── Genders ─────────────────────────────────────────────────────────────────

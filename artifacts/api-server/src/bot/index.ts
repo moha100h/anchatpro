@@ -62,8 +62,8 @@ export async function createBot(): Promise<Bot<BotContext>> {
   registerProAnonLinkHandlers(bot); // pro permanent + in-app anon links, pro inbox
   registerCoinHandlers(bot);      // coins menu, buy, packages, payment methods, receipt upload
   registerHelpHandlers(bot);      // help text
+  registerAdminHandlers(bot);     // /admin, persistent reply keyboard, section handlers (BEFORE settings to intercept admin button texts)
   registerSettingsHandlers(bot);  // settings menu, change gender/age/language (registered AFTER start.ts!)
-  registerAdminHandlers(bot);     // /admin, callbacks, text inputs for admin actions
   registerMagicHandlers(bot);     // 🌊 اقیانوس احساس: bottle, chain, letter, frequency
   // MUST be last: group message forwarder runs only if no preceding handler consumed the message.
   // This ensures keyboard buttons (inbox, help, etc.) fire before group forwarding.

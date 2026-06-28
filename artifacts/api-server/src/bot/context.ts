@@ -21,6 +21,8 @@ export interface SessionData {
   giftCodeInput?: boolean;
   // 🎁 Admin gift code creation temp
   adminGiftCoins?: number;
+  // 🛡️ Admin panel navigation mode
+  adminMode?: "main" | "system" | "payment";
 }
 
 export type BotContext = ConversationFlavor<Context & SessionFlavor<SessionData>> & {

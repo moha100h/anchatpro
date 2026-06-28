@@ -104,14 +104,18 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
     await ctx.reply(t(lang).changeLanguage, { reply_markup: languageKeyboard() });
   });
 
-  // ─── Back button — always return to main menu ─────────────────────────────
+  // ─── Back button — always return to main menu (catch-all, runs AFTER matching.ts) ────
   bot.hears([/^🔙 بازگشت/, /^🔙 Back/], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
+    // Clear all step-related state
     await setUserSetupStep(tgId, null);
-    ctx.session.magicStep = undefined;
-    ctx.session.magicChainId = undefined;
+    ctx.session.magicStep     = undefined;
+    ctx.session.magicChainId  = undefined;
+    ctx.session.step          = undefined;
+    ctx.session.adminAction   = undefined;
+    ctx.session.giftCodeInput = false;
     await ctx.reply("🏠", { reply_markup: mainMenuKeyboard(lang) });
   });
 

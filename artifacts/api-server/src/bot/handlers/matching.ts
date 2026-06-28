@@ -203,15 +203,25 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     }
   });
 
-  // ─── Back from gender-pref screen → main menu ───────────────────────────────
-  bot.hears(["🔙 برگشت", "🔙 Back"], async (ctx, next) => {
+  // ─── Back from gender-pref screen or cancel queue ───────────────────────────
+  bot.hears([/^🔙 بازگشت/, /^🔙 Back/], async (ctx, next) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return next();
-    // Only handle here when user is completely idle (not in chat/queue/group)
-    if (user.isInChat || user.isInQueue || user.isInGroup) return next();
     const lang = (user.language as "fa" | "en") ?? "fa";
-    await ctx.reply("📋", { reply_markup: mainMenuKeyboard(lang) });
+
+    // If in queue: cancel queue first, then return to main menu
+    if (user.isInQueue) {
+      await removeFromQueue(tgId);
+      await ctx.reply(t(lang).removedFromQueue, { reply_markup: mainMenuKeyboard(lang) });
+      return;
+    }
+
+    // If in chat or group: let other handlers deal with it
+    if (user.isInChat || user.isInGroup) return next();
+
+    // Idle: return to main menu
+    await ctx.reply("🏠", { reply_markup: mainMenuKeyboard(lang) });
   });
 
   // ─── Match cancel callback ────────────────────────────────────────────────

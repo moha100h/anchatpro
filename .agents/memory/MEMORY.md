@@ -5,7 +5,8 @@
 - [Force join middleware](force-join.md) — admin_settings keys; 5s in-memory cache; invalidateForceJoinCache() after admin changes.
 - [Setup flow](setup-flow.md) — select_language → select_gender → select_age → select_city (skippable with ".") → done.
 - [Lib rebuild required](lib-rebuild.md) — After schema changes in lib/db, run `pnpm run typecheck:libs` (root) before typechecking api-server; otherwise new fields/tables won't appear in compiled types.
-- [UX overhaul patterns](ux-overhaul.md) — Gender labels پسر/دختر; ocean→🔮 دنیای اسرار; persistent sub-menus; group invite tokens; timed anon links; drizzle-kit push needs force+TTY workaround.
+- [UX overhaul patterns](ux-overhaul.md) — Gender labels پسر/دختر; ocean→🔮 دنیای اسرار; persistent sub-menus; group invite tokens; timed anon links; drizzle-kit push needs SQL fallback in non-TTY env.
+- [Back button text bug](back-button-text.md) — fa.ts `back` key is "🔙 بازگشت" (bāzgasht), NOT "🔙 برگشت" (bargasht); always use regex /^🔙 بازگشت/ not exact string; settings.ts catch-all clears ALL session state.
 - [Admin callback conflict rule](admin-callback-conflict.md) — Never register two bot.callbackQuery() handlers with the same string key; Grammy silently runs only the first. Use grep to check for duplicates before adding new callbacks.
 - [Grammy botInfo lazy access](grammy-botinfo-lazy.md) — Never access bot.botInfo at handler-registration time; use a lazy getter inside callback closures.
 - [Pro Anon Link system](pro-anon-link.md) — Two tiers (ap_/ai_ prefixes); proAnonLinksTable; linkType column on anonymousMessages; drizzle-kit push needs SQL fallback in non-TTY env.

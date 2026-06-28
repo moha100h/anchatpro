@@ -1,6 +1,6 @@
 import { db } from "@workspace/db";
 import { usersTable, reportsTable, blocksTable, warningsTable, rateLimitsTable, badWordsTable } from "@workspace/db";
-import { eq, and, gte, gt } from "drizzle-orm";
+import { eq, and, gte, gt, sql } from "drizzle-orm";
 
 // In-memory rate limiter (fallback for fast checks)
 const rateLimitCache = new Map<string, { count: number; resetAt: number }>();
@@ -96,8 +96,50 @@ export async function isBlocked(blockerId: number, blockedId: number): Promise<b
 }
 
 export async function getPendingReportsCount(): Promise<number> {
-  const reports = await db.select().from(reportsTable).where(eq(reportsTable.status, "pending"));
-  return reports.length;
+  const [row] = await db
+    .select({ cnt: sql<number>`cast(count(*) as int)` })
+    .from(reportsTable)
+    .where(eq(reportsTable.status, "pending"));
+  return row?.cnt ?? 0;
+}
+
+export interface PendingReport {
+  id: number;
+  reporterId: number;
+  reportedId: number;
+  reason: string;
+  description: string | null;
+  createdAt: Date;
+}
+
+export async function getPendingReports(limit = 10): Promise<PendingReport[]> {
+  return db
+    .select({
+      id:          reportsTable.id,
+      reporterId:  reportsTable.reporterId,
+      reportedId:  reportsTable.reportedId,
+      reason:      reportsTable.reason,
+      description: reportsTable.description,
+      createdAt:   reportsTable.createdAt,
+    })
+    .from(reportsTable)
+    .where(eq(reportsTable.status, "pending"))
+    .orderBy(reportsTable.createdAt)
+    .limit(limit);
+}
+
+export async function dismissReport(reportId: number, reviewedBy: number): Promise<void> {
+  await db
+    .update(reportsTable)
+    .set({ status: "dismissed", reviewedAt: new Date(), reviewedBy })
+    .where(eq(reportsTable.id, reportId));
+}
+
+export async function markReportReviewed(reportId: number, reviewedBy: number): Promise<void> {
+  await db
+    .update(reportsTable)
+    .set({ status: "reviewed", reviewedAt: new Date(), reviewedBy })
+    .where(eq(reportsTable.id, reportId));
 }
 
 export async function initDefaultBadWords(): Promise<void> {

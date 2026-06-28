@@ -130,7 +130,7 @@ ok "PostgreSQL running"
 # Create database + user with random password
 DB_NAME="anchatbot"
 DB_USER="anchatbot"
-DB_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 28)"
+DB_PASS="$(openssl rand -hex 14 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(14))')"
 DB_HOST="localhost"
 DB_PORT="5432"
 

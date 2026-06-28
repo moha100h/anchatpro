@@ -19,6 +19,27 @@ export interface SessionData {
   sameAgeMatch?: boolean;
   // 🎟️ Gift code input
   giftCodeInput?: boolean;
+  // 💰 Coin purchase discount
+  pendingDiscountCodeId?: number;
+  pendingDiscountPercent?: number;
+  // 📦 Admin package creation temp
+  adminPkgStep?: string;
+  adminPkgCoins?: number;
+  adminPkgPrice?: number;
+  adminPkgDiscount?: number;
+  adminPkgEditId?: number;
+  // 💱 Admin crypto currency creation temp
+  adminCryptoStep?: string;
+  adminCryptoSymbol?: string;
+  adminCryptoName?: string;
+  adminCryptoAddress?: string;
+  adminCryptoNetwork?: string;
+  adminCryptoCoinGeckoId?: string;
+  // 🏷️ Admin discount code creation temp
+  adminDcStep?: string;
+  adminDcCode?: string;
+  adminDcPercent?: number;
+  adminDcMaxUses?: number;
   // 🎁 Admin gift code creation temp
   adminGiftCoins?: number;
   // 🛡️ Admin panel navigation mode

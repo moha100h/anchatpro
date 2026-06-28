@@ -768,7 +768,7 @@ export const en = {
   proLinkDisabled: "❌ This link has been disabled by its owner.",
   proLinkExpired: "⏰ This link has expired or is invalid.",
   proMsgSentConfirm: "✅ Your anonymous message was sent!",
-  proMsgReceived: "📩 <b>You received a Pro anonymous message!</b>",
+  proMsgReceived: "💎 <b>Pro Anonymous Message</b>",
   proRevealSenderInfo: (firstName: string, username: string | null, tgId: number) =>
     `🔍 <b>Sender identity:</b>\n\n` +
     `👤 Name: ${firstName}\n` +

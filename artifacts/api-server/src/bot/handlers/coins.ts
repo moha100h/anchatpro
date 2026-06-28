@@ -9,6 +9,7 @@ import {
 } from "../services/gift.service.js";
 import {
   getPackages,
+  getPackageById,
   createPayment,
   submitReceipt,
   getSetting,
@@ -16,11 +17,70 @@ import {
   getPendingPayment,
   setAdminMessageId,
   cancelPayment,
+  validateDiscountCode,
+  useDiscountCode,
+  getCryptoCurrencies,
+  fetchCryptoPriceWithFallback,
 } from "../services/payment.service.js";
 import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { t } from "../i18n/index.js";
-import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard } from "../keyboards/main.js";
+import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard, coinsPackagesKeyboard } from "../keyboards/main.js";
 import { packagesKeyboard, paymentMethodKeyboard, paymentReviewKeyboard } from "../keyboards/inline.js";
+
+/** Translate a coin transaction type + description to Persian */
+function txLabelFa(type: string, description: string | null): string {
+  if (description) {
+    return description
+      .replace(/\b(27\d{7,}|[1-9]\d{6,})\b/g, "👤 مدیر")
+      .replace(/Purchase of (\d+) coins?/gi, "خرید $1 سکه")
+      .replace(/Admin add[:\s]*/gi, "افزایش مدیر: ")
+      .replace(/Admin remove[:\s]*/gi, "کاهش مدیر: ")
+      .replace(/Referral reward for inviting user \S+/gi, "جایزه دعوت دوست")
+      .replace(/Referral reward/gi, "جایزه دعوت")
+      .replace(/Referral bonus for invited user/gi, "جایزه عضویت با دعوت")
+      .replace(/Connect to male/gi, "اتصال به پسر")
+      .replace(/Connect to female/gi, "اتصال به دختر")
+      .replace(/Connect to any/gi, "اتصال شانسی")
+      .replace(/Permanent anonymous link/gi, "لینک ناشناس ثابت")
+      .replace(/Timed anonymous link/gi, "لینک ناشناس مدت‌دار")
+      .replace(/Gift code redemption/gi, "استفاده از کد هدیه")
+      .replace(/Group create/gi, "ساخت گروه")
+      .replace(/Group join/gi, "پیوستن به گروه")
+      .replace(/Group expand/gi, "افزایش ظرفیت گروه")
+      .replace(/Group promote/gi, "ارتقا به مدیر گروه")
+      .replace(/Pro anonymous link/gi, "لینک ناشناس پرو")
+      .replace(/Magic\s*spend/gi, "ویژگی اسرار");
+  }
+  const map: Record<string, string> = {
+    admin_add:       "💰 افزایش سکه توسط مدیر",
+    admin_remove:    "💸 کاهش سکه توسط مدیر",
+    referral_reward: "🎁 جایزه دعوت دوستان",
+    chat_cost:       "💬 هزینه اتصال ناشناس",
+    group_cost:      "👥 هزینه گروه ناشناس",
+    magic_spend:     "🔮 هزینه ویژگی‌های اسرار",
+    payment:         "🛒 خرید سکه",
+    refund:          "↩️ بازگشت وجه",
+  };
+  return map[type] ?? type;
+}
+
+/** Translate a coin transaction type + description to English */
+function txLabelEn(type: string, description: string | null): string {
+  if (description) {
+    return description.replace(/\b(27\d{7,}|[1-9]\d{6,})\b/g, "Admin");
+  }
+  const map: Record<string, string> = {
+    admin_add:       "💰 Coins added by admin",
+    admin_remove:    "💸 Coins removed by admin",
+    referral_reward: "🎁 Referral reward",
+    chat_cost:       "💬 Chat connection fee",
+    group_cost:      "👥 Group fee",
+    magic_spend:     "🔮 Mystery feature",
+    payment:         "🛒 Coin purchase",
+    refund:          "↩️ Refund",
+  };
+  return map[type] ?? type;
+}
 
 /** Build a Trust Wallet deep-link for USDT TRC20 */
 function buildTrustWalletLink(wallet: string, amountUsdt: number): string {
@@ -51,13 +111,26 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       return;
     }
 
+    // Cancel buying flow (package selection or discount code input)
+    if (ctx.session.step === "buying:package" || ctx.session.step === "buying:discount_code") {
+      ctx.session.step = undefined;
+      ctx.session.pendingPaymentPackageId = undefined;
+      ctx.session.pendingDiscountCodeId   = undefined;
+      ctx.session.pendingDiscountPercent  = undefined;
+      const { coinsSubMenuKeyboard: coinSub } = await import("../keyboards/main.js");
+      await ctx.reply(t(lang).paymentCancelled, { reply_markup: coinSub(lang) });
+      return;
+    }
+
     const pendingPayment = await getPendingPayment(tgId);
     if (pendingPayment) {
       await cancelPayment(pendingPayment.id);
       ctx.session.pendingPaymentPackageId = undefined;
-      ctx.session.pendingPaymentMethod = undefined;
+      ctx.session.pendingPaymentMethod    = undefined;
+      ctx.session.pendingDiscountCodeId   = undefined;
+      ctx.session.pendingDiscountPercent  = undefined;
       await ctx.reply(t(lang).paymentCancelled, { reply_markup: mainMenuKeyboard(lang) });
-      return; // handled
+      return;
     }
 
     return next();
@@ -94,12 +167,15 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     for (const tx of history) {
       const sign = tx.amount > 0 ? "+" : "";
       const date = new Date(tx.createdAt).toLocaleDateString(lang === "fa" ? "fa-IR" : "en-GB");
-      msg += `${sign}${tx.amount} سکه — ${tx.description ?? tx.type} — ${date}\n`;
+      const label = lang === "fa"
+        ? txLabelFa(tx.type, tx.description ?? null)
+        : txLabelEn(tx.type, tx.description ?? null);
+      msg += `${sign}${tx.amount} سکه — ${label} — ${date}\n`;
     }
     await ctx.reply(msg, { parse_mode: "Markdown" });
   });
 
-  // ─── Buy Coins (text button) ───────────────────────────────────────────────
+  // ─── Buy Coins (text button) → persistent keyboard ────────────────────────
   bot.hears(["🛒 خرید سکه", "🛒 Buy Coins"], async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -111,10 +187,14 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       await ctx.reply(lang === "fa" ? "در حال حاضر بسته‌ای موجود نیست." : "No packages available.");
       return;
     }
-    await ctx.reply(t(lang).selectPackage, {
-      parse_mode: "Markdown",
-      reply_markup: packagesKeyboard(packages, lang),
-    });
+    ctx.session.step = "buying:package";
+    ctx.session.pendingPaymentPackageId = undefined;
+    ctx.session.pendingDiscountCodeId = undefined;
+    ctx.session.pendingDiscountPercent = undefined;
+    await ctx.reply(
+      lang === "fa" ? "💰 یک بسته سکه انتخاب کنید:" : "💰 Select a coin package:",
+      { reply_markup: coinsPackagesKeyboard(packages, lang) }
+    );
   });
 
   // ─── Buy coins (inline) ──────────────────────────────────────────────────
@@ -134,7 +214,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     await ctx.answerCallbackQuery();
   });
 
-  // ─── Package selected ────────────────────────────────────────────────────
+  // ─── Package selected (inline buy_coins flow) ────────────────────────────
   bot.callbackQuery(/^pkg:(\d+)$/, async (ctx) => {
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
@@ -142,16 +222,52 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const pkgId = parseInt(ctx.match![1], 10);
 
     ctx.session.pendingPaymentPackageId = pkgId;
+    ctx.session.pendingDiscountCodeId   = undefined;
+    ctx.session.pendingDiscountPercent  = undefined;
 
+    const pkg = await getPackageById(pkgId);
+    const priceStr = pkg?.price.toLocaleString("fa-IR") ?? "";
+    const discPct  = pkg?.discountPercent ?? 0;
+
+    const discKb = new InlineKeyboard()
+      .text(lang === "fa" ? "🏷️ دارم کد تخفیف" : "🏷️ I have a discount code", "discount:enter").row()
+      .text(lang === "fa" ? "⏭️ ندارم، ادامه"   : "⏭️ Skip, continue",         "discount:skip");
+
+    const msg = lang === "fa"
+      ? `✅ بسته انتخاب شد: *${pkg?.coins ?? pkgId} سکه*\n` +
+        `💵 قیمت: *${priceStr} تومان*` +
+        (discPct > 0 ? ` 🔥 (${discPct}% تخفیف)` : "") +
+        `\n\nآیا کد تخفیف دارید؟`
+      : `✅ Package: *${pkg?.coins ?? pkgId} coins*\n💵 Price: *${priceStr} IRT*\n\nDo you have a discount code?`;
+
+    await ctx.editMessageText(msg, { parse_mode: "Markdown", reply_markup: discKb });
+    await ctx.answerCallbackQuery();
+  });
+
+  // ─── Discount code inline prompts ────────────────────────────────────────
+  bot.callbackQuery("discount:enter", async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    ctx.session.step = "buying:discount_code";
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+    await ctx.reply(lang === "fa" ? "🏷️ کد تخفیف خود را وارد کنید:" : "🏷️ Enter your discount code:");
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("discount:skip", async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    ctx.session.pendingDiscountCodeId  = undefined;
+    ctx.session.pendingDiscountPercent = undefined;
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
     const enabled = {
       card:    await isMethodEnabled("card"),
       crypto:  await isMethodEnabled("crypto"),
       gateway: await isMethodEnabled("gateway"),
     };
-
-    await ctx.editMessageText(t(lang).selectPaymentMethod, {
-      reply_markup: paymentMethodKeyboard(lang, enabled),
-    });
+    await ctx.reply(t(lang).selectPaymentMethod, { reply_markup: paymentMethodKeyboard(lang, enabled) });
     await ctx.answerCallbackQuery();
   });
 
@@ -161,11 +277,10 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
     const method = ctx.match![1] as "card" | "crypto" | "gateway";
-    const pkgId = ctx.session.pendingPaymentPackageId;
+    const pkgId  = ctx.session.pendingPaymentPackageId;
 
     if (!pkgId) { await ctx.answerCallbackQuery(); return; }
 
-    // Check if method is enabled
     const enabled = await isMethodEnabled(method);
     if (!enabled) {
       await ctx.editMessageText(t(lang).paymentMethodDisabled);
@@ -173,13 +288,24 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       return;
     }
 
+    const discPct  = ctx.session.pendingDiscountPercent ?? 0;
+    const discCode = ctx.session.pendingDiscountCodeId;
+
+    // ── TetraPay gateway ──────────────────────────────────────────────────
     if (method === "gateway") {
       await ctx.editMessageText(t(lang).gatewayCreating);
-      const payment = await createPayment(tgId, pkgId, "gateway");
+      const payment = await createPayment(tgId, pkgId, "gateway", {
+        discountPercent: discPct,
+        discountCodeId:  discCode,
+      });
+      if (discCode) {
+        await useDiscountCode(discCode).catch(() => {});
+        ctx.session.pendingDiscountCodeId  = undefined;
+        ctx.session.pendingDiscountPercent = undefined;
+      }
       ctx.session.pendingPaymentMethod = "gateway";
 
-      // Create TetraPay order (price is in Toman; TetraPay expects Rial = Toman × 10)
-      const desc = lang === "fa" ? `خرید ${payment.coins} سکه` : `Purchase ${payment.coins} coins`;
+      const desc   = lang === "fa" ? `خرید ${payment.coins} سکه` : `Purchase ${payment.coins} coins`;
       const result = await createTetraPayOrder(payment.id, tgId, payment.price * 10, desc);
 
       if (!result.success) {
@@ -189,7 +315,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       }
 
       const info = t(lang).gatewayPaymentInfo(payment.price);
-      const kb = new InlineKeyboard();
+      const kb   = new InlineKeyboard();
       if (result.paymentUrlBot) kb.url(t(lang).openPaymentBot, result.paymentUrlBot).row();
       if (result.paymentUrlWeb) kb.url(t(lang).openPaymentWeb, result.paymentUrlWeb);
       await ctx.editMessageText(info, { parse_mode: "Markdown", reply_markup: kb });
@@ -197,43 +323,171 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       return;
     }
 
-    const payment = await createPayment(tgId, pkgId, method);
-    ctx.session.pendingPaymentMethod = method;
-
+    // ── Card ──────────────────────────────────────────────────────────────
     if (method === "card") {
-      const cardNo = await getSetting("card_number") ?? "6219-8610-0000-0000";
-      const info = t(lang).cardPaymentInfo(cardNo, payment.price);
-      await ctx.editMessageText(info, { parse_mode: "Markdown" });
+      const [cardNo, holderName, bankName] = await Promise.all([
+        getSetting("card_number"),
+        getSetting("card_holder_name"),
+        getSetting("card_bank_name"),
+      ]);
+      const payment = await createPayment(tgId, pkgId, "card", {
+        discountPercent: discPct,
+        discountCodeId:  discCode,
+      });
+      if (discCode) {
+        await useDiscountCode(discCode).catch(() => {});
+        ctx.session.pendingDiscountCodeId  = undefined;
+        ctx.session.pendingDiscountPercent = undefined;
+      }
+      ctx.session.pendingPaymentMethod = "card";
 
-      // Show upload receipt prompt with cancel keyboard (reply keyboard)
-      const cancelKb = {
-        keyboard: [[{ text: t(lang).cancel }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      };
-      await ctx.reply(t(lang).uploadReceipt, { reply_markup: cancelKb });
+      const priceStr = payment.price.toLocaleString("fa-IR");
+      const info = lang === "fa"
+        ? `💳 <b>اطلاعات پرداخت کارت بانکی</b>\n\n` +
+          (bankName   ? `🏦 بانک: <b>${bankName}</b>\n`        : "") +
+          (holderName ? `👤 صاحب کارت: <b>${holderName}</b>\n` : "") +
+          `💳 شماره کارت:\n<code>${cardNo ?? "6219-8610-0000-0000"}</code>\n\n` +
+          `💰 مبلغ واریز: <b>${priceStr} تومان</b>` +
+          (discPct > 0 ? ` 🔥 <i>(تخفیف ${discPct}% اعمال شد)</i>` : "") +
+          `\n\n📸 پس از واریز، تصویر رسید را ارسال کنید.`
+        : `💳 <b>Bank Card Payment</b>\n\n` +
+          (bankName   ? `🏦 Bank: <b>${bankName}</b>\n`          : "") +
+          (holderName ? `👤 Holder: <b>${holderName}</b>\n`      : "") +
+          `💳 Card number:\n<code>${cardNo ?? "6219-8610-0000-0000"}</code>\n\n` +
+          `💰 Amount: <b>${payment.price.toLocaleString()} IRT</b>` +
+          (discPct > 0 ? ` 🔥 <i>(${discPct}% discount applied)</i>` : "") +
+          `\n\n📸 Send your receipt photo after transfer.`;
 
-    } else if (method === "crypto") {
-      const wallet = await getSetting("crypto_wallet") ?? "TYour...WalletAddress";
-      const amountUsdt = (payment.price / 30000).toFixed(2); // rough IRT→USDT conversion
-      const amount = `${amountUsdt} USDT`;
-      const info = t(lang).cryptoPaymentInfo(wallet, amount);
-
-      // Build payment link button (Trust Wallet deep-link)
-      const trustLink = buildTrustWalletLink(wallet, parseFloat(amountUsdt));
-      const linkKb = new InlineKeyboard().url(t(lang).cryptoPaymentLinkBtn, trustLink);
-
-      await ctx.editMessageText(info, { parse_mode: "Markdown", reply_markup: linkKb });
-
-      // Show upload receipt prompt with cancel keyboard
-      const cancelKb = {
-        keyboard: [[{ text: t(lang).cancel }]],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      };
-      await ctx.reply(t(lang).uploadReceipt, { reply_markup: cancelKb });
+      await ctx.editMessageText(info, { parse_mode: "HTML" });
+      await ctx.reply(t(lang).uploadReceipt, {
+        reply_markup: { keyboard: [[{ text: t(lang).cancel }]], resize_keyboard: true, one_time_keyboard: true },
+      });
+      await ctx.answerCallbackQuery();
+      return;
     }
 
+    // ── Crypto (multi-currency) ───────────────────────────────────────────
+    if (method === "crypto") {
+      const currencies = await getCryptoCurrencies();
+      if (currencies.length > 1) {
+        // Multi-currency: show selection first (don't create payment yet)
+        const currKb = new InlineKeyboard();
+        currencies.forEach((c, i) => {
+          currKb.text(`${c.symbol} (${c.network})`, `crypto_buy:${i}`).row();
+        });
+        await ctx.editMessageText(
+          lang === "fa" ? "💱 ارز دیجیتال خود را انتخاب کنید:" : "💱 Select your cryptocurrency:",
+          { reply_markup: currKb }
+        );
+        await ctx.answerCallbackQuery();
+        return;
+      }
+
+      // Single currency or fallback
+      const c       = currencies[0];
+      const wallet  = c?.address ?? (await getSetting("crypto_wallet")) ?? "TYour...WalletAddress";
+      const symbol  = c?.symbol  ?? "USDT";
+      const network = c?.network ?? "TRC20";
+      const name    = c?.name    ?? "Tether";
+      const cgId    = c?.coinGeckoId ?? "tether";
+
+      const payment = await createPayment(tgId, pkgId, "crypto", {
+        discountPercent: discPct,
+        discountCodeId:  discCode,
+      });
+      if (discCode) {
+        await useDiscountCode(discCode).catch(() => {});
+        ctx.session.pendingDiscountCodeId  = undefined;
+        ctx.session.pendingDiscountPercent = undefined;
+      }
+      ctx.session.pendingPaymentMethod = "crypto";
+
+      const priceIrt = await fetchCryptoPriceWithFallback(cgId);
+      let amountRaw  = priceIrt && priceIrt > 0
+        ? payment.price / priceIrt
+        : payment.price / 30000;
+      const amountStr = amountRaw < 0.001
+        ? `${amountRaw.toFixed(8)} ${symbol}`
+        : `${amountRaw.toFixed(6)} ${symbol}`;
+
+      const info = lang === "fa"
+        ? `₿ <b>پرداخت با ${name} (${network})</b>\n\n` +
+          `💰 مبلغ: <b>${amountStr}</b>` +
+          (discPct > 0 ? ` 🔥 <i>(تخفیف ${discPct}% اعمال شد)</i>` : "") +
+          `\n📋 آدرس کیف پول:\n<code>${wallet}</code>\n\n` +
+          `⚠️ <b>فقط شبکه ${network} قبول می‌شود</b>\n📸 پس از انتقال، رسید را ارسال کنید.`
+        : `₿ <b>Pay with ${name} (${network})</b>\n\n` +
+          `💰 Amount: <b>${amountStr}</b>\n📋 Wallet:\n<code>${wallet}</code>\n\n` +
+          `⚠️ <b>Only ${network} network accepted</b>\n📸 Send receipt after transfer.`;
+
+      let linkKb: InlineKeyboard | undefined;
+      if (symbol === "USDT" && network === "TRC20") {
+        linkKb = new InlineKeyboard().url(t(lang).cryptoPaymentLinkBtn, buildTrustWalletLink(wallet, amountRaw));
+      }
+
+      await ctx.editMessageText(info, { parse_mode: "HTML", reply_markup: linkKb });
+      await ctx.reply(t(lang).uploadReceipt, {
+        reply_markup: { keyboard: [[{ text: t(lang).cancel }]], resize_keyboard: true, one_time_keyboard: true },
+      });
+      await ctx.answerCallbackQuery();
+    }
+  });
+
+  // ─── Multi-currency crypto: currency selected ─────────────────────────────
+  bot.callbackQuery(/^crypto_buy:(\d+)$/, async (ctx) => {
+    const tgId    = ctx.from!.id;
+    const user    = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang    = (user?.language as "fa" | "en") ?? "fa";
+    const pkgId   = ctx.session.pendingPaymentPackageId;
+    if (!pkgId) { await ctx.answerCallbackQuery(); return; }
+
+    const currencies = await getCryptoCurrencies();
+    const idx = parseInt(ctx.match![1], 10);
+    const c   = currencies[idx];
+    if (!c) { await ctx.answerCallbackQuery("❌"); return; }
+
+    const discPct  = ctx.session.pendingDiscountPercent ?? 0;
+    const discCode = ctx.session.pendingDiscountCodeId;
+
+    const payment = await createPayment(tgId, pkgId, "crypto", {
+      discountPercent: discPct,
+      discountCodeId:  discCode,
+    });
+    if (discCode) {
+      await useDiscountCode(discCode).catch(() => {});
+      ctx.session.pendingDiscountCodeId  = undefined;
+      ctx.session.pendingDiscountPercent = undefined;
+    }
+    ctx.session.pendingPaymentMethod = "crypto";
+
+    const cgId     = c.coinGeckoId ?? c.symbol.toLowerCase();
+    const priceIrt = await fetchCryptoPriceWithFallback(cgId);
+    let amountRaw  = priceIrt && priceIrt > 0
+      ? payment.price / priceIrt
+      : payment.price / 30000;
+    const amountStr = amountRaw < 0.001
+      ? `${amountRaw.toFixed(8)} ${c.symbol}`
+      : `${amountRaw.toFixed(6)} ${c.symbol}`;
+
+    const info = lang === "fa"
+      ? `₿ <b>پرداخت با ${c.name} (${c.network})</b>\n\n` +
+        `💰 مبلغ: <b>${amountStr}</b>` +
+        (discPct > 0 ? ` 🔥 <i>(تخفیف ${discPct}% اعمال شد)</i>` : "") +
+        `\n📋 آدرس:\n<code>${c.address}</code>\n\n` +
+        `⚠️ <b>فقط شبکه ${c.network} قبول می‌شود</b>\n📸 رسید را پس از انتقال ارسال کنید.`
+      : `₿ <b>Pay with ${c.name} (${c.network})</b>\n\n` +
+        `💰 Amount: <b>${amountStr}</b>\n📋 Address:\n<code>${c.address}</code>\n\n` +
+        `⚠️ <b>Only ${c.network} network accepted</b>\n📸 Send receipt after transfer.`;
+
+    let linkKb: InlineKeyboard | undefined;
+    if (c.symbol === "USDT" && c.network === "TRC20") {
+      linkKb = new InlineKeyboard().url(t(lang).cryptoPaymentLinkBtn, buildTrustWalletLink(c.address, amountRaw));
+    }
+
+    await ctx.editMessageText(info, { parse_mode: "HTML", reply_markup: linkKb });
+    await ctx.reply(t(lang).uploadReceipt, {
+      reply_markup: { keyboard: [[{ text: t(lang).cancel }]], resize_keyboard: true, one_time_keyboard: true },
+    });
     await ctx.answerCallbackQuery();
   });
 
@@ -249,26 +503,124 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const fileId = ctx.message.photo.at(-1)!.file_id;
     await submitReceipt(pendingPayment.id, fileId);
 
-    // Clear session state
     ctx.session.pendingPaymentPackageId = undefined;
-    ctx.session.pendingPaymentMethod = undefined;
+    ctx.session.pendingPaymentMethod    = undefined;
 
     await ctx.reply(t(lang).receiptSubmitted, { reply_markup: mainMenuKeyboard(lang) });
 
-    // Forward to admin review group
-    const adminGroupId = await getSetting("payment_review_group");
-    if (adminGroupId) {
-      const groupId = parseInt(adminGroupId, 10);
+    // Route receipt to per-gateway review group (with fallback to payment_review_group)
+    const METHOD_GROUP_SETTING: Record<string, string> = {
+      card:    "card_review_group",
+      crypto:  "crypto_review_group",
+      gateway: "tetrapay_review_group",
+    };
+    const groupKey = METHOD_GROUP_SETTING[pendingPayment.method] ?? "payment_review_group";
+    const rawGroupId = (await getSetting(groupKey)) ?? (await getSetting("payment_review_group"));
+    if (rawGroupId) {
+      const groupId  = parseInt(rawGroupId, 10);
       const reviewText = t("fa").paymentReviewMsg(pendingPayment);
       const msg = await bot.api
         .sendPhoto(groupId, fileId, {
-          caption: reviewText,
+          caption:      reviewText,
           reply_markup: paymentReviewKeyboard(pendingPayment.id, "fa"),
-          parse_mode: "Markdown",
+          parse_mode:   "Markdown",
         })
         .catch(() => null);
       if (msg) await setAdminMessageId(pendingPayment.id, msg.message_id, groupId);
     }
+  });
+
+  // ─── Text: package selection (persistent keyboard) ───────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    if (ctx.session.step !== "buying:package") return next();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    const text = ctx.message.text;
+
+    // Back button
+    if (/^🔙/.test(text)) {
+      ctx.session.step = undefined;
+      ctx.session.pendingPaymentPackageId = undefined;
+      ctx.session.pendingDiscountCodeId   = undefined;
+      ctx.session.pendingDiscountPercent  = undefined;
+      await ctx.reply(t(lang).coinsBalance(user?.coins ?? 0), {
+        parse_mode:   "Markdown",
+        reply_markup: coinsSubMenuKeyboard(lang),
+      });
+      return;
+    }
+
+    // Match "💎 N سکه | ..." or "💎 label | ..."
+    const match = text.match(/💎\s*(\d+)/);
+    if (!match) return next();
+    const coins = parseInt(match[1], 10);
+    const packages = await getPackages();
+    const pkg = packages.find(p => p.coins === coins);
+    if (!pkg) return next();
+
+    ctx.session.step = undefined;
+    ctx.session.pendingPaymentPackageId = pkg.id;
+    ctx.session.pendingDiscountCodeId   = undefined;
+    ctx.session.pendingDiscountPercent  = undefined;
+
+    const priceStr = pkg.price.toLocaleString("fa-IR");
+    const discPct  = pkg.discountPercent ?? 0;
+
+    const discKb = new InlineKeyboard()
+      .text(lang === "fa" ? "🏷️ دارم کد تخفیف" : "🏷️ I have a discount code", "discount:enter").row()
+      .text(lang === "fa" ? "⏭️ ندارم، ادامه"   : "⏭️ Skip, continue",         "discount:skip");
+
+    const msg = lang === "fa"
+      ? `✅ بسته انتخاب شد: *${pkg.coins} سکه*\n` +
+        `💵 قیمت: *${priceStr} تومان*` +
+        (discPct > 0 ? ` 🔥 (${discPct}% تخفیف)` : "") +
+        `\n\nآیا کد تخفیف دارید؟`
+      : `✅ Package: *${pkg.coins} coins*\n💵 Price: *${priceStr} IRT*\n\nDiscount code?`;
+
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: discKb });
+  });
+
+  // ─── Text: discount code input ────────────────────────────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    if (ctx.session.step !== "buying:discount_code") return next();
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+    ctx.session.step = undefined;
+    const code = ctx.message.text.trim();
+
+    const result = await validateDiscountCode(code);
+    if (!result.valid) {
+      const errMap: Record<string, string> = {
+        invalid: lang === "fa" ? "❌ کد تخفیف معتبر نیست." : "❌ Invalid discount code.",
+        expired: lang === "fa" ? "❌ این کد منقضی شده."     : "❌ This code has expired.",
+        used_up: lang === "fa" ? "❌ این کد به حداکثر استفاده رسیده." : "❌ Code usage limit reached.",
+      };
+      const retryKb = new InlineKeyboard()
+        .text(lang === "fa" ? "🔄 دوباره امتحان"  : "🔄 Try again", "discount:enter").row()
+        .text(lang === "fa" ? "⏭️ بدون کد ادامه" : "⏭️ Continue without code", "discount:skip");
+      await ctx.reply((errMap[result.error ?? "invalid"] ?? errMap.invalid));
+      await ctx.reply(lang === "fa" ? "چه می‌خواهید بکنید؟" : "What would you like to do?", { reply_markup: retryKb });
+      return;
+    }
+
+    ctx.session.pendingDiscountCodeId   = result.codeId;
+    ctx.session.pendingDiscountPercent  = result.discountPercent;
+
+    await ctx.reply(
+      lang === "fa"
+        ? `✅ کد تخفیف *${result.discountPercent}%* با موفقیت اعمال شد! 🎉`
+        : `✅ Discount code applied: *${result.discountPercent}%* off! 🎉`,
+      { parse_mode: "Markdown" }
+    );
+
+    const enabled = {
+      card:    await isMethodEnabled("card"),
+      crypto:  await isMethodEnabled("crypto"),
+      gateway: await isMethodEnabled("gateway"),
+    };
+    await ctx.reply(t(lang).selectPaymentMethod, { reply_markup: paymentMethodKeyboard(lang, enabled) });
   });
 
   // ─── Admin: approve payment ───────────────────────────────────────────────

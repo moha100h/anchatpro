@@ -805,7 +805,8 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
             .from(proAnonLinksTable)
             .where(eq(proAnonLinksTable.id, original.proLinkId))
             .limit(1);
-          replierName = pl?.displayName ?? pl?.alias ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
+          const linkOwner = await getUserByTelegramId(original.receiverId);
+          replierName = pl?.displayName ?? pl?.alias ?? linkOwner?.firstName ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
         } else {
           replierName = user?.firstName ?? (lang === "fa" ? "کاربر" : "User");
         }

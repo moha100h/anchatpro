@@ -12,3 +12,4 @@
 - [Admin callback conflict rule](admin-callback-conflict.md) — Never register two bot.callbackQuery() handlers with the same string key; Grammy silently runs only the first. Use grep to check for duplicates before adding new callbacks.
 - [Grammy botInfo lazy access](grammy-botinfo-lazy.md) — Never access bot.botInfo at handler-registration time; use a lazy getter inside callback closures.
 - [Pro Anon Link system](pro-anon-link.md) — Two tiers (ap_/ai_ prefixes); proAnonLinksTable; linkType column on anonymousMessages; drizzle-kit push needs SQL fallback in non-TTY env.
+- [Payment system v2](payment-v2.md) — Persistent package keyboard; discount codes; per-gateway review groups; multi-currency crypto via CoinGecko; professional card display.

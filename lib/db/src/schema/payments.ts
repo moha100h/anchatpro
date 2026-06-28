@@ -10,6 +10,8 @@ export const paymentPackagesTable = pgTable("payment_packages", {
   id: serial("id").primaryKey(),
   coins: integer("coins").notNull(),
   price: integer("price").notNull(),
+  originalPrice: integer("original_price"),
+  discountPercent: integer("discount_percent").default(0).notNull(),
   currency: varchar("currency", { length: 10 }).default("IRT").notNull(),
   label: varchar("label", { length: 100 }),
   isActive: boolean("is_active").default(true).notNull(),
@@ -52,8 +54,20 @@ export const tetraPayTransactionsTable = pgTable("tetrapay_transactions", {
   verifiedAt: timestamp("verified_at"),
 });
 
+export const discountCodesTable = pgTable("discount_codes", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(),
+  discountPercent: integer("discount_percent").notNull(),
+  maxUses: integer("max_uses"),
+  usedCount: integer("used_count").default(0).notNull(),
+  expiresAt: timestamp("expires_at"),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertPaymentSchema = createInsertSchema(paymentsTable).omit({ id: true });
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type Payment = typeof paymentsTable.$inferSelect;
 export type PaymentPackage = typeof paymentPackagesTable.$inferSelect;
 export type TetraPayTransaction = typeof tetraPayTransactionsTable.$inferSelect;
+export type DiscountCode = typeof discountCodesTable.$inferSelect;

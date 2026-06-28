@@ -247,7 +247,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         }
 
         ctx.session.step = `pro_send:${proLink.userId}:${proLink.id}:permanent`;
-        const ownerName = proLink.displayName ?? proLink.alias ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
+        const ownerUser = await getUserByTelegramId(proLink.userId);
+        const ownerName = proLink.displayName ?? proLink.alias ?? ownerUser?.firstName ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
         const greeting = proLink.welcomeMessage
           ? t(sLang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
           : t(sLang).proLinkDefaultGreeting(ownerName);
@@ -292,7 +293,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         }
 
         ctx.session.step = `pro_send:${proLink.userId}:${proLink.id}:inapp`;
-        const ownerName = proLink.displayName ?? proLink.alias ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
+        const ownerUserInApp = await getUserByTelegramId(proLink.userId);
+        const ownerName = proLink.displayName ?? proLink.alias ?? ownerUserInApp?.firstName ?? (sLang === "fa" ? "ناشناس" : "Anonymous");
         const greeting = proLink.welcomeMessage
           ? t(sLang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
           : t(sLang).proLinkDefaultGreeting(ownerName);

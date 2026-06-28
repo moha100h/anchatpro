@@ -32,7 +32,19 @@ import {
   verifyBackupGroup,
   getBackupConfig,
 } from "../services/backup.service.js";
-import { setSetting, getSetting } from "../services/payment.service.js";
+import {
+  setSetting,
+  getSetting,
+  getAllPackages,
+  getPackageById,
+  createPackage,
+  updatePackage,
+  createDiscountCode,
+  listDiscountCodes,
+  toggleDiscountCode,
+  getCryptoCurrencies,
+  saveCryptoCurrencies,
+} from "../services/payment.service.js";
 import { getTetraPayCallbackUrl } from "../../lib/base-url.js";
 import { getTotalChats } from "../services/matching.service.js";
 import { db } from "@workspace/db";
@@ -107,9 +119,11 @@ export const ADMIN_BTN = {
   FORCE_JOIN:  "📢 فورس جوین",
   ADMINS:      "👥 مدیریت ادمین‌ها",
   // Payment sub-menu
-  CARD:        "💳 کارت بانکی",
-  CRYPTO:      "₿ ارز دیجیتال",
-  TETRAPAY:    "🔷 TetraPay",
+  CARD:           "💳 کارت بانکی",
+  CRYPTO:         "₿ ارز دیجیتال",
+  TETRAPAY:       "🔷 TetraPay",
+  PACKAGES:       "📦 بسته‌های سکه",
+  DISCOUNT_CODES: "🏷️ کدهای تخفیف",
   // Sub-menu back
   BACK_PANEL:  "🔙 پنل ادمین",
 } as const;
@@ -151,6 +165,7 @@ function adminPaymentKeyboard(): Keyboard {
   return new Keyboard()
     .text(ADMIN_BTN.CARD).text(ADMIN_BTN.CRYPTO).row()
     .text(ADMIN_BTN.TETRAPAY).row()
+    .text(ADMIN_BTN.PACKAGES).text(ADMIN_BTN.DISCOUNT_CODES).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
 }
@@ -494,20 +509,29 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.CARD, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
-    const cardNo      = await getSetting("card_number") ?? "تنظیم نشده";
-    const reviewGroup = await getSetting("payment_review_group") ?? "تنظیم نشده";
-    const cardEnabled = (await getSetting("payment_method_card") ?? "enabled") !== "disabled";
+    const [cardNo, holderName, bankName, reviewGroup, methodVal] = await Promise.all([
+      getSetting("card_number"),
+      getSetting("card_holder_name"),
+      getSetting("card_bank_name"),
+      getSetting("card_review_group"),
+      getSetting("payment_method_card"),
+    ]);
+    const cardEnabled = (methodVal ?? "enabled") !== "disabled";
     await ctx.reply(
       `💳 *کارت بانکی*\n\n` +
       `وضعیت: ${cardEnabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
-      `شماره کارت: \`${cardNo}\`\n` +
-      `گروه بررسی: \`${reviewGroup}\``,
+      `شماره کارت: \`${cardNo ?? "تنظیم نشده"}\`\n` +
+      `نام صاحب کارت: \`${holderName ?? "تنظیم نشده"}\`\n` +
+      `نام بانک: \`${bankName ?? "تنظیم نشده"}\`\n` +
+      `گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\``,
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "✏️ شماره کارت",       callback_data: "pay_set:card_number" }],
-            [{ text: "✏️ گروه بررسی پرداخت", callback_data: "pay_set:payment_review_group" }],
+            [{ text: "✏️ شماره کارت",        callback_data: "pay_set:card_number" }],
+            [{ text: "✏️ نام صاحب کارت",     callback_data: "pay_set:card_holder_name" }],
+            [{ text: "✏️ نام بانک",           callback_data: "pay_set:card_bank_name" }],
+            [{ text: "✏️ گروه بررسی کارت",   callback_data: "pay_set:card_review_group" }],
             [{ text: cardEnabled ? "❌ غیرفعال کردن کارت" : "✅ فعال کردن کارت", callback_data: "pay_toggle:card" }],
           ],
         },
@@ -518,17 +542,28 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.CRYPTO, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
-    const wallet        = await getSetting("crypto_wallet") ?? "تنظیم نشده";
-    const cryptoEnabled = (await getSetting("payment_method_crypto") ?? "enabled") !== "disabled";
+    const [reviewGroup, methodVal] = await Promise.all([
+      getSetting("crypto_review_group"),
+      getSetting("payment_method_crypto"),
+    ]);
+    const cryptoEnabled = (methodVal ?? "enabled") !== "disabled";
+    const currencies = await getCryptoCurrencies();
+    const currList = currencies.length > 0
+      ? currencies.map((c, i) =>
+          `  ${i + 1}. *${c.symbol}* (${c.network}): \`${c.address.slice(0, 14)}...\``
+        ).join("\n")
+      : "  _هیچ ارزی تنظیم نشده_";
     await ctx.reply(
       `₿ *ارز دیجیتال*\n\n` +
       `وضعیت: ${cryptoEnabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
-      `آدرس کیف پول: \`${wallet}\``,
+      `گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\`\n\n` +
+      `💱 ارزهای فعال:\n${currList}`,
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: "✏️ آدرس کیف پول",      callback_data: "pay_set:crypto_wallet" }],
+            [{ text: "✏️ گروه بررسی کریپتو",  callback_data: "pay_set:crypto_review_group" }],
+            [{ text: "💱 مدیریت ارزها",        callback_data: "admin_crypto:list" }],
             [{ text: cryptoEnabled ? "❌ غیرفعال کردن کریپتو" : "✅ فعال کردن کریپتو", callback_data: "pay_toggle:crypto" }],
           ],
         },
@@ -539,12 +574,17 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.TETRAPAY, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
-    const apiKey    = await getSetting("tetrapay_api_key");
-    const cbUrl     = await getSetting("tetrapay_callback_url");
-    const gwEnabled = (await getSetting("payment_method_gateway") ?? "enabled") !== "disabled";
+    const [apiKey, cbUrl, reviewGroup, methodVal] = await Promise.all([
+      getSetting("tetrapay_api_key"),
+      getSetting("tetrapay_callback_url"),
+      getSetting("tetrapay_review_group"),
+      getSetting("payment_method_gateway"),
+    ]);
+    const gwEnabled = (methodVal ?? "enabled") !== "disabled";
     await ctx.reply(
       t("fa").tetraPayStatus(!!apiKey, cbUrl ?? null) +
-      `\n\nوضعیت درگاه: ${gwEnabled ? "✅ فعال" : "❌ غیرفعال"}`,
+      `\n\nوضعیت درگاه: ${gwEnabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
+      `گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\``,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -552,11 +592,61 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: t("fa").setApiKey,             callback_data: "pay_set:tetrapay_api_key" }],
             [{ text: t("fa").autoDetectCallbackUrl, callback_data: "tetrapay:auto_url" }],
             [{ text: t("fa").setCallbackUrl,        callback_data: "pay_set:tetrapay_callback_url" }],
+            [{ text: "✏️ گروه بررسی TetraPay",    callback_data: "pay_set:tetrapay_review_group" }],
             [{ text: gwEnabled ? "❌ غیرفعال کردن درگاه" : "✅ فعال کردن درگاه", callback_data: "pay_toggle:gateway" }],
           ],
         },
       }
     );
+  });
+
+  // ─── Package management ────────────────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.PACKAGES, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
+    const packages = await getAllPackages();
+    const kb: Array<Array<{ text: string; callback_data: string }>> = [];
+    let msg = "📦 *بسته‌های سکه:*\n\n";
+    if (packages.length === 0) {
+      msg += "_هیچ بسته‌ای وجود ندارد_\n";
+    } else {
+      for (const pkg of packages) {
+        const status = pkg.isActive ? "✅" : "❌";
+        const disc   = (pkg.discountPercent ?? 0) > 0 ? ` 🔥-${pkg.discountPercent}%` : "";
+        const label  = pkg.label ? ` (${pkg.label})` : "";
+        msg += `${status} ${pkg.coins} سکه${label} | ${pkg.price.toLocaleString("fa-IR")} تومان${disc} — #${pkg.id}\n`;
+        kb.push([
+          { text: `✏️ ویرایش #${pkg.id}`,     callback_data: `admin_pkg:edit:${pkg.id}` },
+          { text: pkg.isActive ? `🚫 غیرفعال` : `✅ فعال`, callback_data: `admin_pkg:toggle:${pkg.id}` },
+        ]);
+      }
+    }
+    kb.push([{ text: "➕ افزودن بسته جدید", callback_data: "admin_pkg:create" }]);
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
+  });
+
+  // ─── Discount code management ──────────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.DISCOUNT_CODES, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
+    const codes = await listDiscountCodes();
+    const kb: Array<Array<{ text: string; callback_data: string }>> = [];
+    let msg = "🏷️ *کدهای تخفیف:*\n\n";
+    if (codes.length === 0) {
+      msg += "_هیچ کدی وجود ندارد_\n";
+    } else {
+      for (const dc of codes) {
+        const status = dc.isActive ? "✅" : "❌";
+        const uses   = dc.maxUses != null ? `${dc.usedCount}/${dc.maxUses}` : `${dc.usedCount}/∞`;
+        msg += `${status} \`${dc.code}\` — ${dc.discountPercent}% — استفاده: ${uses}\n`;
+        kb.push([{
+          text: dc.isActive ? `❌ غیرفعال ${dc.code}` : `✅ فعال ${dc.code}`,
+          callback_data: `admin_dc:toggle:${dc.id}:${dc.isActive ? "off" : "on"}`,
+        }]);
+      }
+    }
+    kb.push([{ text: "➕ ساخت کد تخفیف جدید", callback_data: "admin_dc:create" }]);
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
   });
 
   // ── Callback: admin:panel — legacy support (from inline back buttons) ─────────
@@ -623,8 +713,13 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     ctx.session.adminAction = `set_setting:${key}`;
     const labels: Record<string, string> = {
       card_number:              "شماره کارت بانکی",
+      card_holder_name:         "نام صاحب کارت",
+      card_bank_name:           "نام بانک",
+      card_review_group:        "گروه بررسی کارت (ID)",
       crypto_wallet:            "آدرس کیف پول ارز دیجیتال",
-      payment_review_group:     "آیدی گروه بررسی پرداخت",
+      crypto_review_group:      "گروه بررسی کریپتو (ID)",
+      tetrapay_review_group:    "گروه بررسی TetraPay (ID)",
+      payment_review_group:     "آیدی گروه بررسی پرداخت (پیش‌فرض)",
       group_create_cost:        "هزینه ساخت گروه (سکه)",
       group_join_cost:          "هزینه پیوستن به گروه (سکه)",
       group_slot_expand_cost:   "هزینه افزایش ظرفیت گروه (سکه)",
@@ -665,6 +760,113 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await setSetting("tetrapay_callback_url", url);
     await ctx.answerCallbackQuery("✅ URL تنظیم شد");
     await ctx.reply(t("fa").callbackUrlAutoSet(url), { parse_mode: "Markdown" });
+  });
+
+  // ── Callbacks: package CRUD ───────────────────────────────────────────────────
+  bot.callbackQuery("admin_pkg:create", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.adminAction   = "admin_pkg_create_coins";
+    ctx.session.adminPkgStep  = "coins";
+    await ctx.reply("📦 *ساخت بسته جدید*\n\n*مرحله ۱/۴:* تعداد سکه را وارد کنید:", { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^admin_pkg:edit:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id = parseInt(ctx.match![1], 10);
+    ctx.session.adminPkgEditId = id;
+    await ctx.reply(`✏️ ویرایش بسته #${id}\n\nکدام فیلد را ویرایش می‌کنید؟`, {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "💎 تعداد سکه",     callback_data: `pkg_edit_field:${id}:coins`    }],
+          [{ text: "💵 قیمت (تومان)", callback_data: `pkg_edit_field:${id}:price`    }],
+          [{ text: "🔥 درصد تخفیف",  callback_data: `pkg_edit_field:${id}:discount` }],
+          [{ text: "🏷️ عنوان",        callback_data: `pkg_edit_field:${id}:label`    }],
+        ],
+      },
+    });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^admin_pkg:toggle:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id  = parseInt(ctx.match![1], 10);
+    const pkg = await getPackageById(id);
+    if (!pkg) { await ctx.answerCallbackQuery("بسته یافت نشد"); return; }
+    await updatePackage(id, { isActive: !pkg.isActive });
+    await ctx.reply(`${!pkg.isActive ? "✅ فعال" : "🚫 غیرفعال"} شد: بسته #${id} (${pkg.coins} سکه)`);
+    await ctx.answerCallbackQuery("✅");
+  });
+
+  bot.callbackQuery(/^pkg_edit_field:(\d+):(coins|price|discount|label)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id    = parseInt(ctx.match![1], 10);
+    const field = ctx.match![2]!;
+    ctx.session.adminPkgEditId = id;
+    ctx.session.adminAction    = `pkg_edit:${id}:${field}`;
+    const labels: Record<string, string> = {
+      coins:    "تعداد سکه (عدد مثبت)",
+      price:    "قیمت تومان (عدد مثبت)",
+      discount: "درصد تخفیف ۰-۱۰۰",
+      label:    "عنوان بسته (یا - برای حذف)",
+    };
+    await ctx.reply(`✏️ مقدار جدید *${labels[field]}* را وارد کنید:`, { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Callbacks: discount codes ─────────────────────────────────────────────────
+  bot.callbackQuery("admin_dc:create", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.adminAction = "dc_create_code";
+    await ctx.reply("🏷️ *ساخت کد تخفیف*\n\n*مرحله ۱/۳:* کد را وارد کنید (حروف انگلیسی/عدد):", { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^admin_dc:toggle:(\d+):(on|off)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id     = parseInt(ctx.match![1], 10);
+    const active = ctx.match![2] === "on";
+    await toggleDiscountCode(id, active);
+    await ctx.reply(active ? "✅ کد تخفیف فعال شد." : "❌ کد تخفیف غیرفعال شد.");
+    await ctx.answerCallbackQuery("✅");
+  });
+
+  // ── Callbacks: crypto currency management ─────────────────────────────────────
+  bot.callbackQuery("admin_crypto:list", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const currencies = await getCryptoCurrencies();
+    const kb: Array<Array<{ text: string; callback_data: string }>> = [];
+    let msg = "💱 *ارزهای دیجیتال:*\n\n";
+    if (currencies.length === 0) {
+      msg += "_هیچ ارزی تنظیم نشده_\n";
+    } else {
+      currencies.forEach((c, i) => {
+        msg += `${i + 1}. *${c.symbol}* (${c.network})\n   \`${c.address.slice(0, 20)}...\`\n`;
+        kb.push([{ text: `🗑️ حذف ${c.symbol}`, callback_data: `admin_crypto:remove:${i}` }]);
+      });
+    }
+    kb.push([{ text: "➕ افزودن ارز", callback_data: "admin_crypto:add" }]);
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("admin_crypto:add", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.adminAction     = "crypto_add_symbol";
+    ctx.session.adminCryptoStep = "symbol";
+    await ctx.reply("💱 *افزودن ارز*\n\n*مرحله ۱/۴:* نماد ارز (مثال: USDT, BTC, ETH):", { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^admin_crypto:remove:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const idx = parseInt(ctx.match![1], 10);
+    const currencies = await getCryptoCurrencies();
+    if (idx >= currencies.length) { await ctx.answerCallbackQuery("❌"); return; }
+    const removed = currencies.splice(idx, 1)[0];
+    await saveCryptoCurrencies(currencies);
+    await ctx.reply(`🗑️ ارز *${removed!.symbol}* حذف شد.`, { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery("✅");
   });
 
   // ── Callback: costs section editing (inline for each cost item) ───────────────
@@ -1059,6 +1261,213 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         { parse_mode: "Markdown" }
       );
       await bot.api.sendMessage(uid, `🎁 ادمین *${amount}* سکه به شما هدیه داد! 🪙`, { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+
+    // ── Package create flow ────────────────────────────────────────────────
+    if (action === "admin_pkg_create_coins") {
+      const coins = parseInt(text, 10);
+      if (isNaN(coins) || coins < 1) {
+        await ctx.reply("❌ عدد صحیح مثبت وارد کنید.");
+        ctx.session.adminAction = "admin_pkg_create_coins";
+        return;
+      }
+      ctx.session.adminPkgCoins  = coins;
+      ctx.session.adminAction    = "admin_pkg_create_price";
+      await ctx.reply(`✅ سکه: *${coins}*\n\n*مرحله ۲/۴:* قیمت (تومان) را وارد کنید:`, { parse_mode: "Markdown" });
+      return;
+    }
+
+    if (action === "admin_pkg_create_price") {
+      const price = parseInt(text, 10);
+      if (isNaN(price) || price < 1) {
+        await ctx.reply("❌ عدد صحیح مثبت وارد کنید.");
+        ctx.session.adminAction = "admin_pkg_create_price";
+        return;
+      }
+      ctx.session.adminPkgPrice = price;
+      ctx.session.adminAction   = "admin_pkg_create_discount";
+      await ctx.reply(
+        `✅ قیمت: *${price.toLocaleString("fa-IR")}* تومان\n\n*مرحله ۳/۴:* درصد تخفیف (۰ = بدون تخفیف):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "admin_pkg_create_discount") {
+      const disc = parseInt(text, 10);
+      if (isNaN(disc) || disc < 0 || disc > 100) {
+        await ctx.reply("❌ عددی بین ۰ تا ۱۰۰ وارد کنید.");
+        ctx.session.adminAction = "admin_pkg_create_discount";
+        return;
+      }
+      ctx.session.adminPkgDiscount = disc;
+      ctx.session.adminAction      = "admin_pkg_create_label";
+      await ctx.reply(
+        `✅ تخفیف: *${disc}%*\n\n*مرحله ۴/۴:* عنوان بسته (یا - برای پیش‌فرض):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "admin_pkg_create_label") {
+      const coins    = ctx.session.adminPkgCoins    ?? 10;
+      const price    = ctx.session.adminPkgPrice    ?? 10000;
+      const discount = ctx.session.adminPkgDiscount ?? 0;
+      const label    = (text === "-" || text === "رد") ? null : text;
+      const origPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+
+      ctx.session.adminPkgCoins    = undefined;
+      ctx.session.adminPkgPrice    = undefined;
+      ctx.session.adminPkgDiscount = undefined;
+      ctx.session.adminPkgStep     = undefined;
+
+      const pkg = await createPackage({
+        coins,
+        price,
+        originalPrice: origPrice,
+        discountPercent: discount,
+        label: label ?? undefined,
+      });
+      await ctx.reply(
+        `📦 *بسته جدید ساخته شد!*\n\n` +
+        `💎 سکه: *${pkg.coins}*\n` +
+        `💵 قیمت: *${pkg.price.toLocaleString("fa-IR")}* تومان\n` +
+        (discount > 0 ? `🔥 تخفیف: *${discount}%*\n` : "") +
+        (label ? `🏷️ عنوان: *${label}*\n` : "") +
+        `✅ شناسه: #${pkg.id}`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action.startsWith("pkg_edit:")) {
+      const parts = action.split(":");
+      const id    = parseInt(parts[1]!, 10);
+      const field = parts[2]!;
+      if (field === "coins") {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        await updatePackage(id, { coins: v });
+      } else if (field === "price") {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        await updatePackage(id, { price: v });
+      } else if (field === "discount") {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 0 || v > 100) { await ctx.reply("❌ عدد ۰-۱۰۰ وارد کنید."); return; }
+        await updatePackage(id, { discountPercent: v });
+      } else if (field === "label") {
+        await updatePackage(id, { label: text === "-" ? null : text });
+      }
+      ctx.session.adminPkgEditId = undefined;
+      await ctx.reply(`✅ بسته #${id} با موفقیت ویرایش شد.`);
+      return;
+    }
+
+    // ── Discount code create flow ──────────────────────────────────────────
+    if (action === "dc_create_code") {
+      const code = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (code.length < 3) {
+        await ctx.reply("❌ کد باید حداقل ۳ کاراکتر انگلیسی/عدد باشد.");
+        ctx.session.adminAction = "dc_create_code";
+        return;
+      }
+      ctx.session.adminDcCode = code;
+      ctx.session.adminAction = "dc_create_percent";
+      await ctx.reply(`✅ کد: \`${code}\`\n\n*مرحله ۲/۳:* درصد تخفیف (۱-۱۰۰):`, { parse_mode: "Markdown" });
+      return;
+    }
+
+    if (action === "dc_create_percent") {
+      const pct = parseInt(text, 10);
+      if (isNaN(pct) || pct < 1 || pct > 100) {
+        await ctx.reply("❌ عددی بین ۱ تا ۱۰۰ وارد کنید.");
+        ctx.session.adminAction = "dc_create_percent";
+        return;
+      }
+      ctx.session.adminDcPercent = pct;
+      ctx.session.adminAction    = "dc_create_maxuses";
+      await ctx.reply(
+        `✅ تخفیف: *${pct}%*\n\n*مرحله ۳/۳:* حداکثر استفاده (۰ = نامحدود):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "dc_create_maxuses") {
+      const max  = parseInt(text, 10);
+      if (isNaN(max) || max < 0) {
+        await ctx.reply("❌ عدد غیرمنفی وارد کنید (۰ = نامحدود).");
+        ctx.session.adminAction = "dc_create_maxuses";
+        return;
+      }
+      const code = ctx.session.adminDcCode   ?? "";
+      const pct  = ctx.session.adminDcPercent ?? 10;
+      ctx.session.adminDcCode    = undefined;
+      ctx.session.adminDcPercent = undefined;
+      await createDiscountCode({ code, discountPercent: pct, maxUses: max > 0 ? max : undefined });
+      await ctx.reply(
+        `🏷️ *کد تخفیف ساخته شد!*\n\n` +
+        `📋 کد: \`${code}\`\n` +
+        `💥 تخفیف: *${pct}%*\n` +
+        `👥 حداکثر استفاده: *${max > 0 ? max : "نامحدود"}*`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    // ── Crypto currency add flow ───────────────────────────────────────────
+    if (action === "crypto_add_symbol") {
+      ctx.session.adminCryptoSymbol = text.toUpperCase().trim();
+      ctx.session.adminAction       = "crypto_add_name";
+      await ctx.reply(
+        `✅ نماد: *${ctx.session.adminCryptoSymbol}*\n\n*مرحله ۲/۴:* نام ارز (مثال: Tether):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "crypto_add_name") {
+      ctx.session.adminCryptoName = text;
+      ctx.session.adminAction     = "crypto_add_address";
+      await ctx.reply(`✅ نام: *${text}*\n\n*مرحله ۳/۴:* آدرس کیف پول:`, { parse_mode: "Markdown" });
+      return;
+    }
+
+    if (action === "crypto_add_address") {
+      ctx.session.adminCryptoAddress = text.trim();
+      ctx.session.adminAction        = "crypto_add_network";
+      await ctx.reply(
+        `✅ آدرس ثبت شد\n\n*مرحله ۴/۴:* نام شبکه (مثال: TRC20, ERC20, BEP20):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "crypto_add_network") {
+      const symbol  = ctx.session.adminCryptoSymbol  ?? "TOKEN";
+      const name    = ctx.session.adminCryptoName    ?? symbol;
+      const address = ctx.session.adminCryptoAddress ?? "";
+      const network = text.trim();
+      const cgMap: Record<string, string> = {
+        USDT: "tether", BTC: "bitcoin", ETH: "ethereum", BNB: "binancecoin",
+        TRX: "tron", LTC: "litecoin", DOGE: "dogecoin", ADA: "cardano",
+        SOL: "solana", MATIC: "matic-network", TON: "the-open-network",
+      };
+      const cgId = cgMap[symbol] ?? symbol.toLowerCase();
+      ctx.session.adminCryptoSymbol  = undefined;
+      ctx.session.adminCryptoName    = undefined;
+      ctx.session.adminCryptoAddress = undefined;
+      ctx.session.adminCryptoStep    = undefined;
+
+      const currencies = await getCryptoCurrencies();
+      currencies.push({ symbol, name, address, network, coinGeckoId: cgId });
+      await saveCryptoCurrencies(currencies);
+      await ctx.reply(
+        `💱 *ارز اضافه شد!*\n\n💎 ${symbol} — ${name}\n🌐 شبکه: ${network}\n📋 آدرس: \`${address.slice(0, 20)}...\``,
+        { parse_mode: "Markdown" }
+      );
       return;
     }
 

@@ -1,5 +1,6 @@
 import { Keyboard } from "grammy";
 import { t, type Lang } from "../i18n/index.js";
+import type { PaymentPackage } from "@workspace/db";
 
 export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
@@ -223,4 +224,31 @@ export function timedLinkKeyboard(lang: Lang) {
     .text(i.back)
     .resized()
     .oneTime();
+}
+
+/** Persistent package selection keyboard (coin packages as reply-keyboard buttons) */
+export function coinsPackagesKeyboard(packages: PaymentPackage[], lang: Lang) {
+  const kb = new Keyboard();
+  for (const pkg of packages) {
+    const priceStr = pkg.price.toLocaleString("fa-IR");
+    const hasDiscount = (pkg.discountPercent ?? 0) > 0;
+    let btnText: string;
+    if (lang === "fa") {
+      btnText = hasDiscount
+        ? `💎 ${pkg.coins} سکه | ${priceStr} تومان 🔥-${pkg.discountPercent}%`
+        : `💎 ${pkg.coins} سکه | ${priceStr} تومان`;
+      if (pkg.label) {
+        btnText = hasDiscount
+          ? `💎 ${pkg.label} | ${priceStr} تومان 🔥-${pkg.discountPercent}%`
+          : `💎 ${pkg.label} | ${priceStr} تومان`;
+      }
+    } else {
+      btnText = hasDiscount
+        ? `💎 ${pkg.coins} coins | ${pkg.price.toLocaleString()} IRT 🔥-${pkg.discountPercent}%`
+        : `💎 ${pkg.coins} coins | ${pkg.price.toLocaleString()} IRT`;
+    }
+    kb.text(btnText).row();
+  }
+  kb.text(lang === "fa" ? "🔙 بازگشت" : "🔙 Back");
+  return kb.resized().persistent();
 }

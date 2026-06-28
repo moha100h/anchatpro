@@ -74,7 +74,8 @@ function buildPromoteKeyboard(
 
 export function registerGroupHandlers(bot: Bot<BotContext>) {
   // ─── Group sub-menu ───────────────────────────────────────────────────────────
-  bot.hears([/^👥 گروه/, /^👥 Anonymous Group/], async (ctx) => {
+  bot.hears([/^👥 گروه/, /^👥 Anonymous Group/], async (ctx, next) => {
+    if (ctx.session.adminMode === "costs") return next();
     const tgId = ctx.from!.id;
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;

@@ -47,9 +47,18 @@ async function getPermLinkCost(): Promise<number> {
   return v ? parseInt(v, 10) : DEFAULT_PERM_LINK_COST;
 }
 
-async function getTimedLinkCost(): Promise<number> {
-  const v = await getSetting("timed_anon_link_cost");
-  return v ? parseInt(v, 10) : DEFAULT_TIMED_LINK_COST;
+async function getTimedLinkCostForHours(hours: number): Promise<number> {
+  const keyMap: Record<number, string> = {
+    1: "timed_link_cost_1h",
+    6: "timed_link_cost_6h",
+    24: "timed_link_cost_24h",
+    168: "timed_link_cost_7d",
+  };
+  const key = keyMap[hours] ?? "timed_link_cost_1h";
+  const v = await getSetting(key);
+  if (v) return parseInt(v, 10);
+  const defaults: Record<number, number> = { 1: 1, 6: 2, 24: 3, 168: 5 };
+  return defaults[hours] ?? DEFAULT_TIMED_LINK_COST;
 }
 
 async function getUnreadCount(tgId: number): Promise<number> {
@@ -225,8 +234,17 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       if (!user) return;
       const lang = (user.language as "fa" | "en") ?? "fa";
 
-      const cost = await getTimedLinkCost();
-      await ctx.reply(t(lang).timedLinkBuyTitle(cost), {
+      const [c1, c6, c24, c168] = await Promise.all([
+        getTimedLinkCostForHours(1),
+        getTimedLinkCostForHours(6),
+        getTimedLinkCostForHours(24),
+        getTimedLinkCostForHours(168),
+      ]);
+      const tableMsg =
+        lang === "fa"
+          ? `⏱️ <b>ساخت لینک مدت‌دار</b>\n\nمدت‌ها و هزینه‌ها:\n• ۱ ساعت — <b>${c1}</b> سکه\n• ۶ ساعت — <b>${c6}</b> سکه\n• ۲۴ ساعت — <b>${c24}</b> سکه\n• ۷ روز — <b>${c168}</b> سکه\n\nیک مدت را انتخاب کنید:`
+          : `⏱️ <b>Create Timed Link</b>\n\nDurations and costs:\n• 1 Hour — <b>${c1}</b> coins\n• 6 Hours — <b>${c6}</b> coins\n• 24 Hours — <b>${c24}</b> coins\n• 7 Days — <b>${c168}</b> coins\n\nSelect a duration:`;
+      await ctx.reply(tableMsg, {
         parse_mode: "HTML",
         reply_markup: timedLinkKeyboard(lang),
       });
@@ -247,7 +265,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
       const hours = DURATION_MAP[text];
       if (!hours) return;
 
-      const cost = await getTimedLinkCost();
+      const cost = await getTimedLinkCostForHours(hours);
       if (user.coins < cost) {
         const msg =
           lang === "fa"
@@ -285,7 +303,7 @@ export function registerAnonLinkHandlers(bot: Bot<BotContext>) {
     const hours = parseInt(ctx.match![1], 10);
     const token = ctx.match![2];
 
-    const cost = await getTimedLinkCost();
+    const cost = await getTimedLinkCostForHours(hours);
     const result = await deductCoins(
       tgId, cost, "magic_spend",
       lang === "fa" ? "ساخت لینک ناشناس مدت‌دار" : "Timed anonymous link"

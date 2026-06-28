@@ -354,15 +354,32 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.COST_TIMED, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
-    const timedLink = await getSetting("timed_anon_link_cost");
-    const v = timedLink ?? "3";
+    const [c1, c6, c24, c168] = await Promise.all([
+      getSetting("timed_link_cost_1h"),
+      getSetting("timed_link_cost_6h"),
+      getSetting("timed_link_cost_24h"),
+      getSetting("timed_link_cost_7d"),
+    ]);
+    const v1 = c1 ?? "1", v6 = c6 ?? "2", v24 = c24 ?? "3", v168 = c168 ?? "5";
     await ctx.reply(
-      `🔗 *لینک ناشناس مدت‌دار — هزینه*\n\n• هزینه ساخت هر لینک مدت‌دار: \`${v}\` سکه\n\n_مدت‌های موجود: ۱ ساعت | ۶ ساعت | ۲۴ ساعت | ۷ روز_`,
+      `🔗 *لینک ناشناس مدت‌دار — هزینه‌ها*\n\n` +
+      `• ⏱️ ۱ ساعت: \`${v1}\` سکه\n` +
+      `• ⏱️ ۶ ساعت: \`${v6}\` سکه\n` +
+      `• ⏱️ ۲۴ ساعت: \`${v24}\` سکه\n` +
+      `• 📅 ۷ روز: \`${v168}\` سکه\n\n` +
+      `_روی دکمه مورد نظر برای تغییر کلیک کنید._`,
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: `⏱️ تغییر هزینه لینک مدت‌دار: ${v} سکه`, callback_data: "pay_set:timed_anon_link_cost" }],
+            [
+              { text: `⏱️ ۱ ساعت: ${v1} سکه`, callback_data: "pay_set:timed_link_cost_1h" },
+              { text: `⏱️ ۶ ساعت: ${v6} سکه`, callback_data: "pay_set:timed_link_cost_6h" },
+            ],
+            [
+              { text: `⏱️ ۲۴ ساعت: ${v24} سکه`, callback_data: "pay_set:timed_link_cost_24h" },
+              { text: `📅 ۷ روز: ${v168} سکه`, callback_data: "pay_set:timed_link_cost_7d" },
+            ],
           ],
         },
       }

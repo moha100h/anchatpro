@@ -22,7 +22,7 @@ export interface SessionData {
   // 🎁 Admin gift code creation temp
   adminGiftCoins?: number;
   // 🛡️ Admin panel navigation mode
-  adminMode?: "main" | "system" | "payment";
+  adminMode?: "main" | "system" | "payment" | "costs";
 }
 
 export type BotContext = ConversationFlavor<Context & SessionFlavor<SessionData>> & {

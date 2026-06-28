@@ -13,6 +13,7 @@ import {
   getPartnerId,
 } from "../services/matching.service.js";
 import { reportUser, blockUser, containsBadWord, issueWarning } from "../services/safety.service.js";
+import { getSetting } from "../services/payment.service.js";
 import { t } from "../i18n/index.js";
 import {
   mainMenuKeyboard,
@@ -24,7 +25,22 @@ import { reportReasonsKeyboard, blockReasonsKeyboard } from "../keyboards/inline
 
 // ─── Daily free "any" chat counter (resets each calendar day) ────────────────
 const dailyFreeMap = new Map<number, { count: number; date: string }>();
-const FREE_ANY_DAILY = 3;
+
+async function getFreeAnyDaily(): Promise<number> {
+  const v = await getSetting("match_free_daily");
+  const n = parseInt(v ?? "3", 10);
+  return isNaN(n) || n < 0 ? 3 : n;
+}
+async function getMatchCostAny(): Promise<number> {
+  const v = await getSetting("match_cost_any");
+  const n = parseInt(v ?? "1", 10);
+  return isNaN(n) || n < 1 ? 1 : n;
+}
+async function getMatchCostGender(): Promise<number> {
+  const v = await getSetting("match_cost_gender");
+  const n = parseInt(v ?? "1", 10);
+  return isNaN(n) || n < 1 ? 1 : n;
+}
 
 function getTodayKey(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tehran" });
@@ -107,11 +123,12 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
       const userAge = user.age ?? undefined;
 
       if (pref === "any") {
+        const freeAnyDaily = await getFreeAnyDaily();
         const used = getFreeChatCount(tgId);
-        if (used < FREE_ANY_DAILY) {
+        if (used < freeAnyDaily) {
           // Free — queue directly and show remaining
           incrementFreeChat(tgId);
-          const left = FREE_ANY_DAILY - getFreeChatCount(tgId);
+          const left = freeAnyDaily - getFreeChatCount(tgId);
           const matchId = await findMatch(tgId, "any", user.gender ?? "other", user.language ?? undefined, ageMatch, userAge);
           if (matchId) {
             await createChatSession(tgId, matchId);
@@ -165,7 +182,8 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     }
 
     const pref = ctx.match![1] as "male" | "female" | "any";
-    const result = await deductCoins(tgId, 1, "chat_cost", `Connect to ${pref}`);
+    const coinCost = pref === "any" ? await getMatchCostAny() : await getMatchCostGender();
+    const result = await deductCoins(tgId, coinCost, "chat_cost", `Connect to ${pref}`);
     if (!result.success) {
       await ctx.editMessageText(t(lang).insufficientCoins).catch(() => {});
       await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });

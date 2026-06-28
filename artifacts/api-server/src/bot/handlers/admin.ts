@@ -92,6 +92,12 @@ export const ADMIN_BTN = {
   REFERRAL:    "🎁 رفرال و جوایز",
   TOP_REF:     "🏆 برترین رفرال‌ها",
   EXIT:        "🔙 خروج از پنل ادمین",
+  // Costs sub-menu
+  COST_MATCH:     "🎭 اتصال ناشناس",
+  COST_GROUP:     "👥 گروه ناشناس",
+  COST_PRO_LINK:  "💎 لینک پرو",
+  COST_TIMED:     "🔗 لینک مدت‌دار",
+  COST_MAGIC:     "🔮 دنیای اسرار",
   // System sub-menu
   WELCOME:     "📝 خوش‌آمدگویی",
   BROADCAST:   "📣 پیام همگانی",
@@ -118,7 +124,7 @@ function adminMainKeyboard(tgId: number): Keyboard {
   }
   if (canDo(tgId, "payment")) {
     kb.text(ADMIN_BTN.PAYMENT).text(ADMIN_BTN.COSTS).row();
-    kb.text(ADMIN_BTN.SYSTEM).text(ADMIN_BTN.MAGIC).row();
+    kb.text(ADMIN_BTN.SYSTEM).row();
     kb.text(ADMIN_BTN.REFERRAL).text(ADMIN_BTN.TOP_REF).row();
   }
   kb.text(ADMIN_BTN.EXIT);
@@ -145,6 +151,16 @@ function adminPaymentKeyboard(): Keyboard {
   return new Keyboard()
     .text(ADMIN_BTN.CARD).text(ADMIN_BTN.CRYPTO).row()
     .text(ADMIN_BTN.TETRAPAY).row()
+    .text(ADMIN_BTN.BACK_PANEL)
+    .resized().persistent();
+}
+
+function adminCostsKeyboard(): Keyboard {
+  return new Keyboard()
+    .text(ADMIN_BTN.COST_MATCH).row()
+    .text(ADMIN_BTN.COST_GROUP).row()
+    .text(ADMIN_BTN.COST_PRO_LINK).text(ADMIN_BTN.COST_TIMED).row()
+    .text(ADMIN_BTN.COST_MAGIC).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
 }
@@ -237,7 +253,120 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.COSTS, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
-    await showCostsSection(ctx);
+    ctx.session.adminMode = "costs";
+    ctx.session.adminAction = undefined;
+    await ctx.reply(
+      "💰 *هزینه‌های سیستم*\n\nیک بخش را انتخاب کنید:",
+      { parse_mode: "Markdown", reply_markup: adminCostsKeyboard() }
+    );
+  });
+
+  // ── 🎭 اتصال ناشناس (costs sub) ─────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_MATCH, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const [freeDailyStr, costGenderStr, costAnyStr] = await Promise.all([
+      getSetting("match_free_daily"),
+      getSetting("match_cost_gender"),
+      getSetting("match_cost_any"),
+    ]);
+    const freeDailyVal = freeDailyStr ?? "3";
+    const costGenderVal = costGenderStr ?? "1";
+    const costAnyVal = costAnyStr ?? "1";
+    await ctx.reply(
+      `🎭 *اتصال ناشناس — هزینه‌ها*\n\n` +
+      `• اتصال شانسی رایگان روزانه: \`${freeDailyVal}\` بار\n` +
+      `• هزینه اتصال به جنسیت خاص: \`${costGenderVal}\` سکه\n` +
+      `• هزینه اتصال شانسی (بعد از رایگان): \`${costAnyVal}\` سکه\n\n` +
+      `_روی دکمه مورد نظر برای تغییر کلیک کنید._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `🎲 اتصال رایگان روزانه: ${freeDailyVal}`, callback_data: "pay_set:match_free_daily" }],
+            [{ text: `👧 هزینه جنسیت خاص: ${costGenderVal} سکه`, callback_data: "pay_set:match_cost_gender" }],
+            [{ text: `🎲 هزینه شانسی (بعد رایگان): ${costAnyVal} سکه`, callback_data: "pay_set:match_cost_any" }],
+          ],
+        },
+      }
+    );
+  });
+
+  // ── 👥 گروه ناشناس (costs sub) ───────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_GROUP, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const [groupCreate, groupJoin, groupExpand, groupAdminPromote, groupExpandAdmin] = await Promise.all([
+      getSetting("group_create_cost"),
+      getSetting("group_join_cost"),
+      getSetting("group_slot_expand_cost"),
+      getSetting("group_admin_promote_cost"),
+      getSetting("group_expand_cost"),
+    ]);
+    const s = (v: string | null | undefined, d = "0") => `${v ?? d}`;
+    await ctx.reply(
+      `👥 *گروه ناشناس — هزینه‌ها*\n\n` +
+      `• ساخت گروه: \`${s(groupCreate, "3")}\` سکه\n` +
+      `• پیوستن به گروه: \`${s(groupJoin, "1")}\` سکه\n` +
+      `• افزایش ظرفیت عضویت: \`${s(groupExpand, "30")}\` سکه\n` +
+      `• ارتقا عضو به ادمین: \`${s(groupAdminPromote, "5")}\` سکه\n` +
+      `• افزایش ظرفیت گروه به ۲۵ نفر: \`${s(groupExpandAdmin, "10")}\` سکه\n\n` +
+      `_روی دکمه مورد نظر برای تغییر کلیک کنید._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: `🆕 ساخت: ${s(groupCreate, "3")} سکه`, callback_data: "pay_set:group_create_cost" },
+              { text: `👥 پیوستن: ${s(groupJoin, "1")} سکه`, callback_data: "pay_set:group_join_cost" },
+            ],
+            [
+              { text: `📈 ظرفیت عضویت: ${s(groupExpand, "30")} سکه`, callback_data: "pay_set:group_slot_expand_cost" },
+              { text: `⭐ ارتقا ادمین: ${s(groupAdminPromote, "5")} سکه`, callback_data: "pay_set:group_admin_promote_cost" },
+            ],
+            [{ text: `⬆️ افزایش به ۲۵ نفر: ${s(groupExpandAdmin, "10")} سکه`, callback_data: "pay_set:group_expand_cost" }],
+          ],
+        },
+      }
+    );
+  });
+
+  // ── 💎 لینک پرو (costs sub) ──────────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_PRO_LINK, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const permLink = await getSetting("perm_anon_link_cost");
+    const v = permLink ?? "10";
+    await ctx.reply(
+      `💎 *لینک ناشناس پرو — هزینه*\n\n• لینک پرو دائمی: \`${v}\` سکه\n\n_این لینک یک‌بار خریداری می‌شود._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `💎 تغییر هزینه لینک پرو: ${v} سکه`, callback_data: "pay_set:perm_anon_link_cost" }],
+          ],
+        },
+      }
+    );
+  });
+
+  // ── 🔗 لینک مدت‌دار (costs sub) ─────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_TIMED, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const timedLink = await getSetting("timed_anon_link_cost");
+    const v = timedLink ?? "3";
+    await ctx.reply(
+      `🔗 *لینک ناشناس مدت‌دار — هزینه*\n\n• هزینه ساخت هر لینک مدت‌دار: \`${v}\` سکه\n\n_مدت‌های موجود: ۱ ساعت | ۶ ساعت | ۲۴ ساعت | ۷ روز_`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `⏱️ تغییر هزینه لینک مدت‌دار: ${v} سکه`, callback_data: "pay_set:timed_anon_link_cost" }],
+          ],
+        },
+      }
+    );
   });
 
   // ── ⚙️ تنظیمات سیستم ─────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import {
   getUserByTelegramId,
   searchUser,
   getTotalStats,
+  getActiveUserStats,
   getReferralTree,
 } from "../services/user.service.js";
 import { addCoins, deductCoins } from "../services/coin.service.js";
@@ -96,11 +97,12 @@ function canDo(userId: number, action: string): boolean {
 
 export const ADMIN_BTN = {
   USERS:       "👤 کاربران",
+  STATS:       "📊 آمار سیستم",
   REPORTS:     "🚨 گزارش‌ها",
   PAYMENT:     "💳 روش‌های پرداخت",
   COSTS:       "💰 هزینه‌های سیستم",
   SYSTEM:      "⚙️ تنظیمات سیستم",
-  MAGIC:       "🔮 دنیای اسرار",
+  MAGIC:       "🔮 اقیانوس",
   REFERRAL:    "🎁 رفرال و جوایز",
   TOP_REF:     "🏆 برترین رفرال‌ها",
   EXIT:        "🔙 خروج از پنل ادمین",
@@ -109,7 +111,7 @@ export const ADMIN_BTN = {
   COST_GROUP:     "👥 گروه ناشناس",
   COST_PRO_LINK:  "💎 لینک پرو",
   COST_TIMED:     "🔗 لینک مدت‌دار",
-  COST_MAGIC:     "🔮 دنیای اسرار",
+  COST_MAGIC:     "🔮 اقیانوس",
   // System sub-menu
   WELCOME:     "📝 خوش‌آمدگویی",
   BROADCAST:   "📣 پیام همگانی",
@@ -132,9 +134,9 @@ function adminMainKeyboard(tgId: number): Keyboard {
   const kb = new Keyboard();
 
   if (canDo(tgId, "search_user")) {
-    kb.text(ADMIN_BTN.USERS).text(ADMIN_BTN.REPORTS).row();
+    kb.text(ADMIN_BTN.USERS).text(ADMIN_BTN.STATS).row();
   } else {
-    kb.text(ADMIN_BTN.REPORTS).row();
+    kb.text(ADMIN_BTN.STATS).row();
   }
   if (canDo(tgId, "payment")) {
     kb.text(ADMIN_BTN.PAYMENT).text(ADMIN_BTN.COSTS).row();
@@ -249,9 +251,37 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     );
   });
 
-  // ── 🚨 گزارش‌ها ───────────────────────────────────────────────────────────────
-  bot.hears(ADMIN_BTN.REPORTS, async (ctx, next) => {
+  // ── 📊 آمار سیستم ────────────────────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.STATS, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    const [s, pendingReports] = await Promise.all([
+      getActiveUserStats(),
+      getPendingReportsCount(),
+    ]);
+    const msg =
+      `📊 *آمار کلی سیستم*\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `👥 کل اعضا: \`${s.total.toLocaleString()}\`\n` +
+      `🟢 فعال امروز: \`${s.today.toLocaleString()}\`\n` +
+      `📅 فعال ۷ روز: \`${s.sevenDays.toLocaleString()}\`\n` +
+      `📅 فعال ۱۵ روز: \`${s.fifteenDays.toLocaleString()}\`\n` +
+      `📅 فعال ۳۰ روز: \`${s.thirtyDays.toLocaleString()}\`\n` +
+      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `🚨 گزارش‌های در انتظار: \`${pendingReports}\``;
+    await ctx.reply(msg, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: `🚨 بررسی گزارش‌ها (${pendingReports})`, callback_data: "admin:show_reports" }],
+        ],
+      },
+    });
+  });
+
+  // ── 🚨 گزارش‌ها (inline) ──────────────────────────────────────────────────────
+  bot.callbackQuery("admin:show_reports", async (ctx) => {
+    if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery("❌"); return; }
+    await ctx.answerCallbackQuery();
     await showReports(ctx);
   });
 
@@ -412,7 +442,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     );
   });
 
-  // ── 🔮 دنیای اسرار ───────────────────────────────────────────────────────────
+  // ── 🔮 اقیانوس ───────────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.MAGIC, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
@@ -454,15 +484,21 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.BROADCAST, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
     if (!canDo(ctx.from!.id, "broadcast")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    // Reset broadcast filter state
+    ctx.session.broadcastGender = undefined;
+    ctx.session.broadcastAgeRange = undefined;
+    ctx.session.broadcastCountLimit = undefined;
+    ctx.session.broadcastTarget = undefined;
     await ctx.reply(
-      "📣 *پیام همگانی*\n\nهدف ارسال را انتخاب کنید:",
+      "📣 *پیام همگانی*\n\n*مرحله ۱/۴:* جنسیت گیرندگان را انتخاب کنید:",
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
             [
-              { text: "👥 همه کاربران",  callback_data: "bc_target:all" },
-              { text: "🟢 کاربران فعال", callback_data: "bc_target:active" },
+              { text: "🎲 همه", callback_data: "bc_gender:any" },
+              { text: "👧 دختران", callback_data: "bc_gender:female" },
+              { text: "👦 پسران", callback_data: "bc_gender:male" },
             ],
           ],
         },
@@ -695,13 +731,101 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.answerCallbackQuery("✅");
   });
 
-  // ── Callback: broadcast target ────────────────────────────────────────────────
+  // ── Callbacks: broadcast multi-step filter flow ───────────────────────────────
+
+  // Step 1 → gender selection → go to age
+  bot.callbackQuery(/^bc_gender:(any|male|female)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "broadcast")) { await ctx.answerCallbackQuery("❌"); return; }
+    const g = ctx.match![1] as "any" | "male" | "female";
+    ctx.session.broadcastGender = g;
+    await ctx.editMessageText(
+      `✅ جنسیت: ${g === "any" ? "همه" : g === "female" ? "👧 دختران" : "👦 پسران"}\n\n*مرحله ۲/۴:* بازه سنی گیرندگان:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "بدون فیلتر", callback_data: "bc_age:any" }],
+            [
+              { text: "۱۵–۲۵ سال", callback_data: "bc_age:15-25" },
+              { text: "۲۵–۳۵ سال", callback_data: "bc_age:25-35" },
+            ],
+            [
+              { text: "۱۵–۳۵ سال", callback_data: "bc_age:15-35" },
+              { text: "۱۸–۴۰ سال", callback_data: "bc_age:18-40" },
+            ],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // Step 2 → age → go to count limit
+  bot.callbackQuery(/^bc_age:(.+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "broadcast")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.broadcastAgeRange = ctx.match![1] as string;
+    await ctx.editMessageText(
+      `✅ سن: ${ctx.session.broadcastAgeRange === "any" ? "بدون فیلتر" : ctx.session.broadcastAgeRange}\n\n*مرحله ۳/۴:* حداکثر تعداد گیرنده:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "بدون محدودیت", callback_data: "bc_limit:0" }],
+            [
+              { text: "۱۰۰ نفر",  callback_data: "bc_limit:100"  },
+              { text: "۵۰۰ نفر",  callback_data: "bc_limit:500"  },
+            ],
+            [
+              { text: "۱۰۰۰ نفر", callback_data: "bc_limit:1000" },
+              { text: "۵۰۰۰ نفر", callback_data: "bc_limit:5000" },
+            ],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // Step 3 → count limit → go to target
+  bot.callbackQuery(/^bc_limit:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "broadcast")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.broadcastCountLimit = parseInt(ctx.match![1] as string, 10);
+    const limitLabel = ctx.session.broadcastCountLimit === 0 ? "بدون محدودیت" : `${ctx.session.broadcastCountLimit} نفر`;
+    await ctx.editMessageText(
+      `✅ تعداد: ${limitLabel}\n\n*مرحله ۴/۴:* هدف ارسال:`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "👥 همه کاربران",   callback_data: "bc_target:all"    },
+              { text: "🟢 کاربران فعال",  callback_data: "bc_target:active" },
+            ],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // Step 4 → target → ask for message text
   bot.callbackQuery(/^bc_target:(all|active)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "broadcast")) { await ctx.answerCallbackQuery("❌"); return; }
     const target = ctx.match![1] as "all" | "active";
-    ctx.session.adminAction = `broadcast:${target}`;
-    await ctx.reply(
-      `✅ هدف: ${target === "all" ? "همه کاربران" : "کاربران فعال"}\n\nمتن پیام همگانی را بنویسید:`
+    ctx.session.broadcastTarget = target;
+    ctx.session.adminAction = `broadcast_send:${target}`;
+    const g     = ctx.session.broadcastGender    ?? "any";
+    const age   = ctx.session.broadcastAgeRange  ?? "any";
+    const limit = ctx.session.broadcastCountLimit ?? 0;
+    const gLabel     = g === "any" ? "همه" : g === "female" ? "👧 دختران" : "👦 پسران";
+    const ageLabel   = age === "any" ? "بدون فیلتر" : age;
+    const limitLabel = limit === 0 ? "بدون محدودیت" : `${limit} نفر`;
+    await ctx.editMessageText(
+      `✅ *خلاصه فیلترها:*\n` +
+      `👤 جنسیت: ${gLabel}  |  🎂 سن: ${ageLabel}  |  🔢 تعداد: ${limitLabel}\n` +
+      `📡 هدف: ${target === "all" ? "همه کاربران" : "کاربران فعال"}\n\n` +
+      `✏️ *متن پیام همگانی را بنویسید:*`,
+      { parse_mode: "Markdown" }
     );
     await ctx.answerCallbackQuery();
   });
@@ -1191,11 +1315,42 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       return;
     }
 
-    if (action.startsWith("broadcast:")) {
-      const target = action.replace("broadcast:", "") as "all" | "active";
+    if (action.startsWith("broadcast_send:")) {
+      const target    = (ctx.session.broadcastTarget ?? action.replace("broadcast_send:", "")) as "all" | "active";
+      const gender    = ctx.session.broadcastGender;
+      const ageRange  = ctx.session.broadcastAgeRange ?? "any";
+      const countLimit = ctx.session.broadcastCountLimit ?? 0;
+
+      // Parse age range
+      let ageMin: number | undefined;
+      let ageMax: number | undefined;
+      if (ageRange !== "any") {
+        const [minStr, maxStr] = ageRange.split("-");
+        if (minStr) ageMin = parseInt(minStr, 10);
+        if (maxStr) ageMax = parseInt(maxStr, 10);
+      }
+
+      const filter = {
+        gender: gender && gender !== "any" ? gender as "male" | "female" : undefined,
+        ageMin,
+        ageMax,
+        limit: countLimit > 0 ? countLimit : undefined,
+      };
+
       await ctx.reply("📢 در حال ارسال...");
-      const { sent, failed } = await broadcastMessage(bot, tgId, text, target);
-      await ctx.reply(t("fa").adminBroadcastSent(sent) + ` (${failed} خطا)`);
+      const { sent, failed, total } = await broadcastMessage(bot, tgId, text, target, filter);
+      await ctx.reply(
+        `✅ *ارسال همگانی تمام شد!*\n\n` +
+        `📤 ارسال‌شده: *${sent}* نفر\n` +
+        `❌ خطا: *${failed}* نفر\n` +
+        `👥 کل مخاطب: *${total}* نفر`,
+        { parse_mode: "Markdown" }
+      );
+      // Clear broadcast state
+      ctx.session.broadcastGender     = undefined;
+      ctx.session.broadcastAgeRange   = undefined;
+      ctx.session.broadcastCountLimit = undefined;
+      ctx.session.broadcastTarget     = undefined;
       return;
     }
 
@@ -1550,7 +1705,7 @@ async function showCostsSection(ctx: BotContext): Promise<void> {
     `🔗 *لینک ناشناس*\n` +
     `• لینک دائمی: ${s(permLink, "10")}\n` +
     `• لینک موقت (هر ساعت): ${s(timedLink, "3")}\n\n` +
-    `🔮 *دنیای اسرار*\n` +
+    `🔮 *اقیانوس*\n` +
     `• 🍾 بطری: ${s(bottleCost, "2")}  • 🔗 زنجیر: ${s(chainCost, "2")}\n` +
     `• ✉️ نامه: ${s(letterCost, "2")}  • 📡 فرکانس: ${s(freqCost, "2")}\n\n` +
     `_روی دکمه هر آیتم کلیک کنید تا تغییر دهید._`;

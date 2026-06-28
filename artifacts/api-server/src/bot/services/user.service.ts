@@ -221,3 +221,21 @@ export async function getTotalStats() {
     totalTransactions: totalTransactions.count,
   };
 }
+
+export async function getActiveUserStats() {
+  const now = Date.now();
+  const [totalRow, todayRow, sevenRow, fifteenRow, thirtyRow] = await Promise.all([
+    db.select({ count: count() }).from(usersTable),
+    db.select({ count: count() }).from(usersTable).where(gte(usersTable.lastSeen, new Date(now - 1 * 24 * 60 * 60 * 1000))),
+    db.select({ count: count() }).from(usersTable).where(gte(usersTable.lastSeen, new Date(now - 7 * 24 * 60 * 60 * 1000))),
+    db.select({ count: count() }).from(usersTable).where(gte(usersTable.lastSeen, new Date(now - 15 * 24 * 60 * 60 * 1000))),
+    db.select({ count: count() }).from(usersTable).where(gte(usersTable.lastSeen, new Date(now - 30 * 24 * 60 * 60 * 1000))),
+  ]);
+  return {
+    total:       totalRow[0]?.count   ?? 0,
+    today:       todayRow[0]?.count   ?? 0,
+    sevenDays:   sevenRow[0]?.count   ?? 0,
+    fifteenDays: fifteenRow[0]?.count ?? 0,
+    thirtyDays:  thirtyRow[0]?.count  ?? 0,
+  };
+}

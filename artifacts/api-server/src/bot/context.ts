@@ -26,6 +26,9 @@ export interface SessionData {
   adminPkgStep?: string;
   adminPkgCoins?: number;
   adminPkgPrice?: number;
+  adminPkgCardPrice?: number;
+  adminPkgCryptoPrice?: number;
+  adminPkgTetrapayPrice?: number;
   adminPkgDiscount?: number;
   adminPkgEditId?: number;
   // 💱 Admin crypto currency creation temp
@@ -44,6 +47,11 @@ export interface SessionData {
   adminGiftCoins?: number;
   // 🛡️ Admin panel navigation mode
   adminMode?: "main" | "system" | "payment" | "costs";
+  // 📣 Broadcast filter state
+  broadcastGender?: "male" | "female" | "any";
+  broadcastAgeRange?: string;   // e.g. "15-25", "25-35", "any"
+  broadcastCountLimit?: number; // 0 = unlimited
+  broadcastTarget?: "all" | "active";
 }
 
 export type BotContext = ConversationFlavor<Context & SessionFlavor<SessionData>> & {

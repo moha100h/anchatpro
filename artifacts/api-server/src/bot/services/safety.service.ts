@@ -68,6 +68,13 @@ export async function unbanUser(userId: number): Promise<void> {
   await db.update(usersTable).set({ status: "active", warningCount: 0, restrictedUntil: null, updatedAt: new Date() }).where(eq(usersTable.telegramId, userId));
 }
 
+/** Auto-restriction durations by cycle (cycle = every 3 reports) */
+function restrictionHoursForCycle(cycle: number): number {
+  if (cycle === 1) return 1;       // 3 reports  → 1 hour
+  if (cycle <= 4) return 5;        // 6-12 reports → 5 hours
+  return 12;                        // 15+ reports  → 12 hours
+}
+
 export async function reportUser(reporterId: number, reportedId: number, reason: string, sessionId?: number): Promise<void> {
   await db.insert(reportsTable).values({
     reporterId,
@@ -77,6 +84,31 @@ export async function reportUser(reporterId: number, reportedId: number, reason:
     status: "pending",
     createdAt: new Date(),
   });
+
+  // Increment the reported user's reportCount and auto-restrict on cycle boundaries
+  const [row] = await db
+    .select({ reportCount: usersTable.reportCount })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, reportedId))
+    .limit(1);
+
+  if (!row) return;
+  const newCount = (row.reportCount ?? 0) + 1;
+  await db
+    .update(usersTable)
+    .set({ reportCount: newCount, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, reportedId));
+
+  // Every 3 reports triggers a restriction cycle
+  if (newCount % 3 === 0) {
+    const cycle = newCount / 3;
+    const hours = restrictionHoursForCycle(cycle);
+    const until = new Date(Date.now() + hours * 60 * 60 * 1000);
+    await db
+      .update(usersTable)
+      .set({ status: "restricted", restrictedUntil: until, updatedAt: new Date() })
+      .where(eq(usersTable.telegramId, reportedId));
+  }
 }
 
 export async function blockUser(blockerId: number, blockedId: number, context?: string): Promise<boolean> {

@@ -57,7 +57,7 @@ function txLabelFa(type: string, description: string | null): string {
     referral_reward: "🎁 جایزه دعوت دوستان",
     chat_cost:       "💬 هزینه اتصال ناشناس",
     group_cost:      "👥 هزینه گروه ناشناس",
-    magic_spend:     "🔮 هزینه ویژگی‌های اسرار",
+    magic_spend:     "🔮 هزینه ویژگی‌های اقیانوس",
     payment:         "🛒 خرید سکه",
     refund:          "↩️ بازگشت وجه",
   };

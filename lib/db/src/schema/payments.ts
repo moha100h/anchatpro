@@ -13,6 +13,9 @@ export const paymentPackagesTable = pgTable("payment_packages", {
   originalPrice: integer("original_price"),
   discountPercent: integer("discount_percent").default(0).notNull(),
   currency: varchar("currency", { length: 10 }).default("IRT").notNull(),
+  cardPrice: integer("card_price"),       // Override price in Tomans for card gateway
+  cryptoPrice: integer("crypto_price"),   // Price in USD for crypto gateway (nullable = disabled)
+  tetrapayPrice: integer("tetrapay_price"), // Override price in Tomans for TetraPay
   label: varchar("label", { length: 100 }),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -57,6 +57,46 @@ import { t } from "../i18n/index.js";
 import { adminUserActionsKeyboard } from "../keyboards/inline.js";
 import { mainMenuKeyboard } from "../keyboards/main.js";
 
+// ─── Group verification tokens ────────────────────────────────────────────────
+
+const GROUP_TOKEN_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+interface GroupTokenEntry {
+  settingKey: string;
+  adminId:    number;
+  expires:    number;
+}
+
+const pendingGroupTokens = new Map<string, GroupTokenEntry>();
+
+function generateGroupToken(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "GRPSET-";
+  for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+function cleanExpiredGroupTokens(): void {
+  const now = Date.now();
+  for (const [token, entry] of pendingGroupTokens) {
+    if (entry.expires < now) pendingGroupTokens.delete(token);
+  }
+}
+
+const REVIEW_GROUP_KEYS = new Set([
+  "card_review_group",
+  "crypto_review_group",
+  "tetrapay_review_group",
+  "payment_review_group",
+]);
+
+const REVIEW_GROUP_LABELS: Record<string, string> = {
+  card_review_group:     "گروه بررسی کارت 💳",
+  crypto_review_group:   "گروه بررسی کریپتو ₿",
+  tetrapay_review_group: "گروه بررسی TetraPay 🌐",
+  payment_review_group:  "گروه بررسی پیش‌فرض 📋",
+};
+
 // ─── Admin identity & permissions ─────────────────────────────────────────────
 
 const SUPER_ADMIN_IDS = new Set<number>();
@@ -841,17 +881,43 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   // ── Callback: pay_set / pay_toggle / tetrapay ─────────────────────────────────
   bot.callbackQuery(/^pay_set:(.+)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
-    const key = ctx.match![1];
+    const key     = ctx.match![1];
+    const adminId = ctx.from!.id;
+
+    // ── Review group keys → token-based verification ──────────────────────────
+    if (REVIEW_GROUP_KEYS.has(key)) {
+      cleanExpiredGroupTokens();
+      // Revoke any existing token for this admin+key pair
+      for (const [tok, entry] of pendingGroupTokens) {
+        if (entry.adminId === adminId && entry.settingKey === key) {
+          pendingGroupTokens.delete(tok);
+        }
+      }
+      const token = generateGroupToken();
+      pendingGroupTokens.set(token, {
+        settingKey: key,
+        adminId,
+        expires: Date.now() + GROUP_TOKEN_TTL_MS,
+      });
+      const label = REVIEW_GROUP_LABELS[key] ?? key;
+      await ctx.reply(
+        `🔑 *تنظیم ${label}*\n\n` +
+        `این کد را در گروه مورد نظر ارسال کنید:\n\n` +
+        `\`${token}\`\n\n` +
+        `_کد تا ۵ دقیقه معتبر است. بات باید عضو گروه باشد._`,
+        { parse_mode: "Markdown" }
+      );
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    // ── Other settings → text input ───────────────────────────────────────────
     ctx.session.adminAction = `set_setting:${key}`;
     const labels: Record<string, string> = {
       card_number:              "شماره کارت بانکی",
       card_holder_name:         "نام صاحب کارت",
       card_bank_name:           "نام بانک",
-      card_review_group:        "گروه بررسی کارت (ID)",
       crypto_wallet:            "آدرس کیف پول ارز دیجیتال",
-      crypto_review_group:      "گروه بررسی کریپتو (ID)",
-      tetrapay_review_group:    "گروه بررسی TetraPay (ID)",
-      payment_review_group:     "آیدی گروه بررسی پرداخت (پیش‌فرض)",
       group_create_cost:        "هزینه ساخت گروه (سکه)",
       group_join_cost:          "هزینه پیوستن به گروه (سکه)",
       group_slot_expand_cost:   "هزینه افزایش ظرفیت گروه (سکه)",
@@ -872,6 +938,49 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     };
     await ctx.reply(`✏️ مقدار جدید *${labels[key] ?? key}* را وارد کنید:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
+  });
+
+  // ── Group message handler: recognize verification tokens ──────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    const chatType = ctx.chat?.type;
+    if (chatType !== "group" && chatType !== "supergroup") return next();
+
+    const text = ctx.message.text.trim();
+    if (!text.startsWith("GRPSET-")) return next();
+
+    cleanExpiredGroupTokens();
+    const entry = pendingGroupTokens.get(text);
+    if (!entry) {
+      await ctx.reply("❌ کد نامعتبر یا منقضی شده.");
+      return;
+    }
+    if (entry.expires < Date.now()) {
+      pendingGroupTokens.delete(text);
+      await ctx.reply("❌ کد منقضی شده است. لطفاً مجدداً از پنل ادمین کد جدید دریافت کنید.");
+      return;
+    }
+
+    const chatId = ctx.chat!.id;
+    const chatTitle = ctx.chat!.title ?? String(chatId);
+    await setSetting(entry.settingKey, String(chatId));
+    pendingGroupTokens.delete(text);
+
+    const label = REVIEW_GROUP_LABELS[entry.settingKey] ?? entry.settingKey;
+    // Confirm in group
+    await ctx.reply(`✅ گروه «${chatTitle}» به عنوان *${label}* ثبت شد.`, { parse_mode: "Markdown" });
+
+    // Notify admin in PM
+    try {
+      await bot.api.sendMessage(
+        entry.adminId,
+        `✅ *${label}* با موفقیت تنظیم شد!\n\n` +
+        `📌 گروه: *${chatTitle}*\n` +
+        `🆔 شناسه: \`${chatId}\``,
+        { parse_mode: "Markdown" }
+      );
+    } catch {
+      // Admin may not have started PM — ignore
+    }
   });
 
   bot.callbackQuery(/^pay_toggle:(card|crypto|gateway)$/, async (ctx) => {

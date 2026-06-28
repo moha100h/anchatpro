@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 import type { BotContext } from "../context.js";
 import { getUserByTelegramId, searchUser, getTotalStats, getAllUsers, getReferralTree } from "../services/user.service.js";
 import { addCoins, deductCoins } from "../services/coin.service.js";
+import { createGiftCode, listGiftCodes, deactivateGiftCode, getTopReferrers } from "../services/gift.service.js";
 import { banUser, unbanUser, isOwner } from "../services/safety.service.js";
 import { invalidateForceJoinCache } from "../middleware/force-join.js";
 import { broadcastMessage } from "../services/broadcast.service.js";
@@ -108,9 +109,16 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (isSuperAdmin(tgId))       secRow.push({ text: "📢 فورس جوین", callback_data: "admin:force_join" });
     if (secRow.length > 0) buttons.push(secRow);
 
-    // ─ 🔮 دنیای اسرار ─
+    // ─ 🔮 ویژه ─
     if (canDo(tgId, "payment")) {
-      buttons.push([{ text: "🔮 دنیای اسرار", callback_data: "admin:magic" }]);
+      buttons.push([
+        { text: "🔮 دنیای اسرار", callback_data: "admin:magic" },
+        { text: "🎟️ کدهای هدیه", callback_data: "admin:gifts" },
+      ]);
+      buttons.push([
+        { text: "🎁 رفرال و گروه‌ها", callback_data: "admin:group_settings" },
+        { text: "🏆 برترین رفرال‌ها", callback_data: "admin:top_referrers" },
+      ]);
     }
 
     // ─ ⚙️ سیستم ─
@@ -205,8 +213,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.answerCallbackQuery();
   });
 
-  // ── Referral & Group settings ────────────────────────────────────────────────
-  bot.callbackQuery("admin:magic", async (ctx) => {
+  // ── 🎁 Referral & Group settings ─────────────────────────────────────────────
+  bot.callbackQuery("admin:group_settings", async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
 
     const inviterReward   = await getSetting("referral_reward_inviter")   ?? "10";
@@ -217,7 +225,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const expandCost      = await getSetting("group_expand_cost")          ?? "10";
 
     await ctx.reply(
-      `🔮 **تنظیمات دنیای اسرار + گروه‌ها**\n\n` +
+      `🎁 **تنظیمات رفرال و گروه‌ها**\n\n` +
       `🎁 سکه خوش‌آمدگویی (همه کاربران): **${signupBonus}** سکه\n` +
       `🎁 پاداش دعوت (دعوت‌کننده): **${inviterReward}** سکه\n` +
       `🎁 پاداش دعوت (دعوت‌شده): **${inviteeReward}** سکه\n` +
@@ -599,6 +607,89 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.reply(t("fa").callbackUrlAutoSet(url), { parse_mode: "Markdown" });
   });
 
+  // ── 🎟️ Gift Codes ────────────────────────────────────────────────────────────
+  bot.callbackQuery("admin:gifts", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const codes = await listGiftCodes();
+
+    let msg = "🎟️ **کدهای هدیه**\n\n";
+    if (codes.length === 0) {
+      msg += "_(هیچ کدی ساخته نشده)_";
+    } else {
+      for (const c of codes.slice(0, 20)) {
+        const status = !c.isActive ? "🚫" : c.usedCount >= c.maxUsage ? "✅" : "🟢";
+        msg += `${status} \`${c.code}\` — ${c.coins}🪙 — ${c.usedCount}/${c.maxUsage} نفر\n`;
+      }
+      if (codes.length > 20) msg += `\n_... و ${codes.length - 20} کد دیگر_`;
+    }
+
+    const kb: Array<Array<{ text: string; callback_data: string }>> = [
+      [{ text: "➕ ساخت کد جدید", callback_data: "admin:create_gift" }],
+    ];
+    // Deactivate buttons for active codes (top 5)
+    for (const c of codes.filter(x => x.isActive && x.usedCount < x.maxUsage).slice(0, 5)) {
+      kb.push([{ text: `🚫 غیرفعال: ${c.code}`, callback_data: `admin:gift_off:${c.id}` }]);
+    }
+
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("admin:create_gift", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.adminAction = "gift_create_coins";
+    ctx.session.adminGiftCoins = undefined;
+    await ctx.reply("🎟️ **ساخت کد هدیه جدید**\n\n**مرحله ۱/۲:** تعداد سکه کد را وارد کنید:", { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^admin:gift_off:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const codeId = parseInt(ctx.match![1], 10);
+    await deactivateGiftCode(codeId);
+    await ctx.reply("🚫 کد غیرفعال شد.");
+    await ctx.answerCallbackQuery("✅");
+  });
+
+  // ── 🏆 Top referrers ─────────────────────────────────────────────────────────
+  bot.callbackQuery("admin:top_referrers", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const top = await getTopReferrers(20, true);
+
+    if (top.length === 0) {
+      await ctx.reply("🏆 هنوز رفرال موفقی ثبت نشده.");
+      await ctx.answerCallbackQuery();
+      return;
+    }
+
+    let msg = "🏆 **برترین رفرال‌دهندگان** _(اطلاعات کامل — اخیرین آمار)_\n\n";
+    for (let i = 0; i < top.length; i++) {
+      const e = top[i];
+      const medal = i < 3 ? ["🥇","🥈","🥉"][i] : `${i + 1}.`;
+      const uname = e.username ? `@${e.username}` : "بدون یوزرنیم";
+      msg += `${medal} **${e.firstName}** \`${e.telegramId}\`\n   ${uname} — ${e.referralCount} دعوت — ${e.coinsEarned}🪙\n\n`;
+    }
+
+    const kb = top.slice(0, 5).map(e => [
+      { text: `👤 مدیریت: ${e.firstName} (${e.referralCount} دعوت)`, callback_data: `admin:show_user:${e.telegramId}` },
+    ]);
+
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^admin:show_user:(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery(); return; }
+    const uid = parseInt(ctx.match![1], 10);
+    const user = await searchUser(uid);
+    if (!user) { await ctx.answerCallbackQuery("کاربر یافت نشد"); return; }
+    await ctx.reply(t("fa").adminUserInfo(user), {
+      parse_mode: "Markdown",
+      reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned"),
+    });
+    await ctx.answerCallbackQuery();
+  });
+
   // ── Force Join settings (super admin only) ────────────────────────────────────
   bot.callbackQuery("admin:force_join", async (ctx) => {
     if (!isSuperAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery("❌"); return; }
@@ -736,6 +827,32 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       await setSetting("force_join_channel", channel);
       invalidateForceJoinCache();
       await ctx.reply(t("fa").forceJoinChannelSet(channel));
+      return;
+    }
+
+    if (action === "gift_create_coins") {
+      const coins = parseInt(text, 10);
+      if (isNaN(coins) || coins < 1) { await ctx.reply("❌ مقدار نامعتبر — عدد صحیح مثبت وارد کنید."); return; }
+      ctx.session.adminGiftCoins = coins;
+      ctx.session.adminAction = "gift_create_maxusage";
+      await ctx.reply(`✅ تعداد سکه: **${coins}**\n\n**مرحله ۲/۲:** حداکثر تعداد استفاده‌کنندگان را وارد کنید:`, { parse_mode: "Markdown" });
+      return;
+    }
+
+    if (action === "gift_create_maxusage") {
+      const maxUsage = parseInt(text, 10);
+      if (isNaN(maxUsage) || maxUsage < 1) { await ctx.reply("❌ مقدار نامعتبر — عدد صحیح مثبت وارد کنید."); return; }
+      const coins = ctx.session.adminGiftCoins ?? 10;
+      ctx.session.adminGiftCoins = undefined;
+      const code = await createGiftCode(coins, maxUsage, tgId);
+      await ctx.reply(
+        `🎟️ **کد هدیه ساخته شد!**\n\n` +
+        `📋 کد: \`${code}\`\n` +
+        `💰 سکه: **${coins}**\n` +
+        `👥 حداکثر استفاده: **${maxUsage}** نفر\n\n` +
+        `_کد را برای کاربران ارسال کنید._`,
+        { parse_mode: "Markdown" }
+      );
       return;
     }
 

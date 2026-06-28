@@ -17,6 +17,10 @@ export interface SessionData {
   magicChainId?: number;
   // 🎯 Same-age matching toggle
   sameAgeMatch?: boolean;
+  // 🎟️ Gift code input
+  giftCodeInput?: boolean;
+  // 🎁 Admin gift code creation temp
+  adminGiftCoins?: number;
 }
 
 export type BotContext = ConversationFlavor<Context & SessionFlavor<SessionData>> & {

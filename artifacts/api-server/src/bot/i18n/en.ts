@@ -215,6 +215,26 @@ export const en = {
   referralInfoTitle: "🎁 **Invite Friends & Earn Free Coins**\n\nShare your unique link with friends and earn coins for every signup!\n\n👤 Get your invite link ready to share instantly.\n📊 Track your referral stats anytime.",
   inviteBtnGetLink: "🔗 Invite Link + Share Banner",
   inviteBtnStats: "📊 My Detailed Referral Stats",
+  inviteBtnLeaderboard: "🏆 Top Users",
+  inviteBtnGiftCode: "🎟️ Gift Code",
+
+  // ─── Gift Codes ───────────────────────────────────────────────────────────────
+  giftCodePrompt: "🎟️ **Enter your gift code:**\n\n_(Type the code exactly — case doesn't matter)_",
+  giftCodeSuccess: (n: number) =>
+    `🎁 **Gift code accepted!**\n\n✅ **${n} coins** added to your account.`,
+  giftCodeInvalid: "❌ **Invalid gift code.**\n\nPlease double-check the code and try again.",
+  giftCodeExpired: "❌ **This gift code is fully redeemed or expired.**",
+  giftCodeAlreadyUsed: "❌ **You have already used this gift code.**\n\nEach code can only be used once per account.",
+  giftCodeCancelled: "❌ Gift code entry cancelled.",
+
+  // ─── Leaderboard ─────────────────────────────────────────────────────────────
+  leaderboardEmpty: "🏆 **Top Users**\n\nNo successful referrals yet.\n\nBe the first to invite friends!",
+  leaderboardTitle: (updatedMins: number) =>
+    `🏆 **Top Referrers**\n` +
+    `_(Updated every 3 hours — ${updatedMins} min ago)_\n\n`,
+  leaderboardRow: (rank: number, name: string, count: number) =>
+    `${rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : `${rank}.`} **${name}** — ${count} referrals\n`,
+  leaderboardFooter: "\n_Names are anonymized to protect privacy._",
   referralStats: (total: number, successful: number, pending: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `📊 **My Referral Stats**\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +

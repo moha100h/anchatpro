@@ -172,6 +172,7 @@ export function inviteMenuKeyboard(lang: Lang) {
   return new Keyboard()
     .text(i.inviteBtnGetLink).row()
     .text(i.inviteBtnStats).row()
+    .text(i.inviteBtnLeaderboard).text(i.inviteBtnGiftCode).row()
     .text(i.back)
     .resized()
     .persistent();

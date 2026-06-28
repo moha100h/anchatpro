@@ -3,6 +3,11 @@ import type { BotContext } from "../context.js";
 import { getUserByTelegramId } from "../services/user.service.js";
 import { getBalance, getCoinHistory, getReferralStats } from "../services/coin.service.js";
 import {
+  redeemGiftCode,
+  getTopReferrers,
+  getLeaderboardLastUpdated,
+} from "../services/gift.service.js";
+import {
   getPackages,
   createPayment,
   submitReceipt,
@@ -38,6 +43,13 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return next();
     const lang = (user.language as "fa" | "en") ?? "fa";
+
+    // Cancel gift code input if active
+    if (ctx.session.giftCodeInput) {
+      ctx.session.giftCodeInput = false;
+      await ctx.reply(t(lang).giftCodeCancelled, { reply_markup: mainMenuKeyboard(lang) });
+      return;
+    }
 
     const pendingPayment = await getPendingPayment(tgId);
     if (pendingPayment) {
@@ -364,6 +376,83 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       t(lang).referralStats(stats.total, stats.successful, stats.pending, stats.coinsEarned, inviterReward, inviteeReward),
       { parse_mode: "Markdown" }
     );
+  });
+
+  // ─── Leaderboard ──────────────────────────────────────────────────────────
+  bot.hears(["🏆 برترین کاربران", "🏆 Top Users"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const top = await getTopReferrers(20);
+    if (top.length === 0) {
+      await ctx.reply(t(lang).leaderboardEmpty, { parse_mode: "Markdown" });
+      return;
+    }
+
+    const lastUpdated = getLeaderboardLastUpdated();
+    const minutesAgo = lastUpdated ? Math.floor((Date.now() - lastUpdated) / 60_000) : 0;
+
+    let msg = t(lang).leaderboardTitle(minutesAgo);
+    for (let i = 0; i < top.length; i++) {
+      const entry = top[i];
+      // Anonymize name: first 1-2 chars + ***
+      const raw = entry.firstName;
+      const anon = raw.length > 1 ? raw.slice(0, 2) + "***" : raw.slice(0, 1) + "***";
+      msg += t(lang).leaderboardRow(i + 1, anon, entry.referralCount);
+    }
+    msg += t(lang).leaderboardFooter;
+
+    await ctx.reply(msg, { parse_mode: "Markdown" });
+  });
+
+  // ─── Gift code button ─────────────────────────────────────────────────────
+  bot.hears(["🎟️ کد هدیه", "🎟️ Gift Code"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    ctx.session.giftCodeInput = true;
+    const cancelKb = {
+      keyboard: [[{ text: t(lang).cancel }]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    };
+    await ctx.reply(t(lang).giftCodePrompt, { parse_mode: "Markdown", reply_markup: cancelKb });
+  });
+
+  // ─── Gift code text input ─────────────────────────────────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    if (!ctx.session.giftCodeInput) return next();
+
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    ctx.session.giftCodeInput = false;
+
+    const result = await redeemGiftCode(tgId, ctx.message.text);
+
+    if (result.success) {
+      await ctx.reply(t(lang).giftCodeSuccess(result.coins), {
+        parse_mode: "Markdown",
+        reply_markup: mainMenuKeyboard(lang),
+      });
+      return;
+    }
+
+    const errMsg: Record<string, string> = {
+      invalid:      t(lang).giftCodeInvalid,
+      expired:      t(lang).giftCodeExpired,
+      inactive:     t(lang).giftCodeExpired,
+      already_used: t(lang).giftCodeAlreadyUsed,
+    };
+    await ctx.reply(errMsg[result.error] ?? t(lang).giftCodeInvalid, {
+      parse_mode: "Markdown",
+      reply_markup: inviteMenuKeyboard(lang),
+    });
   });
 }
 

@@ -97,13 +97,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
             return;
           }
 
-          const cost = group.joinCost;
-          const deduct = await deductCoins(tgId, cost, "group_cost", "Join group via invite link");
-          if (!deduct.success) {
-            await ctx.reply(t(lang).insufficientCoins, { reply_markup: mainMenuKeyboard(lang) });
-            return;
-          }
-
+          // Invite-link joins are always free — the creator sent this link personally.
+          // In-bot group discovery (group.ts) applies the configurable join cost separately.
           const { memberCount } = await joinGroupByInvite(tgId, group.id);
           const myAlias = await generateGroupUserId(tgId, group.id);
 

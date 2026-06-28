@@ -42,7 +42,7 @@ export const fa = {
   genderPrefAny: "🎲 شانسی",
   genderPrefSameAgeOff: "🎯 هم‌سن",
   genderPrefSameAgeOn: "✅ هم‌سن (فعال)",
-  insufficientCoins: "❌ سکه کافی ندارید!\n\n💰 برای اتصال به جنسیت خاص به 1 سکه نیاز دارید.\n\nاز منوی 💰 سکه‌های من سکه بخرید.",
+  insufficientCoins: "❌ سکه کافی ندارید!\n\n💰 از منوی 💰 سکه‌های من سکه بخرید یا با دعوت دوستان سکه رایگان بگیرید.",
   matchCostGender: "💰 اتصال به جنسیت خاص **۱ سکه** هزینه دارد.\n\nتأیید می‌کنید؟",
   matchCostAny: "⚠️ ۳ اتصال رایگان امروز تموم شد.\n\n💰 این اتصال **۱ سکه** هزینه دارد.\n\nتأیید می‌کنید؟",
   matchFreeAny: (left: number) =>

@@ -42,7 +42,7 @@ export const en = {
   genderPrefAny: "🎲 Random",
   genderPrefSameAgeOff: "🎯 Same Age",
   genderPrefSameAgeOn: "✅ Same Age (On)",
-  insufficientCoins: "❌ Insufficient coins!\n\n💰 You need 1 coin to connect to a specific gender.\n\nBuy coins from the 💰 My Coins menu.",
+  insufficientCoins: "❌ Insufficient coins!\n\n💰 Buy coins from the 💰 My Coins menu or earn free coins by inviting friends.",
   matchCostGender: "💰 Connecting to a specific gender costs **1 coin**.\n\nConfirm?",
   matchCostAny: "⚠️ You've used all 3 free chats today.\n\n💰 This connection costs **1 coin**.\n\nConfirm?",
   matchFreeAny: (left: number) =>

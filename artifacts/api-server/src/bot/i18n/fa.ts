@@ -580,6 +580,58 @@ export const fa = {
   bottleReplied: "✅ پاسخت فرستاده شد! چت ناشناس شروع شد.",
   bottleNoFloating: "🌊 الان هیچ پیامی در اقیانوس نیست. بعداً دوباره امتحان کن.",
 
+  /**
+   * Shown to the person who FOUND and replied to a bottle.
+   */
+  bottleConnectedReplier: (
+    bottleText: string,
+    p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }
+  ) => {
+    const name  = p.firstName ?? "ناشناس";
+    const age   = p.age ?? "؟";
+    const pre   = p.gender === "male"   ? `با آقا **${name}** که سنش **${age}** ساله`
+                : p.gender === "female" ? `با خانوم **${name}** که سنش **${age}** ساله`
+                : `با دوست **${name}** که سنش **${age}** ساله`;
+    const city  = p.city ? ` از **${p.city}**` : "";
+    const snippet = bottleText.length > 120 ? bottleText.slice(0, 120) + "..." : bottleText;
+    return (
+      `🌊 **بطری پیدا شد — و صاحبش پاسخ داد!**\n\n` +
+      `📜 پیامی که داخل بطری بود:\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+      `_«${snippet}»_\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
+      `🧚‍♂️ چت ناشناس ${pre}${city} متصل شدی!\n\n` +
+      `⚠️ هویت شما کاملاً محفوظ است.\n` +
+      `می‌توانید پیام، عکس، ویدیو، صدا و استیکر ارسال کنید.`
+    );
+  },
+
+  /**
+   * Shown to the original SENDER whose bottle was found and replied to.
+   */
+  bottleConnectedSender: (
+    bottleText: string,
+    p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }
+  ) => {
+    const name  = p.firstName ?? "ناشناس";
+    const age   = p.age ?? "؟";
+    const pre   = p.gender === "male"   ? `آقا **${name}** که سنش **${age}** ساله`
+                : p.gender === "female" ? `خانوم **${name}** که سنش **${age}** ساله`
+                : `دوست **${name}** که سنش **${age}** ساله`;
+    const city  = p.city ? ` از **${p.city}**` : "";
+    const snippet = bottleText.length > 120 ? bottleText.slice(0, 120) + "..." : bottleText;
+    return (
+      `🍾 **یکی از بطری‌هایت در اقیانوس پیدا شد!**\n\n` +
+      `📜 پیامی که فرستاده بودی:\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+      `_«${snippet}»_\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
+      `🧚‍♂️ ${pre}${city} بطریت رو پیدا کرده و داره بهت پاسخ میده!\n\n` +
+      `⚠️ هویت شما کاملاً محفوظ است.\n` +
+      `می‌توانید پیام، عکس، ویدیو، صدا و استیکر ارسال کنید.`
+    );
+  },
+
   // ─ Chain ─
   chainAskFirst: "🔗 **زنجیر احساس**\n\nاولین جمله‌ات را بنویس تا زنجیر شروع شود:",
   chainAskNext: (step: number, prev: string) =>

@@ -389,7 +389,14 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
       return;
     }
 
-    await createChatSession(userId, partnerId);
+    const sessionId = await createChatSession(userId, partnerId);
+    if (!sessionId) {
+      // Race condition — both sides grabbed by concurrent match
+      await ctx.editMessageText(lang === "fa"
+        ? "❌ خطا در اتصال. لطفاً دوباره تلاش کنید."
+        : "❌ Connection error. Please try again.");
+      return;
+    }
     await updateBottleStatus(bottleId, "replied");
 
     const [myUser, partnerUser] = await Promise.all([
@@ -397,11 +404,23 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
       getUserByTelegramId(partnerId),
     ]);
     const partnerLang = (partnerUser?.language as "fa" | "en") ?? "fa";
-    await ctx.editMessageText(t(lang).connectedWith(partnerUser ?? {}), { parse_mode: "Markdown" });
+    const bottleText  = bottle.message ?? "";
+
+    // Replier: sees bottle text + partner info
+    await ctx.editMessageText(
+      t(lang).bottleConnectedReplier(bottleText, partnerUser ?? {}),
+      { parse_mode: "Markdown" }
+    );
     await ctx.reply("👇", { reply_markup: chatControlKeyboard(lang) });
+
+    // Original sender: learns their bottle was found + who found it
     await bot.api
-      .sendMessage(partnerId, t(partnerLang).connectedWith(myUser ?? {}), { parse_mode: "Markdown" })
-      .catch(() => {});
+      .sendMessage(
+        partnerId,
+        t(partnerLang).bottleConnectedSender(bottleText, myUser ?? {}),
+        { parse_mode: "Markdown" }
+      )
+      .catch((err) => { console.error("[bottle:reply] notify sender failed:", err?.message ?? err); });
     await bot.api
       .sendMessage(partnerId, "👇", { reply_markup: chatControlKeyboard(partnerLang) })
       .catch(() => {});

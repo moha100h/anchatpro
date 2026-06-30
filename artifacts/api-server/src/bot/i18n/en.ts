@@ -560,6 +560,50 @@ export const en = {
   bottleTooLong: "❌ Message too long. Max 500 characters.",
   bottleSent: "🌊 Your message was released into the World of Secrets!\n\nMaybe someone finds it...",
   bottleReceived: (msg: string) => `🍾 **A message from the World of Secrets arrived!**\n\n_«${msg}»_\n\nWant to reply?`,
+  bottleConnectedReplier: (
+    bottleText: string,
+    p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }
+  ) => {
+    const name = p.firstName ?? "Anonymous";
+    const age  = p.age ?? "?";
+    const pre  = p.gender === "male"   ? `**${name}** (${age} y/o)`
+               : p.gender === "female" ? `**${name}** (${age} y/o)`
+               : `**${name}** (${age} y/o)`;
+    const city = p.city ? ` from **${p.city}**` : "";
+    const snippet = bottleText.length > 120 ? bottleText.slice(0, 120) + "..." : bottleText;
+    return (
+      `🌊 **Bottle found — and the sender replied!**\n\n` +
+      `📜 Message inside the bottle:\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+      `_«${snippet}»_\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
+      `🧚‍♂️ You're now in an anonymous chat with ${pre}${city}!\n\n` +
+      `⚠️ Your identity is fully protected.\n` +
+      `You can send messages, photos, videos, voice and stickers.`
+    );
+  },
+
+  bottleConnectedSender: (
+    bottleText: string,
+    p: { firstName?: string | null; gender?: string | null; age?: number | null; city?: string | null }
+  ) => {
+    const name = p.firstName ?? "Anonymous";
+    const age  = p.age ?? "?";
+    const pre  = `**${name}** (${age} y/o)`;
+    const city = p.city ? ` from **${p.city}**` : "";
+    const snippet = bottleText.length > 120 ? bottleText.slice(0, 120) + "..." : bottleText;
+    return (
+      `🍾 **Someone found your bottle in the ocean!**\n\n` +
+      `📜 The message you sent:\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+      `_«${snippet}»_\n` +
+      `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n` +
+      `🧚‍♂️ ${pre}${city} found your bottle and is replying!\n\n` +
+      `⚠️ Your identity is fully protected.\n` +
+      `You can send messages, photos, videos, voice and stickers.`
+    );
+  },
+
   bottleReplyBtn: "💬 Reply",
   bottleIgnoreBtn: "🌊 Release",
   bottleIgnored: "🌊 You released the bottle. That's okay!",

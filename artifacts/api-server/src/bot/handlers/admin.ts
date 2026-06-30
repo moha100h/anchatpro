@@ -48,6 +48,7 @@ import {
   listDiscountCodes,
   toggleDiscountCode,
   getCryptoCurrencies,
+  getStarsPaymentStats,
   saveCryptoCurrencies,
 } from "../services/payment.service.js";
 import { getTetraPayCallbackUrl, getPlisioCallbackUrl } from "../../lib/base-url.js";
@@ -174,6 +175,7 @@ export const ADMIN_BTN = {
   CRYPTO:         "₿ ارز دیجیتال",
   TETRAPAY:       "🔷 TetraPay",
   PLISIO:         "💫 Plisio",
+  STARS:          "⭐ Telegram Stars",
   PACKAGES:       "📦 بسته‌های سکه",
   DISCOUNT_CODES: "🏷️ کدهای تخفیف",
   // Sub-menu back
@@ -217,6 +219,7 @@ function adminPaymentKeyboard(): Keyboard {
   return new Keyboard()
     .text(ADMIN_BTN.CARD).text(ADMIN_BTN.CRYPTO).row()
     .text(ADMIN_BTN.TETRAPAY).text(ADMIN_BTN.PLISIO).row()
+    .text(ADMIN_BTN.STARS).row()
     .text(ADMIN_BTN.PACKAGES).text(ADMIN_BTN.DISCOUNT_CODES).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
@@ -797,6 +800,41 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     );
   });
 
+  // ── ⭐ Telegram Stars gateway ──────────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.STARS, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const [methodVal, stats] = await Promise.all([
+      getSetting("payment_method_stars"),
+      getStarsPaymentStats(),
+    ]);
+    const enabled = methodVal === "enabled";
+    await ctx.reply(
+      `⭐ *Telegram Stars — درگاه پرداخت استارز*\n\n` +
+      `وضعیت: ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n\n` +
+      `📊 *آمار دریافتی:*\n` +
+      `• کل استارز دریافتی: ⭐ ${Math.round(stats.totalStars).toLocaleString("fa-IR")}\n` +
+      `• پرداخت‌های موفق: ${stats.approvedCount.toLocaleString("fa-IR")}\n` +
+      `• پرداخت‌های در انتظار: ${stats.pendingCount.toLocaleString("fa-IR")}\n\n` +
+      `💡 *نحوه برداشت استارز:*\n` +
+      `1️⃣ به سایت [Fragment.com](https://fragment.com) وارد شوید\n` +
+      `2️⃣ با کیف پول تلگرام خود وارد شوید\n` +
+      `3️⃣ استارزها را به TON یا USDT تبدیل کنید\n\n` +
+      `⚠️ نیازی به کلید API نیست — پرداخت استارز کاملاً توکار تلگرام است.\n` +
+      `پس از فعال‌سازی، بسته‌های اختصاصی استارز را از بخش *بسته‌های سکه* تعریف کنید.`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "📦 بسته‌های Stars",               callback_data: "gw_pkgs:stars"          }],
+            [{ text: "📝 نام نمایشی درگاه",             callback_data: "gw_name:stars"          }],
+            [{ text: enabled ? "❌ غیرفعال کردن Stars" : "✅ فعال کردن Stars", callback_data: "pay_toggle:stars" }],
+          ],
+        },
+      }
+    );
+  });
+
   // ─── Package management (overview — grouped by gateway) ──────────────────────
   bot.hears(ADMIN_BTN.PACKAGES, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
@@ -806,6 +844,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       { key: "crypto",   label: "₿ ارز دیجیتال",      cb: "gw_pkgs:crypto"   },
       { key: "tetrapay", label: "🌐 TetraPay",         cb: "gw_pkgs:tetrapay" },
       { key: "plisio",   label: "💫 Plisio",           cb: "gw_pkgs:plisio"   },
+      { key: "stars",    label: "⭐ Telegram Stars",   cb: "gw_pkgs:stars"    },
     ];
     const kb: Array<Array<{ text: string; callback_data: string }>> = GWS.map(g => [
       { text: `${g.label}`, callback_data: g.cb }
@@ -1128,14 +1167,15 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     }
   });
 
-  bot.callbackQuery(/^pay_toggle:(card|crypto|gateway|plisio)$/, async (ctx) => {
+  bot.callbackQuery(/^pay_toggle:(card|crypto|gateway|plisio|stars)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const method  = ctx.match![1]!;
     const key     = `payment_method_${method}`;
     const current = await getSetting(key);
-    const newVal  = current === "disabled" ? "enabled" : "disabled";
+    // Stars is disabled by default — toggle to enabled first time, then between enabled/disabled
+    const newVal  = current === "enabled" ? "disabled" : "enabled";
     await setSetting(key, newVal);
-    const labels: Record<string, string> = { card: "کارت", crypto: "کریپتو", gateway: "درگاه (TetraPay)", plisio: "Plisio" };
+    const labels: Record<string, string> = { card: "کارت", crypto: "کریپتو", gateway: "درگاه (TetraPay)", plisio: "Plisio", stars: "Telegram Stars" };
     await ctx.reply(`${newVal === "enabled" ? "✅ فعال" : "❌ غیرفعال"} شد: ${labels[method] ?? method}`);
     await ctx.answerCallbackQuery("✅");
   });
@@ -1163,7 +1203,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   // ── Gateway display name callbacks ────────────────────────────────────────────
-  bot.callbackQuery(/^gw_name:(card|crypto|tetrapay|plisio)$/, async (ctx) => {
+  bot.callbackQuery(/^gw_name:(card|crypto|tetrapay|plisio|stars)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const gw = ctx.match![1]!;
     const settingKey = `gateway_display_name_${gw}`;
@@ -1172,6 +1212,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       crypto:   "₿ ارز دیجیتال (کریپتو)",
       tetrapay: "🌐 درگاه آنلاین (TetraPay)",
       plisio:   "💫 پلیزیو (Plisio)",
+      stars:    "⭐ استارز تلگرام",
     };
     const cur = (await getSetting(settingKey)) ?? defaults[gw];
     ctx.session.adminAction = `set_gw_name:${gw}`;
@@ -1185,13 +1226,12 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   // ── Per-gateway packages list ──────────────────────────────────────────────────
-  bot.callbackQuery(/^gw_pkgs:(card|crypto|tetrapay|plisio)$/, async (ctx) => {
+  bot.callbackQuery(/^gw_pkgs:(card|crypto|tetrapay|plisio|stars)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const gw = ctx.match![1]!;
     const gwLabels: Record<string, string> = {
-      card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio"
+      card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio", stars: "⭐ Stars"
     };
-    const pkgCurrency: Record<string, string> = { card: "تومان", crypto: "$", tetrapay: "تومان", plisio: "$" };
     const packages = await getAllPackages(gw);
     const kb: Array<Array<{ text: string; callback_data: string }>> = [];
     let msg = `📦 *بسته‌های ${gwLabels[gw]}:*\n\n`;
@@ -1202,10 +1242,11 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         const status  = pkg.isActive ? "✅" : "❌";
         const disc    = (pkg.discountPercent ?? 0) > 0 ? ` 🔥-${pkg.discountPercent}%` : "";
         const label   = pkg.label ? ` (${pkg.label})` : "";
-        const cur     = pkgCurrency[gw] ?? "تومان";
         const priceStr = (gw === "crypto" || gw === "plisio")
           ? `$${pkg.price}`
-          : pkg.price.toLocaleString("fa-IR") + " " + cur;
+          : gw === "stars"
+            ? `⭐ ${Math.round(pkg.price)}`
+            : pkg.price.toLocaleString("fa-IR") + " تومان";
         msg += `${status} *${pkg.coins}* سکه${label} | ${priceStr}${disc} — #${pkg.id}\n`;
         if (pkg.description) msg += `   _${pkg.description}_\n`;
         kb.push([
@@ -1221,7 +1262,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   // ── Create per-gateway package ─────────────────────────────────────────────────
-  bot.callbackQuery(/^gw_pkg:create:(card|crypto|tetrapay|plisio)$/, async (ctx) => {
+  bot.callbackQuery(/^gw_pkg:create:(card|crypto|tetrapay|plisio|stars)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const gw = ctx.match![1]!;
     ctx.session.adminPkgGateway   = gw;
@@ -1231,7 +1272,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     ctx.session.adminPkgDiscount  = undefined;
     ctx.session.adminPkgLabel     = undefined;
     ctx.session.adminPkgDesc      = undefined;
-    const gwLabels: Record<string, string> = { card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio" };
+    const gwLabels: Record<string, string> = { card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio", stars: "⭐ Stars" };
     await ctx.reply(
       `📦 *بسته جدید — ${gwLabels[gw]}*\n\n` +
       `*مرحله ۱/۵:* تعداد سکه را وارد کنید:`,
@@ -2280,23 +2321,32 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       ctx.session.adminPkgCoins  = coins;
       ctx.session.adminAction    = "gpkg_price";
       const gw = ctx.session.adminPkgGateway ?? "card";
-      const isUsd = gw === "crypto" || gw === "plisio";
+      const isUsd   = gw === "crypto" || gw === "plisio";
+      const isStars = gw === "stars";
       await ctx.reply(
-        `✅ سکه: *${coins}*\n\n*مرحله ۲/۵:* قیمت ${isUsd ? "($USD — عدد صحیح)" : "(تومان)"}:`,
+        `✅ سکه: *${coins}*\n\n*مرحله ۲/۵:* قیمت ${isStars ? "(تعداد استارز ⭐ — عدد صحیح، حداقل ۱)" : isUsd ? "($USD — اعشاری مجاز مثلاً 1.5)" : "(تومان)"}:`,
         { parse_mode: "Markdown" }
       );
       return;
     }
 
     if (action === "gpkg_price") {
-      const price = parseFloat(text.replace(/,/g, ""));
-      if (isNaN(price) || price <= 0) { await ctx.reply("❌ عدد مثبت وارد کنید (اعشاری مجاز مثلاً 1.5)."); return; }
+      const gw      = ctx.session.adminPkgGateway ?? "card";
+      const isStars = gw === "stars";
+      const isUsd   = gw === "crypto" || gw === "plisio";
+      let price: number;
+      if (isStars) {
+        price = parseInt(text.replace(/,/g, ""), 10);
+        if (isNaN(price) || price < 1) { await ctx.reply("❌ عدد صحیح حداقل ۱ وارد کنید (تعداد استارز)."); return; }
+      } else {
+        price = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(price) || price <= 0) { await ctx.reply("❌ عدد مثبت وارد کنید (اعشاری مجاز مثلاً 1.5)."); return; }
+      }
       ctx.session.adminPkgPrice = price;
       ctx.session.adminAction   = "gpkg_discount";
-      const gw = ctx.session.adminPkgGateway ?? "card";
-      const isUsd = gw === "crypto" || gw === "plisio";
+      const priceDisplay = isStars ? `⭐ ${price}` : isUsd ? `$${price}` : `${price.toLocaleString("fa-IR")} تومان`;
       await ctx.reply(
-        `✅ قیمت: *${isUsd ? "$" : ""}${price}${isUsd ? "" : " تومان"}*\n\n*مرحله ۳/۵:* درصد تخفیف (۰ = بدون تخفیف):`,
+        `✅ قیمت: *${priceDisplay}*\n\n*مرحله ۳/۵:* درصد تخفیف (۰ = بدون تخفیف):`,
         { parse_mode: "Markdown" }
       );
       return;
@@ -2332,6 +2382,10 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       const price    = ctx.session.adminPkgPrice    ?? 1000;
       const discount = ctx.session.adminPkgDiscount ?? 0;
       const label    = ctx.session.adminPkgLabel === "" ? undefined : (ctx.session.adminPkgLabel ?? undefined);
+      const isStars  = gw === "stars";
+      const isUsd    = gw === "crypto" || gw === "plisio";
+      // Stars packages must have currency XTR; crypto/plisio → USD; others → IRT
+      const currency = isStars ? "XTR" : isUsd ? "USD" : "IRT";
       const origPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
       ctx.session.adminPkgGateway  = undefined;
       ctx.session.adminPkgCoins    = undefined;
@@ -2339,14 +2393,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       ctx.session.adminPkgDiscount = undefined;
       ctx.session.adminPkgLabel    = undefined;
       ctx.session.adminPkgDesc     = undefined;
-      const pkg = await createPackage({ gateway: gw, coins, price, originalPrice: origPrice, discountPercent: discount, label, description: desc ?? undefined });
-      const isUsd = gw === "crypto" || gw === "plisio";
-      const gwNames: Record<string, string> = { card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio" };
+      const pkg = await createPackage({ gateway: gw, coins, price, originalPrice: origPrice, discountPercent: discount, label, description: desc ?? undefined, currency });
+      const priceDisplay = isStars ? `⭐ ${Math.round(pkg.price)}` : isUsd ? `$${pkg.price}` : `${pkg.price.toLocaleString("fa-IR")} تومان`;
+      const gwNames: Record<string, string> = { card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio", stars: "⭐ Stars" };
       await ctx.reply(
         `📦 *بسته جدید ساخته شد!*\n\n` +
         `🔖 درگاه: *${gwNames[gw] ?? gw}*\n` +
         `💎 سکه: *${pkg.coins}*\n` +
-        `💵 قیمت: *${isUsd ? "$" : ""}${pkg.price}${isUsd ? "" : " تومان"}*\n` +
+        `💵 قیمت: *${priceDisplay}*\n` +
         (discount > 0 ? `🔥 تخفیف: *${discount}%*\n` : "") +
         (label ? `🏷️ عنوان: *${label}*\n` : "") +
         (desc ? `📝 توضیحات: _${desc}_\n` : "") +
@@ -2526,14 +2580,25 @@ async function showReports(ctx: BotContext): Promise<void> {
 }
 
 async function showPaymentSection(ctx: BotContext): Promise<void> {
-  const cardEnabled   = (await getSetting("payment_method_card")    ?? "enabled") !== "disabled";
-  const cryptoEnabled = (await getSetting("payment_method_crypto")  ?? "enabled") !== "disabled";
-  const gwEnabled     = (await getSetting("payment_method_gateway") ?? "enabled") !== "disabled";
+  const [cardVal, cryptoVal, gwVal, plisioVal, starsVal] = await Promise.all([
+    getSetting("payment_method_card"),
+    getSetting("payment_method_crypto"),
+    getSetting("payment_method_gateway"),
+    getSetting("payment_method_plisio"),
+    getSetting("payment_method_stars"),
+  ]);
+  const cardEnabled   = (cardVal   ?? "enabled") !== "disabled";
+  const cryptoEnabled = (cryptoVal ?? "enabled") !== "disabled";
+  const gwEnabled     = (gwVal     ?? "enabled") !== "disabled";
+  const plisioEnabled = (plisioVal ?? "enabled") !== "disabled";
+  const starsEnabled  = starsVal === "enabled";
   await ctx.reply(
     `💳 *روش‌های پرداخت*\n\n` +
     `💳 کارت بانکی: ${cardEnabled   ? "✅ فعال" : "❌ غیرفعال"}\n` +
     `₿ ارز دیجیتال: ${cryptoEnabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
-    `🔷 TetraPay: ${gwEnabled        ? "✅ فعال" : "❌ غیرفعال"}\n\n` +
+    `🔷 TetraPay: ${gwEnabled        ? "✅ فعال" : "❌ غیرفعال"}\n` +
+    `💫 Plisio: ${plisioEnabled      ? "✅ فعال" : "❌ غیرفعال"}\n` +
+    `⭐ Telegram Stars: ${starsEnabled ? "✅ فعال" : "❌ غیرفعال"}\n\n` +
     `_از منوی پایین روش مورد نظر را انتخاب کنید._`,
     { parse_mode: "Markdown", reply_markup: adminPaymentKeyboard() }
   );

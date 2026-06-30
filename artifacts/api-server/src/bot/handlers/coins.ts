@@ -12,6 +12,7 @@ import {
   getPackages,
   getPackageById,
   createPayment,
+  approveStarsPayment,
   submitReceipt,
   getSetting,
   isMethodEnabled,
@@ -108,11 +109,50 @@ async function handlePaymentByMethod(
   bot: Bot<BotContext>,
   lang: "fa" | "en",
   tgId: number,
-  method: "card" | "crypto" | "gateway" | "plisio",
+  method: "card" | "crypto" | "gateway" | "plisio" | "stars",
   pkgId: number,
   discPct: number,
   discCode: number | undefined,
 ): Promise<void> {
+  // ── Telegram Stars gateway ─────────────────────────────────────────────────
+  if (method === "stars") {
+    let payment;
+    try {
+      payment = await createPayment(tgId, pkgId, "stars", { discountPercent: discPct, discountCodeId: discCode });
+    } catch {
+      await ctx.reply(lang === "fa" ? "❌ خطا در ایجاد پرداخت. لطفاً دوباره امتحان کنید." : "❌ Failed to create payment. Please try again.");
+      return;
+    }
+    if (discCode) { await useDiscountCode(discCode).catch(() => {}); }
+    ctx.session.pendingPaymentMethod    = "stars";
+    ctx.session.pendingPaymentPackageId = undefined;
+
+    const starsAmount = Math.max(1, Math.round(payment.price));
+    const title       = lang === "fa" ? `خرید ${payment.coins} سکه` : `Buy ${payment.coins} Coins`;
+    const description = lang === "fa"
+      ? `پرداخت با استارز تلگرام — ${payment.coins} سکه به حساب شما اضافه می‌شود.`
+      : `Pay with Telegram Stars — ${payment.coins} coins will be added to your account.`;
+    const payload = `stars_${payment.id}`;
+
+    try {
+      await ctx.api.sendInvoice(
+        tgId,
+        title,
+        description,
+        payload,
+        "XTR",
+        [{ label: lang === "fa" ? `${payment.coins} سکه` : `${payment.coins} Coins`, amount: starsAmount }],
+        { provider_token: "" }
+      );
+    } catch (err: any) {
+      await ctx.reply(lang === "fa"
+        ? `❌ خطا در ارسال فاکتور Stars.\n\`${err?.message ?? err}\``
+        : `❌ Failed to send Stars invoice.\n\`${err?.message ?? err}\``,
+        { parse_mode: "Markdown" }
+      );
+    }
+    return;
+  }
   // ── Plisio crypto gateway ────────────────────────────────────────────────────
   if (method === "plisio") {
     await ctx.reply(t(lang).gatewayCreating);
@@ -383,14 +423,15 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const [cardOn, cryptoOn, gatewayOn, plisioOn] = await Promise.all([
+    const [cardOn, cryptoOn, gatewayOn, plisioOn, starsOn] = await Promise.all([
       isMethodEnabled("card"),
       isMethodEnabled("crypto"),
       isMethodEnabled("gateway"),
       isMethodEnabled("plisio"),
+      isMethodEnabled("stars"),
     ]);
 
-    if (!cardOn && !cryptoOn && !gatewayOn && !plisioOn) {
+    if (!cardOn && !cryptoOn && !gatewayOn && !plisioOn && !starsOn) {
       await ctx.reply(
         lang === "fa"
           ? "⚠️ در حال حاضر هیچ روش پرداختی فعال نیست. لطفاً بعداً امتحان کنید."
@@ -405,17 +446,19 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     ctx.session.pendingDiscountCodeId   = undefined;
     ctx.session.pendingDiscountPercent  = undefined;
 
-    const [nameCard, nameCrypto, nameTetrapay, namePlisio] = await Promise.all([
+    const [nameCard, nameCrypto, nameTetrapay, namePlisio, nameStars] = await Promise.all([
       getSetting("gateway_display_name_card"),
       getSetting("gateway_display_name_crypto"),
       getSetting("gateway_display_name_tetrapay"),
       getSetting("gateway_display_name_plisio"),
+      getSetting("gateway_display_name_stars"),
     ]);
     const gwNames = {
       card:     nameCard     ?? (lang === "fa" ? "💳 پرداخت کارت‌به‌کارت" : "💳 Card Payment"),
       crypto:   nameCrypto   ?? (lang === "fa" ? "₿ ارز دیجیتال (کریپتو)" : "₿ Cryptocurrency"),
       tetrapay: nameTetrapay ?? (lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway (TetraPay)"),
       plisio:   namePlisio   ?? (lang === "fa" ? "💫 پلیزیو (Plisio)" : "💫 Plisio (Crypto)"),
+      stars:    nameStars    ?? (lang === "fa" ? "⭐ استارز تلگرام" : "⭐ Telegram Stars"),
     };
 
     await ctx.reply(
@@ -424,7 +467,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
         : "💰 *Buy Coins*\n\nFirst, choose your payment method:",
       {
         parse_mode:   "Markdown",
-        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn }, gwNames),
+        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn, stars: starsOn }, gwNames),
       }
     );
   });
@@ -448,19 +491,21 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     }
 
     // Match text against gateway display names (fetch from settings for custom names)
-    const [nameCard, nameCrypto, nameTetrapay, namePlisio] = await Promise.all([
+    const [nameCard, nameCrypto, nameTetrapay, namePlisio, nameStars2] = await Promise.all([
       getSetting("gateway_display_name_card"),
       getSetting("gateway_display_name_crypto"),
       getSetting("gateway_display_name_tetrapay"),
       getSetting("gateway_display_name_plisio"),
+      getSetting("gateway_display_name_stars"),
     ]);
-    const GW_MAP: Array<{ names: string[]; method: "card" | "crypto" | "gateway" | "plisio" }> = [
-      { method: "card",    names: [nameCard    ?? "💳 پرداخت کارت‌به‌کارت", "💳 Card Payment",                "💳"] },
-      { method: "crypto",  names: [nameCrypto  ?? "₿ ارز دیجیتال (کریپتو)", "₿ Cryptocurrency",              "₿"]  },
+    const GW_MAP: Array<{ names: string[]; method: "card" | "crypto" | "gateway" | "plisio" | "stars" }> = [
+      { method: "card",    names: [nameCard    ?? "💳 پرداخت کارت‌به‌کارت", "💳 Card Payment",                 "💳"] },
+      { method: "crypto",  names: [nameCrypto  ?? "₿ ارز دیجیتال (کریپتو)", "₿ Cryptocurrency",               "₿"]  },
       { method: "gateway", names: [nameTetrapay ?? "🌐 درگاه آنلاین (TetraPay)", "🌐 Online Gateway (TetraPay)", "🌐"] },
-      { method: "plisio",  names: [namePlisio  ?? "💫 پلیزیو (Plisio)",       "💫 Plisio (Crypto)",           "💫"] },
+      { method: "plisio",  names: [namePlisio  ?? "💫 پلیزیو (Plisio)",        "💫 Plisio (Crypto)",            "💫"] },
+      { method: "stars",   names: [nameStars2  ?? "⭐ استارز تلگرام",          "⭐ Telegram Stars",              "⭐"] },
     ];
-    let method: "card" | "crypto" | "gateway" | "plisio" | null = null;
+    let method: "card" | "crypto" | "gateway" | "plisio" | "stars" | null = null;
     for (const gw of GW_MAP) {
       if (gw.names.some(n => text === n || text.startsWith(n.slice(0, 2)))) {
         method = gw.method;
@@ -491,6 +536,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       method === "card"    ? (lang === "fa" ? "💳 کارت‌به‌کارت"           : "💳 Card")
       : method === "crypto"  ? (lang === "fa" ? "₿ ارز دیجیتال"              : "₿ Crypto")
       : method === "plisio"  ? (lang === "fa" ? "💫 Plisio (کریپتو جهانی)"  : "💫 Plisio (Crypto)")
+      : method === "stars"   ? (lang === "fa" ? "⭐ استارز تلگرام"           : "⭐ Telegram Stars")
       :                        (lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway");
 
     const packages = await getPackages(method);
@@ -499,7 +545,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
         lang === "fa"
           ? "⚠️ هیچ بسته‌ای برای این روش پرداخت تعریف نشده. لطفاً روش دیگری انتخاب کنید."
           : "⚠️ No packages available for this payment method. Please choose another.",
-        { reply_markup: coinsGatewayKeyboard(lang, { card: true, crypto: true, gateway: true, plisio: true }) }
+        { reply_markup: coinsGatewayKeyboard(lang, { card: true, crypto: true, gateway: true, plisio: true, stars: true }) }
       );
       return;
     }
@@ -1238,6 +1284,68 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       : t(lang).spinResultLow(result.coins, result.newBalance);
 
     await ctx.editMessageText(msg, { parse_mode: "Markdown" });
+  });
+
+  // ─── Telegram Stars: pre-checkout validation ─────────────────────────────
+  bot.on("pre_checkout_query", async (ctx) => {
+    const payload = ctx.preCheckoutQuery.invoice_payload;
+    if (!payload.startsWith("stars_")) {
+      await ctx.answerPreCheckoutQuery(false, "Invalid payment payload");
+      return;
+    }
+    const paymentId = parseInt(payload.slice(6), 10);
+    if (isNaN(paymentId)) {
+      await ctx.answerPreCheckoutQuery(false, "Invalid payment ID");
+      return;
+    }
+    const payment = await getPendingPayment(ctx.from.id);
+    // Verify this specific payment record is still pending
+    if (!payment || payment.id !== paymentId || payment.status !== "pending") {
+      await ctx.answerPreCheckoutQuery(false, "This payment has already been processed or expired.");
+      return;
+    }
+    // All good — confirm the checkout
+    await ctx.answerPreCheckoutQuery(true);
+  });
+
+  // ─── Telegram Stars: successful payment handler ───────────────────────────
+  bot.on("message:successful_payment", async (ctx) => {
+    const sp = ctx.message.successful_payment;
+    if (!sp.invoice_payload.startsWith("stars_")) return;
+
+    const tgId      = ctx.from!.id;
+    const paymentId = parseInt(sp.invoice_payload.slice(6), 10);
+    const chargeId  = sp.telegram_payment_charge_id;
+    const user      = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang      = (user?.language as "fa" | "en") ?? "fa";
+
+    // Atomically approve the payment (idempotent — returns null if already processed)
+    const payment = await approveStarsPayment(paymentId, chargeId);
+    if (!payment) {
+      // Already approved (duplicate event) — silently ignore
+      return;
+    }
+
+    // Credit coins to user
+    const { addCoins } = await import("../services/coin.service.js");
+    await addCoins(tgId, payment.coins, "payment", `⭐ خرید ${payment.coins} سکه با استارز`);
+
+    // Reset session
+    ctx.session.pendingPaymentMethod    = undefined;
+    ctx.session.pendingPaymentPackageId = undefined;
+
+    await ctx.reply(
+      lang === "fa"
+        ? `✅ *پرداخت موفق!*\n\n` +
+          `⭐ ${sp.total_amount} استارز دریافت شد\n` +
+          `💎 *${payment.coins} سکه* به حساب شما اضافه شد!\n\n` +
+          `از خرید شما متشکریم 🙏`
+        : `✅ *Payment Successful!*\n\n` +
+          `⭐ ${sp.total_amount} Stars received\n` +
+          `💎 *${payment.coins} coins* added to your account!\n\n` +
+          `Thank you for your purchase 🙏`,
+      { parse_mode: "Markdown", reply_markup: mainMenuKeyboard(lang) }
+    );
   });
 
   // ─── Gift code text input ─────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import { pgTable, serial, bigint, integer, text, timestamp, varchar, boolean, pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const paymentMethodEnum = pgEnum("payment_method", ["card", "crypto", "gateway", "plisio"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["card", "crypto", "gateway", "plisio", "stars"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "approved", "rejected"]);
 export const tetraPayStatusEnum = pgEnum("tetrapay_status", ["pending", "paid", "failed", "duplicate"]);
 export const plisioStatusEnum = pgEnum("plisio_status", ["pending", "completed", "expired", "failed", "cancelled", "mismatch", "error"]);

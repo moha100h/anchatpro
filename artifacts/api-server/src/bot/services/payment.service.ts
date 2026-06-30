@@ -13,7 +13,7 @@ import { addCoins } from "./coin.service.js";
 /** Map payment method → package gateway column value */
 export function methodToGateway(method: string): string {
   if (method === "gateway") return "tetrapay";
-  return method; // card, crypto, plisio
+  return method; // card, crypto, plisio, stars
 }
 
 /** Get active packages for a specific gateway. Falls back to legacy (null-gateway) packages if none. */
@@ -70,10 +70,15 @@ export async function createPackage(data: {
   cryptoPrice?: number;
   tetrapayPrice?: number;
   plisioPrice?: number;
+  currency?: string;
 }) {
-  // Determine currency from gateway
+  // Determine currency from gateway (caller may override)
   const usdGateways = new Set(["crypto", "plisio"]);
-  const currency = data.gateway && usdGateways.has(data.gateway) ? "USD" : "IRT";
+  const currency = data.currency ?? (
+    data.gateway === "stars" ? "XTR"
+    : data.gateway && usdGateways.has(data.gateway) ? "USD"
+    : "IRT"
+  );
   const [pkg] = await db
     .insert(paymentPackagesTable)
     .values({
@@ -124,7 +129,7 @@ export async function deletePackage(id: number) {
 export async function createPayment(
   userId: number,
   packageId: number,
-  method: "card" | "crypto" | "gateway" | "plisio",
+  method: "card" | "crypto" | "gateway" | "plisio" | "stars",
   options?: { discountPercent?: number; discountCodeId?: number }
 ): Promise<typeof paymentsTable.$inferSelect> {
   const pkg = await getPackageById(packageId);
@@ -144,11 +149,13 @@ export async function createPayment(
       );
 
   const discountPct = options?.discountPercent ?? 0;
-  // For IRT prices: round to nearest integer. For USD prices: keep 2 decimal places.
   const rawPrice = discountPct > 0 ? basePrice * (100 - discountPct) / 100 : basePrice;
-  const finalPrice = (method === "plisio" || pkg.currency === "USD")
-    ? Math.round(rawPrice * 100) / 100
-    : Math.round(rawPrice);
+  // Stars: integer (whole stars). USD (plisio/crypto): 2 decimal places. IRT: integer.
+  const finalPrice = method === "stars"
+    ? Math.max(1, Math.round(rawPrice))
+    : (method === "plisio" || pkg.currency === "USD")
+      ? Math.round(rawPrice * 100) / 100
+      : Math.round(rawPrice);
 
   const [payment] = await db
     .insert(paymentsTable)
@@ -157,7 +164,7 @@ export async function createPayment(
       packageId,
       coins: pkg.coins,
       price: finalPrice,
-      currency: method === "plisio" ? "USD" : pkg.currency,
+      currency: method === "plisio" ? "USD" : method === "stars" ? "XTR" : pkg.currency,
       method,
       status: "pending",
       createdAt: new Date(),
@@ -262,9 +269,49 @@ export async function setSetting(key: string, value: string): Promise<void> {
     });
 }
 
-export async function isMethodEnabled(method: "card" | "crypto" | "gateway" | "plisio"): Promise<boolean> {
+export async function isMethodEnabled(method: "card" | "crypto" | "gateway" | "plisio" | "stars"): Promise<boolean> {
   const val = await getSetting(`payment_method_${method}`);
+  // Stars is disabled by default until admin explicitly enables it
+  if (method === "stars") return val === "enabled";
   return val !== "disabled";
+}
+
+// ─── Stars payment helpers ────────────────────────────────────────────────────
+
+/** Mark a Stars payment as approved (atomic: only succeeds if still pending). Returns payment or null if already processed. */
+export async function approveStarsPayment(
+  paymentId: number,
+  telegramChargeId: string,
+): Promise<typeof paymentsTable.$inferSelect | null> {
+  const [payment] = await db
+    .update(paymentsTable)
+    .set({
+      status: "approved",
+      processedAt: new Date(),
+      rejectionReason: `Stars charge ID: ${telegramChargeId}`,
+    })
+    .where(and(eq(paymentsTable.id, paymentId), eq(paymentsTable.status, "pending")))
+    .returning();
+  return payment ?? null;
+}
+
+/** Get Stars payment statistics for admin panel */
+export async function getStarsPaymentStats(): Promise<{
+  totalStars: number;
+  approvedCount: number;
+  pendingCount: number;
+}> {
+  const rows = await db
+    .select({ status: paymentsTable.status, price: paymentsTable.price })
+    .from(paymentsTable)
+    .where(eq(paymentsTable.method, "stars"));
+  const approvedRows = rows.filter(r => r.status === "approved");
+  const pendingRows  = rows.filter(r => r.status === "pending");
+  return {
+    totalStars:    approvedRows.reduce((s, r) => s + (r.price ?? 0), 0),
+    approvedCount: approvedRows.length,
+    pendingCount:  pendingRows.length,
+  };
 }
 
 // ─── Default packages ─────────────────────────────────────────────────────────

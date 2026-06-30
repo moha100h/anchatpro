@@ -233,20 +233,22 @@ const GW_DEFAULTS = {
     crypto:   "₿ ارز دیجیتال (کریپتو)",
     tetrapay: "🌐 درگاه آنلاین (TetraPay)",
     plisio:   "💫 پلیزیو (Plisio)",
+    stars:    "⭐ استارز تلگرام",
   },
   en: {
     card:     "💳 Card Payment",
     crypto:   "₿ Cryptocurrency",
     tetrapay: "🌐 Online Gateway (TetraPay)",
     plisio:   "💫 Plisio (Crypto)",
+    stars:    "⭐ Telegram Stars",
   },
 };
 
 /** STEP 1: Gateway selection keyboard — shown first when buying coins */
 export function coinsGatewayKeyboard(
   lang: Lang,
-  enabled: { card: boolean; crypto: boolean; gateway: boolean; plisio?: boolean },
-  customNames?: { card?: string; crypto?: string; tetrapay?: string; plisio?: string }
+  enabled: { card: boolean; crypto: boolean; gateway: boolean; plisio?: boolean; stars?: boolean },
+  customNames?: { card?: string; crypto?: string; tetrapay?: string; plisio?: string; stars?: string }
 ) {
   const defaults = GW_DEFAULTS[lang];
   const kb = new Keyboard();
@@ -254,6 +256,7 @@ export function coinsGatewayKeyboard(
   if (enabled.crypto)  kb.text(customNames?.crypto   ?? defaults.crypto).row();
   if (enabled.gateway) kb.text(customNames?.tetrapay ?? defaults.tetrapay).row();
   if (enabled.plisio)  kb.text(customNames?.plisio   ?? defaults.plisio).row();
+  if (enabled.stars)   kb.text(customNames?.stars    ?? defaults.stars).row();
   kb.text(lang === "fa" ? "🔙 بازگشت" : "🔙 Back");
   return kb.resized().persistent();
 }
@@ -262,9 +265,10 @@ export function coinsGatewayKeyboard(
 export function coinsPackagesKeyboard(
   packages: PaymentPackage[],
   lang: Lang,
-  method?: "card" | "crypto" | "gateway" | "plisio"
+  method?: "card" | "crypto" | "gateway" | "plisio" | "stars"
 ) {
-  const isUsdMethod = method === "crypto" || method === "plisio";
+  const isUsdMethod   = method === "crypto" || method === "plisio";
+  const isStarsMethod = method === "stars";
   const kb = new Keyboard();
   for (const pkg of packages) {
     // Gateway-scoped packages: use pkg.price directly.
@@ -276,8 +280,13 @@ export function coinsPackagesKeyboard(
       method === "plisio"  && (pkg.plisioPrice ?? pkg.cryptoPrice) ? (pkg.plisioPrice ?? pkg.cryptoPrice)! :
       pkg.price
     );
-    const isUsd = pkg.gateway ? (pkg.gateway === "crypto" || pkg.gateway === "plisio") : isUsdMethod;
-    const priceStr = isUsd ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
+    const isStarsPkg = pkg.gateway === "stars" || pkg.currency === "XTR" || isStarsMethod;
+    const isUsd      = !isStarsPkg && (pkg.gateway ? (pkg.gateway === "crypto" || pkg.gateway === "plisio") : isUsdMethod);
+    const priceStr   = isStarsPkg
+      ? `⭐ ${Math.round(effectivePrice)}`
+      : isUsd
+        ? `$${effectivePrice}`
+        : effectivePrice.toLocaleString("fa-IR") + " تومان";
 
     const hasDiscount = (pkg.discountPercent ?? 0) > 0;
     const label = pkg.label ?? (lang === "fa" ? `${pkg.coins} سکه` : `${pkg.coins} coins`);

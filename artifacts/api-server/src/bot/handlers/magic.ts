@@ -447,12 +447,15 @@ export function registerMagicHandlers(bot: Bot<BotContext>): void {
         const recipientLang = (pick.language as "fa" | "en") ?? "fa";
         await bot.api
           .sendMessage(pick.telegramId, t(recipientLang).bottleReceived(text), {
-            parse_mode: "Markdown",
+            parse_mode: "HTML",
             reply_markup: new InlineKeyboard()
               .text(t(recipientLang).bottleReplyBtn,  `bottle:reply:${bottleId}`)
+              .row()
               .text(t(recipientLang).bottleIgnoreBtn, `bottle:ignore:${bottleId}`),
           })
-          .catch(() => {});
+          .catch((err) => {
+            console.error("[bottle] Failed to deliver bottle message:", err?.message ?? err);
+          });
       }
       await ctx.reply(t(lang).bottleSent, { reply_markup: magicMenuKeyboard(lang) });
       return;

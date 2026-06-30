@@ -982,9 +982,10 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     // Use inv prefix (no underscore) to avoid Markdown parse issues
     const link = `https://t.me/${botUsername}?start=inv${user.referralCode}`;
 
-    const [inviterRewardStr, inviteeRewardStr] = await Promise.all([
+    const [inviterRewardStr, inviteeRewardStr, customBannerText] = await Promise.all([
       getSetting("referral_reward_inviter"),
       getSetting("referral_reward_invitee"),
+      getSetting("referral_banner_text"),
     ]);
     const inviterReward = parseInt(inviterRewardStr ?? "10", 10);
     const inviteeReward = parseInt(inviteeRewardStr ?? "5", 10);
@@ -992,8 +993,16 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     // Message 1: link info (copyable) — HTML to avoid URL underscore conflicts
     await ctx.reply(t(lang).referralLinkMsg(link), { parse_mode: "HTML" });
 
-    // Message 2: forward-able promotional banner — HTML
-    await ctx.reply(t(lang).referralBanner(link, inviterReward, inviteeReward, botUsername), {
+    // Message 2: forward-able promotional banner — custom or default
+    const bannerText = customBannerText && customBannerText.trim()
+      ? customBannerText
+          .replace(/\{link\}/g, link)
+          .replace(/\{inviterReward\}/g, String(inviterReward))
+          .replace(/\{inviteeReward\}/g, String(inviteeReward))
+          .replace(/\{botUsername\}/g, botUsername)
+      : t(lang).referralBanner(link, inviterReward, inviteeReward, botUsername);
+
+    await ctx.reply(bannerText, {
       parse_mode: "HTML",
     });
   });

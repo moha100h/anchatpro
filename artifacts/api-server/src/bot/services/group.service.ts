@@ -109,15 +109,8 @@ export async function reactivateAndGetRole(
     .limit(1);
   if (!group) return "none";
 
-  // Named groups (creatorId set) are NEVER permanently ended — re-activate if needed
-  if (group.status === "ended") {
-    if (group.creatorId === null) return "none"; // anonymous group ended → gone
-    // Named group: re-activate it
-    await db
-      .update(groupChatsTable)
-      .set({ status: "forming", endedAt: null })
-      .where(eq(groupChatsTable.id, groupId));
-  }
+  // Any ended group (anonymous or named) is permanently gone — no re-activation
+  if (group.status === "ended") return "none";
 
   // Find any member record for this user (active or previously left)
   const [member] = await db
@@ -365,14 +358,16 @@ export async function leaveGroup(
     .set({ memberCount: remaining })
     .where(eq(groupChatsTable.id, member.groupId));
 
-  // Only auto-end ANONYMOUS groups (creatorId = null) when too few members remain.
-  // Named groups (creatorId set) stay active until the creator explicitly deletes them.
-  if (remaining === 0 && group.creatorId === null) {
+  // End the group and clear all members in these cases:
+  // 1. Anonymous group (creatorId = null) with no remaining members
+  // 2. Named group where the CREATOR is leaving (group is now leaderless)
+  const isCreatorLeaving = group.creatorId !== null && group.creatorId === userId;
+  if ((remaining === 0 && group.creatorId === null) || isCreatorLeaving) {
     await db
       .update(groupChatsTable)
       .set({ status: "ended", endedAt: new Date() })
       .where(eq(groupChatsTable.id, member.groupId));
-    // Remove any remaining members (safety sweep)
+    // Clear all remaining active members
     const rest = await db
       .select()
       .from(groupMembersTable)
@@ -527,7 +522,9 @@ export async function getJoinedGroups(
         // Only named groups (invite-link groups have creatorId set)
         isNotNull(groupChatsTable.creatorId),
         // Exclude groups the user themselves created
-        ne(groupChatsTable.creatorId, userId)
+        ne(groupChatsTable.creatorId, userId),
+        // Exclude groups that have been ended (creator deleted them)
+        ne(groupChatsTable.status, "ended")
       )
     );
   return rows;

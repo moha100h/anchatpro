@@ -779,6 +779,30 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.answerCallbackQuery("✅");
   });
 
+  // ── Callbacks: referral banner edit ──────────────────────────────────────────
+  bot.callbackQuery("admin:edit_referral_banner", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    ctx.session.adminAction = "set_referral_banner";
+    await ctx.reply(
+      `✏️ *متن بنر رفرال را وارد کنید:*\n\n` +
+      `می‌توانید از متغیرهای زیر استفاده کنید:\n` +
+      `\`{link}\` — لینک دعوت\n` +
+      `\`{inviterReward}\` — سکه دعوت‌کننده\n` +
+      `\`{inviteeReward}\` — سکه دعوت‌شده\n` +
+      `\`{botUsername}\` — نام ربات\n\n` +
+      `_برای لغو، عدد \`0\` را ارسال کنید._`,
+      { parse_mode: "Markdown" }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery("admin:clear_referral_banner", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    await setSetting("referral_banner_text", "");
+    await ctx.reply("✅ بنر رفرال به حالت پیش‌فرض برگشت.");
+    await ctx.answerCallbackQuery("✅");
+  });
+
   // ── Callbacks: broadcast multi-step filter flow ───────────────────────────────
 
   // Step 1 → gender selection → go to age
@@ -1538,6 +1562,24 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       return;
     }
 
+    if (action === "set_referral_banner") {
+      if (text === "0") {
+        await ctx.reply("❌ لغو شد. بنر تغییر نکرد.");
+      } else {
+        await setSetting("referral_banner_text", text);
+        await ctx.reply(
+          `✅ *متن بنر رفرال ذخیره شد!*\n\n` +
+          `متغیرها موقع ارسال خودکار جایگزین می‌شوند:\n` +
+          `\`{link}\` ← لینک دعوت\n` +
+          `\`{inviterReward}\` ← سکه دعوت‌کننده\n` +
+          `\`{inviteeReward}\` ← سکه دعوت‌شده\n` +
+          `\`{botUsername}\` ← نام ربات`,
+          { parse_mode: "Markdown" }
+        );
+      }
+      return;
+    }
+
     if (action.startsWith("add_coins:")) {
       const uid    = parseInt(action.replace("add_coins:", ""), 10);
       const amount = parseInt(text, 10);
@@ -2124,18 +2166,23 @@ async function showMagicSection(ctx: BotContext): Promise<void> {
 }
 
 async function showReferralSection(ctx: BotContext): Promise<void> {
-  const [inviterReward, inviteeReward, signupBonus, supportLink] = await Promise.all([
+  const [inviterReward, inviteeReward, signupBonus, supportLink, bannerText] = await Promise.all([
     getSetting("referral_reward_inviter"),
     getSetting("referral_reward_invitee"),
     getSetting("signup_bonus"),
     getSetting("support_link"),
+    getSetting("referral_banner_text"),
   ]);
+  const bannerPreview = bannerText
+    ? bannerText.slice(0, 80) + (bannerText.length > 80 ? "..." : "")
+    : "پیش‌فرض (خودکار)";
   await ctx.reply(
     `🎁 *رفرال و پاداش‌ها*\n\n` +
     `🎉 سکه خوش‌آمدگویی (کاربر جدید): \`${signupBonus ?? "15"}\` سکه\n` +
     `🎁 پاداش دعوت‌کننده: \`${inviterReward ?? "10"}\` سکه\n` +
     `🎁 پاداش دعوت‌شده: \`${inviteeReward ?? "5"}\` سکه\n` +
-    `📞 لینک پشتیبانی: ${supportLink ?? "تنظیم نشده"}`,
+    `📞 لینک پشتیبانی: ${supportLink ?? "تنظیم نشده"}\n` +
+    `📝 متن بنر: ${bannerPreview}`,
     {
       parse_mode: "Markdown",
       reply_markup: {
@@ -2144,6 +2191,8 @@ async function showReferralSection(ctx: BotContext): Promise<void> {
           [{ text: "🎁 پاداش دعوت‌کننده", callback_data: "pay_set:referral_reward_inviter" }],
           [{ text: "🎁 پاداش دعوت‌شده",   callback_data: "pay_set:referral_reward_invitee" }],
           [{ text: "📞 لینک پشتیبانی",     callback_data: "pay_set:support_link" }],
+          [{ text: "📝 ویرایش متن بنر رفرال", callback_data: "admin:edit_referral_banner" }],
+          ...(bannerText ? [[{ text: "🗑️ حذف بنر سفارشی (برگشت به پیش‌فرض)", callback_data: "admin:clear_referral_banner" }]] : []),
         ],
       },
     }

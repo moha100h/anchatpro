@@ -566,7 +566,7 @@ export const fa = {
   bottleTooLong: "❌ پیام خیلی طولانی است. حداکثر ۵۰۰ کاراکتر.",
   bottleSent: "🌊 پیامت به اقیانوس فرستاده شد!\n\nشاید کسی پیدایش کند...",
   bottleReceived: (msg: string) =>
-    `🍾 **یک پیام از اقیانوس برایت آمد!**\n\n_«${msg}»_\n\nمی‌خواهی پاسخ دهی؟`,
+    `🍾 <b>یک پیام از اقیانوس برایت آمد!</b>\n\n<i>«${msg.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}»</i>\n\nمی‌خواهی پاسخ دهی؟`,
   bottleReplyBtn: "💬 پاسخ دادن",
   bottleIgnoreBtn: "🌊 رها کردن",
   bottleIgnored: "🌊 پیام را رها کردی. باشه!",

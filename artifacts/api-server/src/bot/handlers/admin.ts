@@ -19,6 +19,7 @@ import {
   unbanUser,
   isOwner,
   addBadWord,
+  addBadWordsBulk,
   getPendingReportsCount,
   getPendingReports,
   dismissReport,
@@ -1654,8 +1655,19 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     }
 
     if (action === "add_badword") {
-      await addBadWord(text);
-      await ctx.reply(`✅ کلمه *"${text}"* به لیست فیلتر اضافه شد.`, { parse_mode: "Markdown" });
+      // Split by comma, semicolon, or newline — supports both single and bulk entry
+      const rawList = text.split(/[,،;\n]+/).map((w) => w.trim()).filter(Boolean);
+      if (rawList.length > 1) {
+        const { added, skipped } = await addBadWordsBulk(rawList);
+        await ctx.reply(
+          `✅ *${added}* کلمه به لیست فیلتر اضافه شد.\n` +
+          (skipped > 0 ? `⏭️ *${skipped}* کلمه قبلاً موجود بود و نادیده گرفته شد.` : ""),
+          { parse_mode: "Markdown" }
+        );
+      } else {
+        await addBadWord(text.trim());
+        await ctx.reply(`✅ کلمه *"${text.trim()}"* به لیست فیلتر اضافه شد.`, { parse_mode: "Markdown" });
+      }
       return;
     }
 

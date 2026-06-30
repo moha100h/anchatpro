@@ -41,6 +41,38 @@ export async function addBadWord(word: string, language = "all"): Promise<void> 
   await db.insert(badWordsTable).values({ word, language, createdAt: new Date() }).onConflictDoNothing();
 }
 
+/**
+ * Bulk-insert an array of words. Returns { added, skipped } counts.
+ */
+export async function addBadWordsBulk(
+  rawWords: string[],
+  language = "all"
+): Promise<{ added: number; skipped: number }> {
+  const now = new Date();
+  const unique = [...new Set(rawWords.map((w) => w.trim().toLowerCase()).filter((w) => w.length > 0))];
+  if (unique.length === 0) return { added: 0, skipped: 0 };
+
+  // Fetch existing words to know what's new
+  const existing = await db.select({ word: badWordsTable.word }).from(badWordsTable);
+  const existingSet = new Set(existing.map((r) => r.word.toLowerCase()));
+
+  const toInsert = unique.filter((w) => !existingSet.has(w));
+  const skipped  = unique.length - toInsert.length;
+
+  if (toInsert.length > 0) {
+    // Insert in chunks of 100 to avoid query size limits
+    for (let i = 0; i < toInsert.length; i += 100) {
+      const chunk = toInsert.slice(i, i + 100);
+      await db
+        .insert(badWordsTable)
+        .values(chunk.map((word) => ({ word, language, createdAt: now })))
+        .onConflictDoNothing();
+    }
+  }
+
+  return { added: toInsert.length, skipped };
+}
+
 export async function issueWarning(userId: number, reason: string, issuedBy?: number): Promise<number> {
   await db.insert(warningsTable).values({ userId, issuedBy: issuedBy ?? null, reason, createdAt: new Date() });
   const [user] = await db.select({ warningCount: usersTable.warningCount }).from(usersTable).where(eq(usersTable.telegramId, userId)).limit(1);
@@ -193,8 +225,35 @@ export async function markReportReviewed(reportId: number, reviewedBy: number): 
 export async function initDefaultBadWords(): Promise<void> {
   const existing = await db.select().from(badWordsTable).limit(1);
   if (existing.length > 0) return;
-  const defaultWords = ["کص", "کیر", "کون", "جنده", "سکس", "fuck", "shit", "pussy", "dick", "ass", "porn"];
-  for (const word of defaultWords) {
-    await db.insert(badWordsTable).values({ word, language: "all", createdAt: new Date() }).onConflictDoNothing();
+  const defaultWords = [
+    // ─── فارسی ───
+    "کص","کصمادر","کصکش","کسکش","کیر","کیری","کیرم","کیرت","کیرش","کیرخر",
+    "کیرخور","کیرمال","کیرکش","جنده","جندگ","جنده‌زاده","مادرجنده","مادر قحبه",
+    "مادرقحبه","قحبه","جاکش","مادرخراب","سگ‌پدر","سگ‌مادر","حرومزاده","حرامزاده",
+    "ولدزنا","بی‌ناموس","بیناموس","بی ناموس","بی‌شرف","بیشرف","بی شرف",
+    "بی‌غیرت","بیغیرت","کونی","کونکش","کون‌خور","کونده","کون‌کش","کون‌نشور",
+    "خایه","خایه‌مال","تخم","تخم‌سگ","تخمات","گه‌خور","گهخور",
+    // ─── فینگلیش ───
+    "kos","koss","koos","kosmador","koskesh","kas kesh","kir","keer","kiir","kiri",
+    "kirm","kiret","kiresh","kir khor","kirmal","kir kesh","jende","jendeh","jandeg",
+    "madarjende","madar ghabhe","ghabhe","jakesh","haroomzade","haramzade",
+    "valad zena","binamoos","bi namoos","bisharaf","bi sharaf","bighayrat","bi gheyrat",
+    "kuni","koni","kon kesh","khaye","khayemal","gayidam","gaidam","gayidan","gaidan",
+    "gayeed","begam","begayid","ridam","shash","shashidam",
+    // ─── انگلیسی ───
+    "shit","fuck","fucking","fucked","fucker","motherfucker","son of a bitch","bitch",
+    "bastard","asshole","ass","assfuck","dick","dickhead","dickless","cock","cocksucker",
+    "cunt","pussy","whore","slut","hoe","jerkoff","jackass","dumbass","suck my dick",
+    "suck my cock","blowjob","blow job","cum","cumshot","semen","horny","gangbang",
+    "rape","rapist",
+  ];
+  // Bulk insert in a single chunked operation
+  const now = new Date();
+  for (let i = 0; i < defaultWords.length; i += 100) {
+    const chunk = defaultWords.slice(i, i + 100);
+    await db
+      .insert(badWordsTable)
+      .values(chunk.map((word) => ({ word, language: "all", createdAt: now })))
+      .onConflictDoNothing();
   }
 }

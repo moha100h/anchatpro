@@ -36,6 +36,7 @@ export async function createPackage(data: {
   cardPrice?: number;
   cryptoPrice?: number;
   tetrapayPrice?: number;
+  plisioPrice?: number;
 }) {
   const [pkg] = await db
     .insert(paymentPackagesTable)
@@ -49,6 +50,7 @@ export async function createPackage(data: {
       cardPrice: data.cardPrice ?? null,
       cryptoPrice: data.cryptoPrice ?? null,
       tetrapayPrice: data.tetrapayPrice ?? null,
+      plisioPrice: data.plisioPrice ?? null,
       isActive: true,
       createdAt: new Date(),
     })
@@ -68,6 +70,7 @@ export async function updatePackage(
     cardPrice?: number | null;
     cryptoPrice?: number | null;
     tetrapayPrice?: number | null;
+    plisioPrice?: number | null;
   }
 ) {
   await db.update(paymentPackagesTable).set(data).where(eq(paymentPackagesTable.id, id));
@@ -82,7 +85,7 @@ export async function deletePackage(id: number) {
 export async function createPayment(
   userId: number,
   packageId: number,
-  method: "card" | "crypto" | "gateway",
+  method: "card" | "crypto" | "gateway" | "plisio",
   options?: { discountPercent?: number; discountCodeId?: number }
 ): Promise<typeof paymentsTable.$inferSelect> {
   const pkg = await getPackageById(packageId);
@@ -93,6 +96,8 @@ export async function createPayment(
     method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
     method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
     method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+    method === "plisio"  && pkg.plisioPrice  ? pkg.plisioPrice  :
+    method === "plisio"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
     pkg.price;
 
   const discountPct = options?.discountPercent ?? 0;
@@ -107,7 +112,7 @@ export async function createPayment(
       packageId,
       coins: pkg.coins,
       price: finalPrice,
-      currency: pkg.currency,
+      currency: method === "plisio" ? "USD" : pkg.currency,
       method,
       status: "pending",
       createdAt: new Date(),
@@ -212,7 +217,7 @@ export async function setSetting(key: string, value: string): Promise<void> {
     });
 }
 
-export async function isMethodEnabled(method: "card" | "crypto" | "gateway"): Promise<boolean> {
+export async function isMethodEnabled(method: "card" | "crypto" | "gateway" | "plisio"): Promise<boolean> {
   const val = await getSetting(`payment_method_${method}`);
   return val !== "disabled";
 }

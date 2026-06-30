@@ -49,7 +49,7 @@ import {
   getCryptoCurrencies,
   saveCryptoCurrencies,
 } from "../services/payment.service.js";
-import { getTetraPayCallbackUrl } from "../../lib/base-url.js";
+import { getTetraPayCallbackUrl, getPlisioCallbackUrl } from "../../lib/base-url.js";
 import { getTotalChats } from "../services/matching.service.js";
 import { db } from "@workspace/db";
 import { adminPermissionsTable, usersTable } from "@workspace/db";
@@ -89,6 +89,7 @@ const REVIEW_GROUP_KEYS = new Set([
   "card_review_group",
   "crypto_review_group",
   "tetrapay_review_group",
+  "plisio_review_group",
   "payment_review_group",
 ]);
 
@@ -96,6 +97,7 @@ const REVIEW_GROUP_LABELS: Record<string, string> = {
   card_review_group:     "گروه بررسی کارت 💳",
   crypto_review_group:   "گروه بررسی کریپتو ₿",
   tetrapay_review_group: "گروه بررسی TetraPay 🌐",
+  plisio_review_group:   "گروه بررسی Plisio 💫",
   payment_review_group:  "گروه بررسی پیش‌فرض 📋",
 };
 
@@ -170,6 +172,7 @@ export const ADMIN_BTN = {
   CARD:           "💳 کارت بانکی",
   CRYPTO:         "₿ ارز دیجیتال",
   TETRAPAY:       "🔷 TetraPay",
+  PLISIO:         "💫 Plisio",
   PACKAGES:       "📦 بسته‌های سکه",
   DISCOUNT_CODES: "🏷️ کدهای تخفیف",
   // Sub-menu back
@@ -212,7 +215,7 @@ function adminSystemKeyboard(tgId: number): Keyboard {
 function adminPaymentKeyboard(): Keyboard {
   return new Keyboard()
     .text(ADMIN_BTN.CARD).text(ADMIN_BTN.CRYPTO).row()
-    .text(ADMIN_BTN.TETRAPAY).row()
+    .text(ADMIN_BTN.TETRAPAY).text(ADMIN_BTN.PLISIO).row()
     .text(ADMIN_BTN.PACKAGES).text(ADMIN_BTN.DISCOUNT_CODES).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
@@ -743,6 +746,48 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     );
   });
 
+  // ── 💫 Plisio crypto gateway ───────────────────────────────────────────────────
+  bot.hears(ADMIN_BTN.PLISIO, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const [apiKey, cbUrl, currencies, reviewGroup, methodVal] = await Promise.all([
+      getSetting("plisio_api_key"),
+      getSetting("plisio_callback_url"),
+      getSetting("plisio_currencies"),
+      getSetting("plisio_review_group"),
+      getSetting("payment_method_plisio"),
+    ]);
+    const enabled = (methodVal ?? "enabled") !== "disabled";
+    const webhookUrl = getPlisioCallbackUrl();
+    await ctx.reply(
+      `💫 *Plisio — درگاه کریپتو جهانی*\n\n` +
+      `وضعیت: ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
+      `🔑 کلید API: \`${apiKey ? "✅ ثبت شده" : "❌ ثبت نشده"}\`\n` +
+      `🔗 Callback URL: \`${cbUrl ?? "❌ ثبت نشده"}\`\n` +
+      `💱 ارزهای مجاز: \`${currencies ?? "ETH,LTC,BNB,USDT_TRX,TRX"}\`\n` +
+      `👥 گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\`\n\n` +
+      `📋 *راهنمای اتصال Plisio:*\n` +
+      `1️⃣ به پنل Plisio → Account → API بروید\n` +
+      `2️⃣ *کلید مخفی* (Secret Key) را کپی کنید\n` +
+      `3️⃣ در فیلد *Status URL* این آدرس را ثبت کنید:\n` +
+      `\`${webhookUrl}?json=true\`\n` +
+      `4️⃣ *کلید API* رو از دکمه زیر وارد کنید`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔑 ثبت/تغییر کلید API",          callback_data: "pay_set:plisio_api_key" }],
+            [{ text: "🔗 تشخیص خودکار Callback URL",  callback_data: "plisio:auto_url" }],
+            [{ text: "✏️ ویرایش Callback URL",          callback_data: "pay_set:plisio_callback_url" }],
+            [{ text: "💱 ارزهای مجاز (ETH,LTC,...)",   callback_data: "pay_set:plisio_currencies" }],
+            [{ text: "👥 گروه بررسی Plisio",            callback_data: "pay_set:plisio_review_group" }],
+            [{ text: enabled ? "❌ غیرفعال کردن Plisio" : "✅ فعال کردن Plisio", callback_data: "pay_toggle:plisio" }],
+          ],
+        },
+      }
+    );
+  });
+
   // ─── Package management ────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.PACKAGES, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
@@ -761,6 +806,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
           pkg.cardPrice    ? `💳${pkg.cardPrice.toLocaleString("fa-IR")}`    : null,
           pkg.cryptoPrice  ? `₿$${pkg.cryptoPrice}`                         : null,
           pkg.tetrapayPrice ? `🌐${pkg.tetrapayPrice.toLocaleString("fa-IR")}` : null,
+          pkg.plisioPrice   ? `💫$${pkg.plisioPrice}`                          : null,
         ].filter(Boolean).join(" | ");
         const gwStr = gwPrices ? ` [${gwPrices}]` : "";
         msg += `${status} ${pkg.coins} سکه${label} | ${pkg.price.toLocaleString("fa-IR")} تومان${disc}${gwStr} — #${pkg.id}\n`;
@@ -1028,6 +1074,10 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       support_link:             "لینک پشتیبانی (@username یا t.me/...)",
       tetrapay_api_key:         "کلید API تتراپی",
       tetrapay_callback_url:    "آدرس Callback تتراپی",
+      plisio_api_key:           "کلید API پلیزیو (Secret Key)",
+      plisio_callback_url:      "آدرس Callback پلیزیو (Status URL)",
+      plisio_currencies:        "ارزهای مجاز پلیزیو (مثال: ETH,LTC,USDT_TRX,TRX)",
+      plisio_review_group:      "گروه بررسی پلیزیو (ID یا @username)",
     };
     await ctx.reply(`✏️ مقدار جدید *${labels[key] ?? key}* را وارد کنید:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
@@ -1076,15 +1126,15 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     }
   });
 
-  bot.callbackQuery(/^pay_toggle:(card|crypto|gateway)$/, async (ctx) => {
+  bot.callbackQuery(/^pay_toggle:(card|crypto|gateway|plisio)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
-    const method  = ctx.match![1];
+    const method  = ctx.match![1]!;
     const key     = `payment_method_${method}`;
     const current = await getSetting(key);
     const newVal  = current === "disabled" ? "enabled" : "disabled";
     await setSetting(key, newVal);
-    const label = method === "card" ? "کارت" : method === "crypto" ? "کریپتو" : "درگاه";
-    await ctx.reply(`${newVal === "enabled" ? "✅ فعال" : "❌ غیرفعال"} شد: ${label}`);
+    const labels: Record<string, string> = { card: "کارت", crypto: "کریپتو", gateway: "درگاه (TetraPay)", plisio: "Plisio" };
+    await ctx.reply(`${newVal === "enabled" ? "✅ فعال" : "❌ غیرفعال"} شد: ${labels[method] ?? method}`);
     await ctx.answerCallbackQuery("✅");
   });
 
@@ -1094,6 +1144,20 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await setSetting("tetrapay_callback_url", url);
     await ctx.answerCallbackQuery("✅ URL تنظیم شد");
     await ctx.reply(t("fa").callbackUrlAutoSet(url), { parse_mode: "Markdown" });
+  });
+
+  bot.callbackQuery("plisio:auto_url", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const url = getPlisioCallbackUrl();
+    await setSetting("plisio_callback_url", url);
+    await ctx.answerCallbackQuery("✅ URL تنظیم شد");
+    await ctx.reply(
+      `✅ *Callback URL پلیزیو تنظیم شد:*\n\n` +
+      `\`${url}\`\n\n` +
+      `⚠️ در پنل Plisio، این آدرس را در *Status URL* با پسوند \`?json=true\` ثبت کنید:\n` +
+      `\`${url}?json=true\``,
+      { parse_mode: "Markdown" }
+    );
   });
 
   // ── Callbacks: package CRUD ───────────────────────────────────────────────────
@@ -1134,6 +1198,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "💳 قیمت کارت (تومان)",   callback_data: `pkg_edit_field:${id}:card_price`    }],
             [{ text: "₿ قیمت کریپتو ($USD)",  callback_data: `pkg_edit_field:${id}:crypto_price`  }],
             [{ text: "🌐 قیمت TetraPay (تومان)", callback_data: `pkg_edit_field:${id}:tetrapay_price` }],
+            [{ text: "💫 قیمت Plisio ($USD)",    callback_data: `pkg_edit_field:${id}:plisio_price`   }],
           ],
         },
       }
@@ -1151,7 +1216,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.answerCallbackQuery("✅");
   });
 
-  bot.callbackQuery(/^pkg_edit_field:(\d+):(coins|price|discount|label|card_price|crypto_price|tetrapay_price)$/, async (ctx) => {
+  bot.callbackQuery(/^pkg_edit_field:(\d+):(coins|price|discount|label|card_price|crypto_price|tetrapay_price|plisio_price)$/, async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const id    = parseInt(ctx.match![1], 10);
     const field = ctx.match![2]!;
@@ -1165,6 +1230,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       card_price:     "قیمت کارت (تومان) — یا - برای استفاده از قیمت پایه",
       crypto_price:   "قیمت کریپتو ($USD عدد صحیح) — یا - برای استفاده از قیمت پایه",
       tetrapay_price: "قیمت TetraPay (تومان) — یا - برای استفاده از قیمت پایه",
+      plisio_price:   "قیمت Plisio ($USD) — یا - برای استفاده از قیمت کریپتو",
     };
     await ctx.reply(`✏️ مقدار جدید *${labels[field] ?? field}* را وارد کنید:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
@@ -1920,6 +1986,24 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
         ctx.session.adminPkgTetrapayPrice = v;
       }
+      ctx.session.adminAction = "admin_pkg_create_plisio_price";
+      await ctx.reply(
+        `✅ قیمت TetraPay: *${ctx.session.adminPkgTetrapayPrice ? ctx.session.adminPkgTetrapayPrice.toLocaleString("fa-IR") + " تومان" : "قیمت پایه"}*\n\n` +
+        `*مرحله ۸/۸:* قیمت ویژه Plisio ($USD — عدد صحیح)\n` +
+        `_یا دقیقاً \`-\` بفرستید تا از قیمت کریپتو استفاده شود:_`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "admin_pkg_create_plisio_price") {
+      if (text.trim() === "-") {
+        ctx.session.adminPkgPlisioPrice = undefined;
+      } else {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        ctx.session.adminPkgPlisioPrice = v;
+      }
 
       const coins         = ctx.session.adminPkgCoins    ?? 10;
       const price         = ctx.session.adminPkgPrice    ?? 10000;
@@ -1929,8 +2013,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       const cardPrice     = ctx.session.adminPkgCardPrice;
       const cryptoPrice   = ctx.session.adminPkgCryptoPrice;
       const tetrapayPrice = ctx.session.adminPkgTetrapayPrice;
+      const plisioPrice   = ctx.session.adminPkgPlisioPrice;
 
-      // Clear temp session
       ctx.session.adminPkgCoins         = undefined;
       ctx.session.adminPkgPrice         = undefined;
       ctx.session.adminPkgDiscount      = undefined;
@@ -1939,16 +2023,13 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       ctx.session.adminPkgCardPrice     = undefined;
       ctx.session.adminPkgCryptoPrice   = undefined;
       ctx.session.adminPkgTetrapayPrice = undefined;
+      ctx.session.adminPkgPlisioPrice   = undefined;
 
       const pkg = await createPackage({
-        coins,
-        price,
-        originalPrice: origPrice,
+        coins, price, originalPrice: origPrice,
         discountPercent: discount,
         label: label ?? undefined,
-        cardPrice,
-        cryptoPrice,
-        tetrapayPrice,
+        cardPrice, cryptoPrice, tetrapayPrice, plisioPrice,
       });
       await ctx.reply(
         `📦 *بسته جدید ساخته شد!*\n\n` +
@@ -1959,6 +2040,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         (cardPrice    ? `💳 کارت: *${cardPrice.toLocaleString("fa-IR")}* تومان\n`    : "") +
         (cryptoPrice  ? `₿ کریپتو: *$${cryptoPrice}*\n`                             : "") +
         (tetrapayPrice ? `🌐 TetraPay: *${tetrapayPrice.toLocaleString("fa-IR")}* تومان\n` : "") +
+        (plisioPrice   ? `💫 Plisio: *$${plisioPrice}*\n`                             : "") +
         `✅ شناسه: #${pkg.id}`,
         { parse_mode: "Markdown" }
       );
@@ -2006,6 +2088,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
           const v = parseInt(text, 10);
           if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
           await updatePackage(id, { tetrapayPrice: v });
+        }
+      } else if (field === "plisio_price") {
+        if (text.trim() === "-") {
+          await updatePackage(id, { plisioPrice: null });
+        } else {
+          const v = parseInt(text, 10);
+          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          await updatePackage(id, { plisioPrice: v });
         }
       }
       ctx.session.adminPkgEditId = undefined;

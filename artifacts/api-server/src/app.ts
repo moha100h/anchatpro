@@ -1,7 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
-import router, { tetraPayRouter } from "./routes";
+import router, { tetraPayRouter, plisioRouter } from "./routes";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
@@ -31,5 +31,6 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
 app.use("/webhook/tetrapay", tetraPayRouter);
+app.use("/webhook/plisio",  plisioRouter);
 
 export default app;

@@ -24,6 +24,7 @@ import {
   fetchCryptoPriceWithFallback,
 } from "../services/payment.service.js";
 import { createTetraPayOrder } from "../services/tetrapay.service.js";
+import { createPlisioOrder } from "../services/plisio.service.js";
 import { t } from "../i18n/index.js";
 import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard, coinsPackagesKeyboard, coinsGatewayKeyboard } from "../keyboards/main.js";
 import { spinWheel, hasSpunToday } from "../services/spin.service.js";
@@ -106,11 +107,54 @@ async function handlePaymentByMethod(
   bot: Bot<BotContext>,
   lang: "fa" | "en",
   tgId: number,
-  method: "card" | "crypto" | "gateway",
+  method: "card" | "crypto" | "gateway" | "plisio",
   pkgId: number,
   discPct: number,
   discCode: number | undefined,
 ): Promise<void> {
+  // ── Plisio crypto gateway ────────────────────────────────────────────────────
+  if (method === "plisio") {
+    await ctx.reply(t(lang).gatewayCreating);
+    const pkg = await getPackageById(pkgId);
+    const usdAmount = pkg?.plisioPrice ?? pkg?.cryptoPrice ?? 5;
+    let payment;
+    try {
+      payment = await createPayment(tgId, pkgId, "plisio", { discountPercent: discPct, discountCodeId: discCode });
+    } catch {
+      await ctx.reply(lang === "fa" ? "❌ خطا در ایجاد پرداخت. لطفاً دوباره امتحان کنید." : "❌ Failed to create payment. Please try again.");
+      return;
+    }
+    if (discCode) { await useDiscountCode(discCode).catch(() => {}); }
+    ctx.session.pendingPaymentMethod    = "plisio";
+    ctx.session.pendingPaymentPackageId = undefined;
+
+    const result = await createPlisioOrder(payment.id, tgId, usdAmount, payment.coins);
+    if (!result.success) {
+      await ctx.reply(t(lang).gatewayError(result.error ?? "Gateway error"));
+      return;
+    }
+    const info = lang === "fa"
+      ? `💫 *پرداخت از طریق Plisio*\n\n` +
+        `💵 مبلغ: *$${usdAmount} USD* (معادل کریپتو)\n` +
+        `🪙 دریافتی: *${payment.coins} سکه*\n\n` +
+        `🔗 روی دکمه زیر کلیک کنید و ارز دیجیتال خود را انتخاب کنید.\n` +
+        `⏰ لینک تا *۳۰ دقیقه* معتبر است.\n\n` +
+        `_پس از پرداخت، سکه‌ها به صورت خودکار به حسابتان اضافه می‌شود._`
+      : `💫 *Pay via Plisio*\n\n` +
+        `💵 Amount: *$${usdAmount} USD* (in crypto)\n` +
+        `🪙 Receive: *${payment.coins} coins*\n\n` +
+        `🔗 Click below to select your cryptocurrency.\n` +
+        `⏰ Link valid for *30 minutes*.\n\n` +
+        `_Coins will be credited automatically after payment._`;
+
+    const kb = new InlineKeyboard().url(
+      lang === "fa" ? "💫 پرداخت با Plisio" : "💫 Pay with Plisio",
+      result.invoiceUrl!
+    );
+    await ctx.reply(info, { parse_mode: "Markdown", reply_markup: kb });
+    return;
+  }
+
   // ── TetraPay online gateway ─────────────────────────────────────────────────
   if (method === "gateway") {
     await ctx.reply(t(lang).gatewayCreating);
@@ -335,13 +379,14 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const [cardOn, cryptoOn, gatewayOn] = await Promise.all([
+    const [cardOn, cryptoOn, gatewayOn, plisioOn] = await Promise.all([
       isMethodEnabled("card"),
       isMethodEnabled("crypto"),
       isMethodEnabled("gateway"),
+      isMethodEnabled("plisio"),
     ]);
 
-    if (!cardOn && !cryptoOn && !gatewayOn) {
+    if (!cardOn && !cryptoOn && !gatewayOn && !plisioOn) {
       await ctx.reply(
         lang === "fa"
           ? "⚠️ در حال حاضر هیچ روش پرداختی فعال نیست. لطفاً بعداً امتحان کنید."
@@ -362,7 +407,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
         : "💰 *Buy Coins*\n\nFirst, choose your payment method:",
       {
         parse_mode:   "Markdown",
-        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn }),
+        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn }),
       }
     );
   });
@@ -386,10 +431,11 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     }
 
     // Detect gateway emoji
-    let method: "card" | "crypto" | "gateway" | null = null;
+    let method: "card" | "crypto" | "gateway" | "plisio" | null = null;
     if (/💳/.test(text))  method = "card";
     else if (/₿/.test(text))  method = "crypto";
     else if (/🌐/.test(text)) method = "gateway";
+    else if (/💫/.test(text)) method = "plisio";
 
     if (!method) return next();
 
@@ -423,6 +469,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const methodLabel =
       method === "card"    ? (lang === "fa" ? "💳 کارت‌به‌کارت"           : "💳 Card")
       : method === "crypto"  ? (lang === "fa" ? "₿ ارز دیجیتال"              : "₿ Crypto")
+      : method === "plisio"  ? (lang === "fa" ? "💫 Plisio (کریپتو جهانی)"  : "💫 Plisio (Crypto)")
       :                        (lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway");
 
     await ctx.reply(
@@ -762,6 +809,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       card:    "card_review_group",
       crypto:  "crypto_review_group",
       gateway: "tetrapay_review_group",
+      plisio:  "plisio_review_group",
     };
     const groupKey = METHOD_GROUP_SETTING[pendingPayment.method] ?? "payment_review_group";
     const rawGroupId = (await getSetting(groupKey)) ?? (await getSetting("payment_review_group"));
@@ -786,7 +834,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const user   = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang   = (user?.language as "fa" | "en") ?? "fa";
     const text   = ctx.message.text;
-    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | undefined;
+    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | "plisio" | undefined;
 
     // Back → return to gateway selection
     if (/^🔙/.test(text)) {
@@ -795,14 +843,15 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       ctx.session.pendingPaymentPackageId = undefined;
       ctx.session.pendingDiscountCodeId   = undefined;
       ctx.session.pendingDiscountPercent  = undefined;
-      const [cardOn, cryptoOn, gatewayOn] = await Promise.all([
+      const [cardOn, cryptoOn, gatewayOn, plisioOn] = await Promise.all([
         isMethodEnabled("card"),
         isMethodEnabled("crypto"),
         isMethodEnabled("gateway"),
+        isMethodEnabled("plisio"),
       ]);
       await ctx.reply(
         lang === "fa" ? "💰 روش پرداخت را انتخاب کنید:" : "💰 Choose your payment method:",
-        { reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn }) }
+        { reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn }) }
       );
       return;
     }
@@ -814,6 +863,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
         method === "card"    && p.cardPrice    ? p.cardPrice    :
         method === "crypto"  && p.cryptoPrice  ? p.cryptoPrice  :
         method === "gateway" && p.tetrapayPrice ? p.tetrapayPrice :
+        method === "plisio"  && (p.plisioPrice ?? p.cryptoPrice) ? (p.plisioPrice ?? p.cryptoPrice)! :
         p.price;
       const priceStr   = effectivePrice.toLocaleString("fa-IR");
       const hasDisc    = (p.discountPercent ?? 0) > 0;
@@ -841,6 +891,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
       method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
       method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+      method === "plisio"  && (pkg.plisioPrice ?? pkg.cryptoPrice) ? (pkg.plisioPrice ?? pkg.cryptoPrice)! :
       pkg.price;
     const priceStr = effectivePrice.toLocaleString("fa-IR");
     const discPct  = pkg.discountPercent ?? 0;

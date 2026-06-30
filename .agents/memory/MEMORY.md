@@ -14,3 +14,4 @@
 - [Pro Anon Link system](pro-anon-link.md) — Two tiers (ap_/ai_ prefixes); proAnonLinksTable; linkType column on anonymousMessages; drizzle-kit push needs SQL fallback in non-TTY env.
 - [Payment system v2](payment-v2.md) — Persistent package keyboard; discount codes; per-gateway review groups; multi-currency crypto via CoinGecko; professional card display.
 - [Matching queue filter rule](matching-queue-filter.md) — findMatch must NOT filter on isInQueue=true; only isInChat=false is safe. isInQueue can drift; matchingQueueTable presence is authoritative.
+- [Plisio integration](plisio-integration.md) — global crypto gateway; webhook at /webhook/plisio?json=true; HMAC-SHA1 verify; USD amount; per-package plisioPrice override; 8-step wizard.

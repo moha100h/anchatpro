@@ -2,9 +2,10 @@ import { pgTable, serial, bigint, integer, text, timestamp, varchar, boolean, pg
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
-export const paymentMethodEnum = pgEnum("payment_method", ["card", "crypto", "gateway"]);
+export const paymentMethodEnum = pgEnum("payment_method", ["card", "crypto", "gateway", "plisio"]);
 export const paymentStatusEnum = pgEnum("payment_status", ["pending", "approved", "rejected"]);
 export const tetraPayStatusEnum = pgEnum("tetrapay_status", ["pending", "paid", "failed", "duplicate"]);
+export const plisioStatusEnum = pgEnum("plisio_status", ["pending", "completed", "expired", "failed", "cancelled", "mismatch", "error"]);
 
 export const paymentPackagesTable = pgTable("payment_packages", {
   id: serial("id").primaryKey(),
@@ -16,6 +17,7 @@ export const paymentPackagesTable = pgTable("payment_packages", {
   cardPrice: integer("card_price"),       // Override price in Tomans for card gateway
   cryptoPrice: integer("crypto_price"),   // Price in USD for crypto gateway (nullable = disabled)
   tetrapayPrice: integer("tetrapay_price"), // Override price in Tomans for TetraPay
+  plisioPrice: integer("plisio_price"),     // Override price in USD for Plisio
   label: varchar("label", { length: 100 }),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -68,9 +70,27 @@ export const discountCodesTable = pgTable("discount_codes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+/** Plisio gateway transactions (one-to-one with paymentsTable when method=plisio) */
+export const plisioTransactionsTable = pgTable("plisio_transactions", {
+  id: serial("id").primaryKey(),
+  paymentId: integer("payment_id").notNull(),
+  userId: bigint("user_id", { mode: "number" }).notNull(),
+  orderNumber: varchar("order_number", { length: 128 }).notNull().unique(),
+  txnId: varchar("txn_id", { length: 256 }),
+  invoiceUrl: varchar("invoice_url", { length: 512 }),
+  amountUsd: varchar("amount_usd", { length: 20 }).notNull(),
+  currency: varchar("currency", { length: 30 }),
+  status: plisioStatusEnum("status").default("pending").notNull(),
+  callbackVerified: boolean("callback_verified").default(false).notNull(),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  verifiedAt: timestamp("verified_at"),
+});
+
 export const insertPaymentSchema = createInsertSchema(paymentsTable).omit({ id: true });
 export type InsertPayment = z.infer<typeof insertPaymentSchema>;
 export type Payment = typeof paymentsTable.$inferSelect;
 export type PaymentPackage = typeof paymentPackagesTable.$inferSelect;
 export type TetraPayTransaction = typeof tetraPayTransactionsTable.$inferSelect;
+export type PlisioTransaction = typeof plisioTransactionsTable.$inferSelect;
 export type DiscountCode = typeof discountCodesTable.$inferSelect;

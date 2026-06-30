@@ -30,6 +30,7 @@ export interface SessionData {
   adminPkgCardPrice?: number;
   adminPkgCryptoPrice?: number;
   adminPkgTetrapayPrice?: number;
+  adminPkgPlisioPrice?: number;
   adminPkgDiscount?: number;
   adminPkgEditId?: number;
   // 💱 Admin crypto currency creation temp

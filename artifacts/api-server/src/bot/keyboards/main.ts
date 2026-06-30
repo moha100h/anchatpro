@@ -230,12 +230,13 @@ export function timedLinkKeyboard(lang: Lang) {
 /** STEP 1: Gateway selection keyboard — shown first when buying coins */
 export function coinsGatewayKeyboard(
   lang: Lang,
-  enabled: { card: boolean; crypto: boolean; gateway: boolean }
+  enabled: { card: boolean; crypto: boolean; gateway: boolean; plisio?: boolean }
 ) {
   const kb = new Keyboard();
   if (enabled.card)    kb.text(lang === "fa" ? "💳 پرداخت کارت‌به‌کارت" : "💳 Card Payment").row();
   if (enabled.crypto)  kb.text(lang === "fa" ? "₿ ارز دیجیتال (کریپتو)" : "₿ Cryptocurrency").row();
   if (enabled.gateway) kb.text(lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway (TetraPay)").row();
+  if (enabled.plisio)  kb.text(lang === "fa" ? "💫 پلیزیو (Plisio — کریپتو)" : "💫 Plisio (Crypto)").row();
   kb.text(lang === "fa" ? "🔙 بازگشت" : "🔙 Back");
   return kb.resized().persistent();
 }
@@ -244,7 +245,7 @@ export function coinsGatewayKeyboard(
 export function coinsPackagesKeyboard(
   packages: PaymentPackage[],
   lang: Lang,
-  method?: "card" | "crypto" | "gateway"
+  method?: "card" | "crypto" | "gateway" | "plisio"
 ) {
   const kb = new Keyboard();
   for (const pkg of packages) {
@@ -253,6 +254,7 @@ export function coinsPackagesKeyboard(
       method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
       method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
       method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+      method === "plisio"  && (pkg.plisioPrice ?? pkg.cryptoPrice) ? (pkg.plisioPrice ?? pkg.cryptoPrice)! :
       pkg.price;
 
     const priceStr = effectivePrice.toLocaleString("fa-IR");

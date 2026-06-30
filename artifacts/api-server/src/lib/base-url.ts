@@ -16,3 +16,7 @@ export function getBaseUrl(): string {
 export function getTetraPayCallbackUrl(): string {
   return `${getBaseUrl()}/webhook/tetrapay`;
 }
+
+export function getPlisioCallbackUrl(): string {
+  return `${getBaseUrl()}/webhook/plisio`;
+}

@@ -155,6 +155,7 @@ export const ADMIN_BTN = {
   COST_PRO_LINK:  "💎 لینک پرو",
   COST_TIMED:     "🔗 لینک مدت‌دار",
   COST_MAGIC:     "🔮 اقیانوس",
+  COST_RESTRICTION_UNLOCK: "🔓 رفع محدودیت سریع",
   // System sub-menu
   WELCOME:     "📝 خوش‌آمدگویی",
   BROADCAST:   "📣 پیام همگانی",
@@ -221,6 +222,7 @@ function adminCostsKeyboard(): Keyboard {
     .text(ADMIN_BTN.COST_GROUP).row()
     .text(ADMIN_BTN.COST_PRO_LINK).text(ADMIN_BTN.COST_TIMED).row()
     .text(ADMIN_BTN.COST_MAGIC).row()
+    .text(ADMIN_BTN.COST_RESTRICTION_UNLOCK).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
 }
@@ -471,6 +473,27 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
           ],
         },
       }
+    );
+  });
+
+  // ── 🔓 رفع محدودیت سریع (costs sub) ─────────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_RESTRICTION_UNLOCK, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const costStr = await getSetting("restriction_unlock_cost");
+    const v = costStr ?? "20";
+    await ctx.reply(
+      `🔓 *رفع محدودیت سریع — هزینه*\n\n` +
+      `• هزینه پرداخت توسط کاربر: \`${v}\` سکه\n\n` +
+      `_کاربران محدودشده می‌توانند با پرداخت این مقدار سکه، فوری از محدودیت خارج شوند._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `🔓 تغییر هزینه رفع محدودیت: ${v} سکه`, callback_data: "pay_set:restriction_unlock_cost" }],
+          ],
+        },
+      },
     );
   });
 
@@ -957,6 +980,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       signup_bonus:             "سکه خوش‌آمدگویی ثبت‌نام (سکه)",
       referral_reward_inviter:  "پاداش دعوت‌کننده (سکه)",
       referral_reward_invitee:  "پاداش دعوت‌شده (سکه)",
+      restriction_unlock_cost:  "هزینه رفع محدودیت سریع (سکه)",
       support_link:             "لینک پشتیبانی (@username یا t.me/...)",
       tetrapay_api_key:         "کلید API تتراپی",
       tetrapay_callback_url:    "آدرس Callback تتراپی",

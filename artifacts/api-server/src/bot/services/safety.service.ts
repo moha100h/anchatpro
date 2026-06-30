@@ -1,6 +1,9 @@
 import { db } from "@workspace/db";
 import { usersTable, reportsTable, blocksTable, warningsTable, rateLimitsTable, badWordsTable } from "@workspace/db";
 import { eq, and, gte, gt, sql, lt } from "drizzle-orm";
+import { deductCoins } from "./coin.service.js";
+import { getSetting } from "./payment.service.js";
+import { getBotInstance } from "../bot-instance.js";
 
 // In-memory rate limiter (fallback for fast checks)
 const rateLimitCache = new Map<string, { count: number; resetAt: number }>();
@@ -256,4 +259,84 @@ export async function initDefaultBadWords(): Promise<void> {
       .values(chunk.map((word) => ({ word, language: "all", createdAt: now })))
       .onConflictDoNothing();
   }
+}
+
+// ─── Restriction unlock ───────────────────────────────────────────────────────
+
+export async function unlockRestrictionWithCoins(telegramId: number): Promise<{
+  success: boolean;
+  cost: number;
+  reason?: "not_restricted" | "not_enough_coins";
+  balance?: number;
+}> {
+  const costStr = await getSetting("restriction_unlock_cost");
+  const cost = parseInt(costStr ?? "20", 10);
+
+  const [user] = await db
+    .select({ status: usersTable.status, restrictedUntil: usersTable.restrictedUntil })
+    .from(usersTable)
+    .where(eq(usersTable.telegramId, telegramId))
+    .limit(1);
+
+  if (
+    !user ||
+    user.status !== "restricted" ||
+    !user.restrictedUntil ||
+    new Date() >= user.restrictedUntil
+  ) {
+    return { success: false, cost, reason: "not_restricted" };
+  }
+
+  const result = await deductCoins(telegramId, cost, "unlock_restriction", "رفع محدودیت سریع");
+  if (!result.success) {
+    return { success: false, cost, reason: "not_enough_coins", balance: result.newBalance };
+  }
+
+  await db
+    .update(usersTable)
+    .set({ status: "active", restrictedUntil: null, updatedAt: new Date() })
+    .where(eq(usersTable.telegramId, telegramId));
+
+  return { success: true, cost };
+}
+
+/**
+ * Schedule an automatic lift notification when the restriction expires.
+ * Uses a simple setTimeout — fires as long as the server stays running.
+ */
+export function scheduleRestrictionLift(
+  telegramId: number,
+  restrictedUntil: Date,
+  lang: "fa" | "en",
+): void {
+  const remaining = restrictedUntil.getTime() - Date.now();
+  if (remaining <= 0) return;
+
+  setTimeout(async () => {
+    try {
+      const bot = getBotInstance();
+      if (!bot) return;
+
+      // Confirm still restricted before lifting (may have been unlocked early)
+      const [user] = await db
+        .select({ status: usersTable.status })
+        .from(usersTable)
+        .where(eq(usersTable.telegramId, telegramId))
+        .limit(1);
+
+      if (!user || user.status !== "restricted") return;
+
+      await db
+        .update(usersTable)
+        .set({ status: "active", restrictedUntil: null, updatedAt: new Date() })
+        .where(eq(usersTable.telegramId, telegramId));
+
+      const { t } = await import("../i18n/index.js");
+      await bot.api.sendMessage(telegramId, t(lang).restrictionUnlocked, {
+        parse_mode: "Markdown",
+      });
+    } catch {
+      // Swallow — best-effort notification
+    }
+  }, remaining + 1000);
 }

@@ -125,18 +125,33 @@ export async function isUserBanned(telegramId: number): Promise<boolean> {
 }
 
 export async function isUserRestricted(telegramId: number): Promise<boolean> {
+  const info = await getRestrictionInfo(telegramId);
+  return info.restricted;
+}
+
+export async function getRestrictionInfo(telegramId: number): Promise<{
+  restricted: boolean;
+  restrictedUntil?: Date;
+  isBanned: boolean;
+  justLifted: boolean;
+}> {
   const [user] = await db
     .select({ status: usersTable.status, restrictedUntil: usersTable.restrictedUntil })
     .from(usersTable)
     .where(eq(usersTable.telegramId, telegramId))
     .limit(1);
-  if (!user) return false;
-  if (user.status === "banned") return true;
-  if (user.status === "restricted" && user.restrictedUntil && new Date() < user.restrictedUntil) return true;
-  if (user.status === "restricted" && (!user.restrictedUntil || new Date() >= user.restrictedUntil)) {
-    await db.update(usersTable).set({ status: "active", restrictedUntil: null, updatedAt: new Date() }).where(eq(usersTable.telegramId, telegramId));
+  if (!user) return { restricted: false, isBanned: false, justLifted: false };
+  if (user.status === "banned") return { restricted: true, isBanned: true, justLifted: false };
+  if (user.status === "restricted" && user.restrictedUntil && new Date() < user.restrictedUntil) {
+    return { restricted: true, isBanned: false, restrictedUntil: user.restrictedUntil, justLifted: false };
   }
-  return false;
+  if (user.status === "restricted" && (!user.restrictedUntil || new Date() >= user.restrictedUntil)) {
+    await db.update(usersTable)
+      .set({ status: "active", restrictedUntil: null, updatedAt: new Date() })
+      .where(eq(usersTable.telegramId, telegramId));
+    return { restricted: false, isBanned: false, justLifted: true };
+  }
+  return { restricted: false, isBanned: false, justLifted: false };
 }
 
 export async function getAllUsers(): Promise<User[]> {

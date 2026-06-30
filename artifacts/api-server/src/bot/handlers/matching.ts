@@ -1,6 +1,6 @@
 import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
-import { getUserByTelegramId, updateUser, isUserRestricted } from "../services/user.service.js";
+import { getUserByTelegramId, updateUser, getRestrictionInfo } from "../services/user.service.js";
 import { getUserGroup } from "../services/group.service.js";
 import { deductCoins } from "../services/coin.service.js";
 import {
@@ -12,7 +12,7 @@ import {
   endChatSession,
   getPartnerId,
 } from "../services/matching.service.js";
-import { reportUser, blockUser, containsBadWord, issueWarning } from "../services/safety.service.js";
+import { reportUser, blockUser, containsBadWord, issueWarning, unlockRestrictionWithCoins, scheduleRestrictionLift } from "../services/safety.service.js";
 import { getSetting } from "../services/payment.service.js";
 import { t } from "../i18n/index.js";
 import {
@@ -45,6 +45,20 @@ async function getMatchCostGender(): Promise<number> {
 function getTodayKey(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tehran" });
 }
+
+function formatRemainingTime(ms: number, lang: "fa" | "en"): string {
+  const totalMinutes = Math.max(1, Math.ceil(ms / 60000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (lang === "fa") {
+    if (hours > 0 && minutes > 0) return `${hours} ساعت و ${minutes} دقیقه`;
+    if (hours > 0) return `${hours} ساعت`;
+    return `${minutes} دقیقه`;
+  }
+  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+  if (hours > 0) return `${hours} hour${hours !== 1 ? "s" : ""}`;
+  return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+}
 function getFreeChatCount(tgId: number): number {
   const entry = dailyFreeMap.get(tgId);
   if (!entry || entry.date !== getTodayKey()) return 0;
@@ -63,8 +77,31 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     // Check restriction (auto-lifted once the window passes)
-    if (await isUserRestricted(tgId)) {
-      await ctx.reply(t(lang).userRestricted);
+    const restrictionInfo = await getRestrictionInfo(tgId);
+    if (restrictionInfo.justLifted) {
+      // Restriction just expired — notify user silently then continue
+      await ctx.reply(t(lang).restrictionUnlocked, { parse_mode: "Markdown" }).catch(() => {});
+    }
+    if (restrictionInfo.restricted) {
+      if (restrictionInfo.isBanned) {
+        await ctx.reply(t(lang).userBanned);
+        return;
+      }
+      if (restrictionInfo.restrictedUntil) {
+        const remaining = restrictionInfo.restrictedUntil.getTime() - Date.now();
+        const costStr = await getSetting("restriction_unlock_cost");
+        const unlockCost = parseInt(costStr ?? "20", 10);
+        await ctx.reply(
+          t(lang).userRestricted(formatRemainingTime(remaining, lang)),
+          {
+            parse_mode: "Markdown",
+            reply_markup: new InlineKeyboard().text(
+              t(lang).restrictionUnlockBtn(unlockCost),
+              "unlock_restriction",
+            ),
+          },
+        );
+      }
       return;
     }
 
@@ -369,6 +406,7 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
         const reportedLang = (reportedUser?.language as "fa" | "en") ?? "fa";
         if (result.restricted && result.restrictedUntil) {
           const until = result.restrictedUntil.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
+          scheduleRestrictionLift(partnerId, result.restrictedUntil, reportedLang);
           await bot.api
             .sendMessage(partnerId, t(reportedLang).reportedRestricted(result.recentCount, until))
             .catch(() => {});
@@ -382,6 +420,36 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     ctx.session.pendingReportSessionId = undefined;
     await ctx.editMessageText(t(lang).reportSent).catch(() => {});
     await ctx.answerCallbackQuery();
+  });
+
+  // ─── Unlock restriction callback ──────────────────────────────────────────────
+  bot.callbackQuery("unlock_restriction", async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    const result = await unlockRestrictionWithCoins(tgId);
+
+    if (result.reason === "not_restricted") {
+      await ctx.answerCallbackQuery("✅ حساب شما محدود نیست!");
+      await ctx.editMessageText(t(lang).restrictionUnlocked, { parse_mode: "Markdown" }).catch(() => {});
+      return;
+    }
+    if (result.reason === "not_enough_coins") {
+      await ctx.answerCallbackQuery("❌ سکه کافی نداری");
+      await ctx.reply(
+        t(lang).restrictionUnlockNotEnoughCoins(result.cost, result.balance ?? 0),
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+
+    // Success
+    await ctx.answerCallbackQuery("🔓 محدودیت رفع شد!");
+    await ctx.editMessageText(
+      t(lang).restrictionUnlockSuccess(result.cost),
+      { parse_mode: "Markdown" },
+    ).catch(() => {});
   });
 
   // ─── Block reason callback ────────────────────────────────────────────────────

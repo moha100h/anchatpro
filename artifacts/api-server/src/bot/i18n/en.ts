@@ -413,7 +413,24 @@ export const en = {
   // ─── Safety ──────────────────────────────────────────────────────────────────
   warningIssued: (n: number) =>
     `⚠️ Warning ${n} of 3 issued.\nRepeated violations will result in account restriction.`,
-  userRestricted: "🚫 Your account has been restricted.",
+  userRestricted: (remaining: string) =>
+    `🚫 **Your account has been restricted.**\n\n` +
+    `⏳ Restriction lifts in approximately **${remaining}** 👽\n\n` +
+    `_Or unlock it instantly with coins_ 👇`,
+  restrictionUnlocked:
+    `✅ **Your account restriction has been lifted!**\n\n` +
+    `🎉 You can now use all bot features again.\n` +
+    `Please keep a respectful attitude going forward! 🙏`,
+  restrictionUnlockBtn: (cost: number) => `🔓 Instant Unlock — ${cost} coins`,
+  restrictionUnlockSuccess: (cost: number) =>
+    `✅ **Restriction lifted successfully!**\n\n` +
+    `💰 **${cost} coins** deducted from your balance.\n` +
+    `🎉 You can now use the bot again!`,
+  restrictionUnlockNotEnoughCoins: (cost: number, balance: number) =>
+    `❌ **Not enough coins!**\n\n` +
+    `💰 Unlock cost: **${cost} coins**\n` +
+    `👛 Your balance: **${balance} coins**\n\n` +
+    `Visit 💰 My Coins to purchase more.`,
   reportedWarning: (recentCount: number) =>
     `⚠️ **Security Warning**\n\n` +
     `A user has reported you.\n` +

@@ -22,6 +22,7 @@ import {
   useDiscountCode,
   getCryptoCurrencies,
   fetchCryptoPriceWithFallback,
+  methodToGateway,
 } from "../services/payment.service.js";
 import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { createPlisioOrder } from "../services/plisio.service.js";
@@ -401,13 +402,26 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     ctx.session.pendingDiscountCodeId   = undefined;
     ctx.session.pendingDiscountPercent  = undefined;
 
+    const [nameCard, nameCrypto, nameTetrapay, namePlisio] = await Promise.all([
+      getSetting("gateway_display_name_card"),
+      getSetting("gateway_display_name_crypto"),
+      getSetting("gateway_display_name_tetrapay"),
+      getSetting("gateway_display_name_plisio"),
+    ]);
+    const gwNames = {
+      card:     nameCard     ?? (lang === "fa" ? "💳 پرداخت کارت‌به‌کارت" : "💳 Card Payment"),
+      crypto:   nameCrypto   ?? (lang === "fa" ? "₿ ارز دیجیتال (کریپتو)" : "₿ Cryptocurrency"),
+      tetrapay: nameTetrapay ?? (lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway (TetraPay)"),
+      plisio:   namePlisio   ?? (lang === "fa" ? "💫 پلیزیو (Plisio)" : "💫 Plisio (Crypto)"),
+    };
+
     await ctx.reply(
       lang === "fa"
         ? "💰 *خرید سکه*\n\nابتدا روش پرداخت خود را انتخاب کنید:"
         : "💰 *Buy Coins*\n\nFirst, choose your payment method:",
       {
         parse_mode:   "Markdown",
-        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn }),
+        reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn }, gwNames),
       }
     );
   });
@@ -430,12 +444,26 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       return;
     }
 
-    // Detect gateway emoji
+    // Match text against gateway display names (fetch from settings for custom names)
+    const [nameCard, nameCrypto, nameTetrapay, namePlisio] = await Promise.all([
+      getSetting("gateway_display_name_card"),
+      getSetting("gateway_display_name_crypto"),
+      getSetting("gateway_display_name_tetrapay"),
+      getSetting("gateway_display_name_plisio"),
+    ]);
+    const GW_MAP: Array<{ names: string[]; method: "card" | "crypto" | "gateway" | "plisio" }> = [
+      { method: "card",    names: [nameCard    ?? "💳 پرداخت کارت‌به‌کارت", "💳 Card Payment",                "💳"] },
+      { method: "crypto",  names: [nameCrypto  ?? "₿ ارز دیجیتال (کریپتو)", "₿ Cryptocurrency",              "₿"]  },
+      { method: "gateway", names: [nameTetrapay ?? "🌐 درگاه آنلاین (TetraPay)", "🌐 Online Gateway (TetraPay)", "🌐"] },
+      { method: "plisio",  names: [namePlisio  ?? "💫 پلیزیو (Plisio)",       "💫 Plisio (Crypto)",           "💫"] },
+    ];
     let method: "card" | "crypto" | "gateway" | "plisio" | null = null;
-    if (/💳/.test(text))  method = "card";
-    else if (/₿/.test(text))  method = "crypto";
-    else if (/🌐/.test(text)) method = "gateway";
-    else if (/💫/.test(text)) method = "plisio";
+    for (const gw of GW_MAP) {
+      if (gw.names.some(n => text === n || text.startsWith(n.slice(0, 2)))) {
+        method = gw.method;
+        break;
+      }
+    }
 
     if (!method) return next();
 
@@ -446,16 +474,6 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
         lang === "fa"
           ? "❌ این روش پرداخت فعلاً غیرفعال است. روش دیگری انتخاب کنید."
           : "❌ This payment method is currently disabled. Choose another."
-      );
-      return;
-    }
-
-    const packages = await getPackages();
-    if (packages.length === 0) {
-      ctx.session.step = undefined;
-      await ctx.reply(
-        lang === "fa" ? "⚠️ در حال حاضر بسته‌ای موجود نیست." : "⚠️ No packages available.",
-        { reply_markup: coinsSubMenuKeyboard(lang) }
       );
       return;
     }
@@ -471,6 +489,17 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       : method === "crypto"  ? (lang === "fa" ? "₿ ارز دیجیتال"              : "₿ Crypto")
       : method === "plisio"  ? (lang === "fa" ? "💫 Plisio (کریپتو جهانی)"  : "💫 Plisio (Crypto)")
       :                        (lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway");
+
+    const packages = await getPackages(method);
+    if (packages.length === 0) {
+      await ctx.reply(
+        lang === "fa"
+          ? "⚠️ هیچ بسته‌ای برای این روش پرداخت تعریف نشده. لطفاً روش دیگری انتخاب کنید."
+          : "⚠️ No packages available for this payment method. Please choose another.",
+        { reply_markup: coinsGatewayKeyboard(lang, { card: true, crypto: true, gateway: true, plisio: true }) }
+      );
+      return;
+    }
 
     await ctx.reply(
       lang === "fa"
@@ -857,25 +886,28 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     }
 
     // Reconstruct button text for each package and find the one that matches
-    const packages = await getPackages();
+    const packages = await getPackages(method ?? undefined);
+    const isUsdMethod = method === "crypto" || method === "plisio";
     const pkg = packages.find(p => {
-      const effectivePrice =
+      const effectivePrice = p.gateway ? p.price : (
         method === "card"    && p.cardPrice    ? p.cardPrice    :
         method === "crypto"  && p.cryptoPrice  ? p.cryptoPrice  :
         method === "gateway" && p.tetrapayPrice ? p.tetrapayPrice :
         method === "plisio"  && (p.plisioPrice ?? p.cryptoPrice) ? (p.plisioPrice ?? p.cryptoPrice)! :
-        p.price;
-      const priceStr   = effectivePrice.toLocaleString("fa-IR");
+        p.price
+      );
       const hasDisc    = (p.discountPercent ?? 0) > 0;
       const label      = p.label ?? (lang === "fa" ? `${p.coins} سکه` : `${p.coins} coins`);
+      const usd = p.gateway ? (p.gateway === "crypto" || p.gateway === "plisio") : isUsdMethod;
+      const priceStr = usd ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
       const expected =
         lang === "fa"
           ? hasDisc
-            ? `💎 ${label} | ${priceStr} تومان 🔥-${p.discountPercent}%`
-            : `💎 ${label} | ${priceStr} تومان`
+            ? `💎 ${label} | ${priceStr} 🔥-${p.discountPercent}%`
+            : `💎 ${label} | ${priceStr}`
           : hasDisc
-            ? `💎 ${p.coins} coins | ${effectivePrice.toLocaleString()} IRT 🔥-${p.discountPercent}%`
-            : `💎 ${p.coins} coins | ${effectivePrice.toLocaleString()} IRT`;
+            ? `💎 ${p.coins} coins | ${priceStr} 🔥-${p.discountPercent}%`
+            : `💎 ${p.coins} coins | ${priceStr}`;
       return text === expected;
     });
 
@@ -886,14 +918,16 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     ctx.session.pendingDiscountCodeId   = undefined;
     ctx.session.pendingDiscountPercent  = undefined;
 
-    // Effective price for this method
-    const effectivePrice =
+    // Effective price
+    const effectivePrice = pkg.gateway ? pkg.price : (
       method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
       method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
       method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
       method === "plisio"  && (pkg.plisioPrice ?? pkg.cryptoPrice) ? (pkg.plisioPrice ?? pkg.cryptoPrice)! :
-      pkg.price;
-    const priceStr = effectivePrice.toLocaleString("fa-IR");
+      pkg.price
+    );
+    const usdPkg = pkg.gateway ? (pkg.gateway === "crypto" || pkg.gateway === "plisio") : isUsdMethod;
+    const priceStr = usdPkg ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
     const discPct  = pkg.discountPercent ?? 0;
 
     const discKb = new InlineKeyboard()

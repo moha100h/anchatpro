@@ -43,6 +43,7 @@ import {
   getPackageById,
   createPackage,
   updatePackage,
+  deletePackage,
   createDiscountCode,
   listDiscountCodes,
   toggleDiscountCode,
@@ -678,6 +679,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "✏️ نام صاحب کارت",     callback_data: "pay_set:card_holder_name" }],
             [{ text: "✏️ نام بانک",           callback_data: "pay_set:card_bank_name" }],
             [{ text: "✏️ گروه بررسی کارت",   callback_data: "pay_set:card_review_group" }],
+            [{ text: "📝 نام نمایشی درگاه",   callback_data: "gw_name:card" }],
+            [{ text: "📦 بسته‌های این درگاه", callback_data: "gw_pkgs:card" }],
             [{ text: cardEnabled ? "❌ غیرفعال کردن کارت" : "✅ فعال کردن کارت", callback_data: "pay_toggle:card" }],
           ],
         },
@@ -710,6 +713,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
           inline_keyboard: [
             [{ text: "✏️ گروه بررسی کریپتو",  callback_data: "pay_set:crypto_review_group" }],
             [{ text: "💱 مدیریت ارزها",        callback_data: "admin_crypto:list" }],
+            [{ text: "📝 نام نمایشی درگاه",    callback_data: "gw_name:crypto" }],
+            [{ text: "📦 بسته‌های این درگاه",  callback_data: "gw_pkgs:crypto" }],
             [{ text: cryptoEnabled ? "❌ غیرفعال کردن کریپتو" : "✅ فعال کردن کریپتو", callback_data: "pay_toggle:crypto" }],
           ],
         },
@@ -739,6 +744,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: t("fa").autoDetectCallbackUrl, callback_data: "tetrapay:auto_url" }],
             [{ text: t("fa").setCallbackUrl,        callback_data: "pay_set:tetrapay_callback_url" }],
             [{ text: "✏️ گروه بررسی TetraPay",    callback_data: "pay_set:tetrapay_review_group" }],
+            [{ text: "📝 نام نمایشی درگاه",        callback_data: "gw_name:tetrapay" }],
+            [{ text: "📦 بسته‌های این درگاه",      callback_data: "gw_pkgs:tetrapay" }],
             [{ text: gwEnabled ? "❌ غیرفعال کردن درگاه" : "✅ فعال کردن درگاه", callback_data: "pay_toggle:gateway" }],
           ],
         },
@@ -781,6 +788,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "✏️ ویرایش Callback URL",          callback_data: "pay_set:plisio_callback_url" }],
             [{ text: "💱 ارزهای مجاز (ETH,LTC,...)",   callback_data: "pay_set:plisio_currencies" }],
             [{ text: "👥 گروه بررسی Plisio",            callback_data: "pay_set:plisio_review_group" }],
+            [{ text: "📝 نام نمایشی درگاه",             callback_data: "gw_name:plisio" }],
+            [{ text: "📦 بسته‌های این درگاه",           callback_data: "gw_pkgs:plisio" }],
             [{ text: enabled ? "❌ غیرفعال کردن Plisio" : "✅ فعال کردن Plisio", callback_data: "pay_toggle:plisio" }],
           ],
         },
@@ -788,36 +797,25 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     );
   });
 
-  // ─── Package management ────────────────────────────────────────────────────────
+  // ─── Package management (overview — grouped by gateway) ──────────────────────
   bot.hears(ADMIN_BTN.PACKAGES, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
-    const packages = await getAllPackages();
-    const kb: Array<Array<{ text: string; callback_data: string }>> = [];
-    let msg = "📦 *بسته‌های سکه:*\n\n";
-    if (packages.length === 0) {
-      msg += "_هیچ بسته‌ای وجود ندارد_\n";
-    } else {
-      for (const pkg of packages) {
-        const status   = pkg.isActive ? "✅" : "❌";
-        const disc     = (pkg.discountPercent ?? 0) > 0 ? ` 🔥-${pkg.discountPercent}%` : "";
-        const label    = pkg.label ? ` (${pkg.label})` : "";
-        const gwPrices = [
-          pkg.cardPrice    ? `💳${pkg.cardPrice.toLocaleString("fa-IR")}`    : null,
-          pkg.cryptoPrice  ? `₿$${pkg.cryptoPrice}`                         : null,
-          pkg.tetrapayPrice ? `🌐${pkg.tetrapayPrice.toLocaleString("fa-IR")}` : null,
-          pkg.plisioPrice   ? `💫$${pkg.plisioPrice}`                          : null,
-        ].filter(Boolean).join(" | ");
-        const gwStr = gwPrices ? ` [${gwPrices}]` : "";
-        msg += `${status} ${pkg.coins} سکه${label} | ${pkg.price.toLocaleString("fa-IR")} تومان${disc}${gwStr} — #${pkg.id}\n`;
-        kb.push([
-          { text: `✏️ ویرایش #${pkg.id}`,     callback_data: `admin_pkg:edit:${pkg.id}` },
-          { text: pkg.isActive ? `🚫 غیرفعال` : `✅ فعال`, callback_data: `admin_pkg:toggle:${pkg.id}` },
-        ]);
-      }
-    }
-    kb.push([{ text: "➕ افزودن بسته جدید", callback_data: "admin_pkg:create" }]);
-    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
+    const GWS: Array<{ key: string; label: string; cb: string }> = [
+      { key: "card",     label: "💳 کارت بانکی",      cb: "gw_pkgs:card"     },
+      { key: "crypto",   label: "₿ ارز دیجیتال",      cb: "gw_pkgs:crypto"   },
+      { key: "tetrapay", label: "🌐 TetraPay",         cb: "gw_pkgs:tetrapay" },
+      { key: "plisio",   label: "💫 Plisio",           cb: "gw_pkgs:plisio"   },
+    ];
+    const kb: Array<Array<{ text: string; callback_data: string }>> = GWS.map(g => [
+      { text: `${g.label}`, callback_data: g.cb }
+    ]);
+    await ctx.reply(
+      "📦 *مدیریت بسته‌های سکه*\n\n" +
+      "برای هر درگاه بسته‌های مستقل تعریف می‌شود.\n" +
+      "درگاه مورد نظر را انتخاب کنید:",
+      { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } }
+    );
   });
 
   // ─── Discount code management ──────────────────────────────────────────────────
@@ -1078,6 +1076,10 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       plisio_callback_url:      "آدرس Callback پلیزیو (Status URL)",
       plisio_currencies:        "ارزهای مجاز پلیزیو (مثال: ETH,LTC,USDT_TRX,TRX)",
       plisio_review_group:      "گروه بررسی پلیزیو (ID یا @username)",
+      gateway_display_name_card:     "نام نمایشی درگاه کارت (مثال: 💳 پرداخت با کارت)",
+      gateway_display_name_crypto:   "نام نمایشی درگاه کریپتو (مثال: ₿ ارز دیجیتال)",
+      gateway_display_name_tetrapay: "نام نمایشی درگاه TetraPay",
+      gateway_display_name_plisio:   "نام نمایشی درگاه Plisio",
     };
     await ctx.reply(`✏️ مقدار جدید *${labels[key] ?? key}* را وارد کنید:`, { parse_mode: "Markdown" });
     await ctx.answerCallbackQuery();
@@ -1160,7 +1162,155 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     );
   });
 
-  // ── Callbacks: package CRUD ───────────────────────────────────────────────────
+  // ── Gateway display name callbacks ────────────────────────────────────────────
+  bot.callbackQuery(/^gw_name:(card|crypto|tetrapay|plisio)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const gw = ctx.match![1]!;
+    const settingKey = `gateway_display_name_${gw}`;
+    const defaults: Record<string, string> = {
+      card:     "💳 پرداخت کارت‌به‌کارت",
+      crypto:   "₿ ارز دیجیتال (کریپتو)",
+      tetrapay: "🌐 درگاه آنلاین (TetraPay)",
+      plisio:   "💫 پلیزیو (Plisio)",
+    };
+    const cur = (await getSetting(settingKey)) ?? defaults[gw];
+    ctx.session.adminAction = `set_gw_name:${gw}`;
+    await ctx.reply(
+      `✏️ *نام نمایشی فعلی:*\n\`${cur}\`\n\n` +
+      `نام جدید را بفرستید (مثال: 💳 پرداخت با کارت)\n` +
+      `_یا \`-\` برای بازگشت به پیش‌فرض:_`,
+      { parse_mode: "Markdown" }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Per-gateway packages list ──────────────────────────────────────────────────
+  bot.callbackQuery(/^gw_pkgs:(card|crypto|tetrapay|plisio)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const gw = ctx.match![1]!;
+    const gwLabels: Record<string, string> = {
+      card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio"
+    };
+    const pkgCurrency: Record<string, string> = { card: "تومان", crypto: "$", tetrapay: "تومان", plisio: "$" };
+    const packages = await getAllPackages(gw);
+    const kb: Array<Array<{ text: string; callback_data: string }>> = [];
+    let msg = `📦 *بسته‌های ${gwLabels[gw]}:*\n\n`;
+    if (packages.length === 0) {
+      msg += "_هیچ بسته‌ای تعریف نشده_\n\n";
+    } else {
+      for (const pkg of packages) {
+        const status  = pkg.isActive ? "✅" : "❌";
+        const disc    = (pkg.discountPercent ?? 0) > 0 ? ` 🔥-${pkg.discountPercent}%` : "";
+        const label   = pkg.label ? ` (${pkg.label})` : "";
+        const cur     = pkgCurrency[gw] ?? "تومان";
+        const priceStr = (gw === "crypto" || gw === "plisio")
+          ? `$${pkg.price}`
+          : pkg.price.toLocaleString("fa-IR") + " " + cur;
+        msg += `${status} *${pkg.coins}* سکه${label} | ${priceStr}${disc} — #${pkg.id}\n`;
+        if (pkg.description) msg += `   _${pkg.description}_\n`;
+        kb.push([
+          { text: `✏️ #${pkg.id}`,   callback_data: `gw_pkg:edit:${pkg.id}` },
+          { text: pkg.isActive ? "🚫" : "✅", callback_data: `gw_pkg:toggle:${pkg.id}` },
+          { text: "🗑️",              callback_data: `gw_pkg:del:${pkg.id}` },
+        ]);
+      }
+    }
+    kb.push([{ text: "➕ افزودن بسته جدید", callback_data: `gw_pkg:create:${gw}` }]);
+    await ctx.reply(msg, { parse_mode: "Markdown", reply_markup: { inline_keyboard: kb } });
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Create per-gateway package ─────────────────────────────────────────────────
+  bot.callbackQuery(/^gw_pkg:create:(card|crypto|tetrapay|plisio)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const gw = ctx.match![1]!;
+    ctx.session.adminPkgGateway   = gw;
+    ctx.session.adminAction       = "gpkg_coins";
+    ctx.session.adminPkgCoins     = undefined;
+    ctx.session.adminPkgPrice     = undefined;
+    ctx.session.adminPkgDiscount  = undefined;
+    ctx.session.adminPkgLabel     = undefined;
+    ctx.session.adminPkgDesc      = undefined;
+    const gwLabels: Record<string, string> = { card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio" };
+    await ctx.reply(
+      `📦 *بسته جدید — ${gwLabels[gw]}*\n\n` +
+      `*مرحله ۱/۵:* تعداد سکه را وارد کنید:`,
+      { parse_mode: "Markdown" }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Edit per-gateway package ───────────────────────────────────────────────────
+  bot.callbackQuery(/^gw_pkg:edit:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id  = parseInt(ctx.match![1]!, 10);
+    const pkg = await getPackageById(id);
+    if (!pkg) { await ctx.answerCallbackQuery("بسته یافت نشد"); return; }
+    ctx.session.adminPkgEditId = id;
+    const gw = pkg.gateway ?? "?";
+    const isUsd = gw === "crypto" || gw === "plisio";
+    await ctx.reply(
+      `✏️ *ویرایش بسته #${id}*\n\n` +
+      `💎 سکه: ${pkg.coins} | قیمت: ${isUsd ? "$" : ""}${pkg.price}${isUsd ? "" : " تومان"}\n` +
+      `🏷️ عنوان: ${pkg.label ?? "-"}\n` +
+      `📝 توضیحات: ${pkg.description ?? "-"}\n\n` +
+      `کدام فیلد را ویرایش می‌کنید؟`,
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "💎 تعداد سکه",    callback_data: `gpef:${id}:coins`       }],
+            [{ text: "💵 قیمت",         callback_data: `gpef:${id}:price`       }],
+            [{ text: "🔥 درصد تخفیف",  callback_data: `gpef:${id}:discount`    }],
+            [{ text: "🏷️ عنوان",        callback_data: `gpef:${id}:label`       }],
+            [{ text: "📝 توضیحات",      callback_data: `gpef:${id}:description` }],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^gw_pkg:toggle:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id  = parseInt(ctx.match![1]!, 10);
+    const pkg = await getPackageById(id);
+    if (!pkg) { await ctx.answerCallbackQuery("بسته یافت نشد"); return; }
+    await updatePackage(id, { isActive: !pkg.isActive });
+    await ctx.answerCallbackQuery(`${!pkg.isActive ? "✅ فعال" : "🚫 غیرفعال"} شد`);
+    await ctx.reply(`${!pkg.isActive ? "✅ فعال" : "🚫 غیرفعال"} شد: بسته #${id} (${pkg.coins} سکه)`);
+  });
+
+  bot.callbackQuery(/^gw_pkg:del:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id  = parseInt(ctx.match![1]!, 10);
+    const pkg = await getPackageById(id);
+    if (!pkg) { await ctx.answerCallbackQuery("بسته یافت نشد"); return; }
+    await deletePackage(id);
+    await ctx.answerCallbackQuery("🗑️ حذف شد");
+    await ctx.reply(`🗑️ بسته #${id} (${pkg.coins} سکه) حذف شد.`);
+  });
+
+  // ── Edit per-gateway package fields ───────────────────────────────────────────
+  bot.callbackQuery(/^gpef:(\d+):(coins|price|discount|label|description)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const id    = parseInt(ctx.match![1]!, 10);
+    const field = ctx.match![2]!;
+    ctx.session.adminPkgEditId = id;
+    ctx.session.adminAction    = `gpkgedit:${id}:${field}`;
+    const pkg = await getPackageById(id);
+    const isUsd = pkg?.gateway === "crypto" || pkg?.gateway === "plisio";
+    const labels: Record<string, string> = {
+      coins:       "تعداد سکه (عدد مثبت)",
+      price:       isUsd ? "قیمت ($USD — عدد صحیح)" : "قیمت (تومان — عدد مثبت)",
+      discount:    "درصد تخفیف ۰-۱۰۰",
+      label:       "عنوان بسته (یا - برای حذف)",
+      description: "توضیحات بسته (یا - برای حذف)",
+    };
+    await ctx.reply(`✏️ مقدار جدید *${labels[field] ?? field}* را وارد کنید:`, { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+  });
+
+  // ── Callbacks: package CRUD (legacy global — kept for backward compat) ────────
   bot.callbackQuery("admin_pkg:create", async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     ctx.session.adminAction       = "admin_pkg_create_coins";
@@ -1620,7 +1770,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       { parse_mode: "Markdown", reply_markup: undefined }
     );
     await ctx.answerCallbackQuery("✅ رفع محدودیت شد");
-    await getBotInstance().api.sendMessage(
+    await getBotInstance()?.api.sendMessage(
       uid,
       `✅ *ادمین محدودیت حساب شما را برداشت.*\n\nاکنون می‌تونی از تمام امکانات ربات استفاده کنی! 🎉`,
       { parse_mode: "Markdown" }
@@ -2101,6 +2251,134 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       ctx.session.adminPkgEditId = undefined;
       ctx.session.adminAction    = undefined;
       await ctx.reply(`✅ بسته #${id} با موفقیت ویرایش شد.`);
+      return;
+    }
+
+    // ── Gateway display name set ───────────────────────────────────────────
+    if (action.startsWith("set_gw_name:")) {
+      const gw = action.split(":")[1]!;
+      const defaults: Record<string, string> = {
+        card:     "💳 پرداخت کارت‌به‌کارت",
+        crypto:   "₿ ارز دیجیتال (کریپتو)",
+        tetrapay: "🌐 درگاه آنلاین (TetraPay)",
+        plisio:   "💫 پلیزیو (Plisio)",
+      };
+      if (text.trim() === "-") {
+        await setSetting(`gateway_display_name_${gw}`, defaults[gw] ?? gw);
+      } else {
+        await setSetting(`gateway_display_name_${gw}`, text.trim());
+      }
+      ctx.session.adminAction = undefined;
+      await ctx.reply(`✅ نام نمایشی درگاه *${gw}* ثبت شد:\n\`${text.trim() === "-" ? defaults[gw] : text.trim()}\``, { parse_mode: "Markdown" });
+      return;
+    }
+
+    // ── Per-gateway package create wizard ─────────────────────────────────
+    if (action === "gpkg_coins") {
+      const coins = parseInt(text, 10);
+      if (isNaN(coins) || coins < 1) { await ctx.reply("❌ عدد صحیح مثبت وارد کنید."); return; }
+      ctx.session.adminPkgCoins  = coins;
+      ctx.session.adminAction    = "gpkg_price";
+      const gw = ctx.session.adminPkgGateway ?? "card";
+      const isUsd = gw === "crypto" || gw === "plisio";
+      await ctx.reply(
+        `✅ سکه: *${coins}*\n\n*مرحله ۲/۵:* قیمت ${isUsd ? "($USD — عدد صحیح)" : "(تومان)"}:`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "gpkg_price") {
+      const price = parseInt(text, 10);
+      if (isNaN(price) || price < 1) { await ctx.reply("❌ عدد صحیح مثبت وارد کنید."); return; }
+      ctx.session.adminPkgPrice = price;
+      ctx.session.adminAction   = "gpkg_discount";
+      await ctx.reply(
+        `✅ قیمت: *${price.toLocaleString("fa-IR")}*\n\n*مرحله ۳/۵:* درصد تخفیف (۰ = بدون تخفیف):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "gpkg_discount") {
+      const disc = parseInt(text, 10);
+      if (isNaN(disc) || disc < 0 || disc > 100) { await ctx.reply("❌ عددی بین ۰ تا ۱۰۰."); return; }
+      ctx.session.adminPkgDiscount = disc;
+      ctx.session.adminAction      = "gpkg_label";
+      await ctx.reply(
+        `✅ تخفیف: *${disc}%*\n\n*مرحله ۴/۵:* عنوان بسته (یا \`-\` برای پیش‌فرض):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "gpkg_label") {
+      ctx.session.adminPkgLabel = text.trim() === "-" ? "" : text.trim();
+      ctx.session.adminAction   = "gpkg_desc";
+      await ctx.reply(
+        `✅ عنوان: *${ctx.session.adminPkgLabel || "پیش‌فرض"}*\n\n` +
+        `*مرحله ۵/۵:* توضیحات (نشان داده‌شده به کاربر — یا \`-\` برای خالی):`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    if (action === "gpkg_desc") {
+      const desc = text.trim() === "-" ? null : text.trim();
+      const gw       = ctx.session.adminPkgGateway ?? "card";
+      const coins    = ctx.session.adminPkgCoins    ?? 10;
+      const price    = ctx.session.adminPkgPrice    ?? 1000;
+      const discount = ctx.session.adminPkgDiscount ?? 0;
+      const label    = ctx.session.adminPkgLabel === "" ? undefined : (ctx.session.adminPkgLabel ?? undefined);
+      const origPrice = discount > 0 ? Math.round(price / (1 - discount / 100)) : undefined;
+      ctx.session.adminPkgGateway  = undefined;
+      ctx.session.adminPkgCoins    = undefined;
+      ctx.session.adminPkgPrice    = undefined;
+      ctx.session.adminPkgDiscount = undefined;
+      ctx.session.adminPkgLabel    = undefined;
+      ctx.session.adminPkgDesc     = undefined;
+      const pkg = await createPackage({ gateway: gw, coins, price, originalPrice: origPrice, discountPercent: discount, label, description: desc ?? undefined });
+      const isUsd = gw === "crypto" || gw === "plisio";
+      const gwNames: Record<string, string> = { card: "💳 کارت", crypto: "₿ کریپتو", tetrapay: "🌐 TetraPay", plisio: "💫 Plisio" };
+      await ctx.reply(
+        `📦 *بسته جدید ساخته شد!*\n\n` +
+        `🔖 درگاه: *${gwNames[gw] ?? gw}*\n` +
+        `💎 سکه: *${pkg.coins}*\n` +
+        `💵 قیمت: *${isUsd ? "$" : ""}${pkg.price}${isUsd ? "" : " تومان"}*\n` +
+        (discount > 0 ? `🔥 تخفیف: *${discount}%*\n` : "") +
+        (label ? `🏷️ عنوان: *${label}*\n` : "") +
+        (desc ? `📝 توضیحات: _${desc}_\n` : "") +
+        `✅ شناسه: #${pkg.id}`,
+        { parse_mode: "Markdown" }
+      );
+      return;
+    }
+
+    // ── Per-gateway package edit ───────────────────────────────────────────
+    if (action.startsWith("gpkgedit:")) {
+      const parts = action.split(":");
+      const id    = parseInt(parts[1]!, 10);
+      const field = parts[2]!;
+      if (field === "coins") {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        await updatePackage(id, { coins: v });
+      } else if (field === "price") {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        await updatePackage(id, { price: v });
+      } else if (field === "discount") {
+        const v = parseInt(text, 10);
+        if (isNaN(v) || v < 0 || v > 100) { await ctx.reply("❌ عدد ۰-۱۰۰ وارد کنید."); return; }
+        await updatePackage(id, { discountPercent: v });
+      } else if (field === "label") {
+        await updatePackage(id, { label: text.trim() === "-" ? null : text.trim() });
+      } else if (field === "description") {
+        await updatePackage(id, { description: text.trim() === "-" ? null : text.trim() });
+      }
+      ctx.session.adminPkgEditId = undefined;
+      ctx.session.adminAction    = undefined;
+      await ctx.reply(`✅ بسته #${id} ویرایش شد.`);
       return;
     }
 

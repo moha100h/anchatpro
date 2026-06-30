@@ -5,12 +5,34 @@ import {
   adminSettingsTable,
   discountCodesTable,
 } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull, or } from "drizzle-orm";
 import { addCoins } from "./coin.service.js";
 
 // ─── Package helpers ───────────────────────────────────────────────────────────
 
-export async function getPackages(): Promise<typeof paymentPackagesTable.$inferSelect[]> {
+/** Map payment method → package gateway column value */
+export function methodToGateway(method: string): string {
+  if (method === "gateway") return "tetrapay";
+  return method; // card, crypto, plisio
+}
+
+/** Get active packages for a specific gateway. Falls back to legacy (null-gateway) packages if none. */
+export async function getPackages(gateway?: string): Promise<typeof paymentPackagesTable.$inferSelect[]> {
+  if (gateway) {
+    const gw = methodToGateway(gateway);
+    const rows = await db
+      .select()
+      .from(paymentPackagesTable)
+      .where(and(eq(paymentPackagesTable.isActive, true), eq(paymentPackagesTable.gateway, gw)))
+      .orderBy(paymentPackagesTable.coins);
+    if (rows.length > 0) return rows;
+    // Legacy fallback: packages with no gateway set
+    return db
+      .select()
+      .from(paymentPackagesTable)
+      .where(and(eq(paymentPackagesTable.isActive, true), isNull(paymentPackagesTable.gateway)))
+      .orderBy(paymentPackagesTable.coins);
+  }
   return db
     .select()
     .from(paymentPackagesTable)
@@ -18,7 +40,16 @@ export async function getPackages(): Promise<typeof paymentPackagesTable.$inferS
     .orderBy(paymentPackagesTable.coins);
 }
 
-export async function getAllPackages(): Promise<typeof paymentPackagesTable.$inferSelect[]> {
+/** Get all packages (including inactive) for a specific gateway, or all if gateway omitted */
+export async function getAllPackages(gateway?: string): Promise<typeof paymentPackagesTable.$inferSelect[]> {
+  if (gateway) {
+    const gw = methodToGateway(gateway);
+    return db
+      .select()
+      .from(paymentPackagesTable)
+      .where(eq(paymentPackagesTable.gateway, gw))
+      .orderBy(paymentPackagesTable.coins);
+  }
   return db.select().from(paymentPackagesTable).orderBy(paymentPackagesTable.coins);
 }
 
@@ -28,25 +59,32 @@ export async function getPackageById(id: number): Promise<typeof paymentPackages
 }
 
 export async function createPackage(data: {
+  gateway?: string;
   coins: number;
   price: number;
   originalPrice?: number;
   discountPercent?: number;
   label?: string;
+  description?: string;
   cardPrice?: number;
   cryptoPrice?: number;
   tetrapayPrice?: number;
   plisioPrice?: number;
 }) {
+  // Determine currency from gateway
+  const usdGateways = new Set(["crypto", "plisio"]);
+  const currency = data.gateway && usdGateways.has(data.gateway) ? "USD" : "IRT";
   const [pkg] = await db
     .insert(paymentPackagesTable)
     .values({
+      gateway: data.gateway ?? null,
       coins: data.coins,
       price: data.price,
       originalPrice: data.originalPrice ?? null,
       discountPercent: data.discountPercent ?? 0,
-      currency: "IRT",
+      currency,
       label: data.label ?? null,
+      description: data.description ?? null,
       cardPrice: data.cardPrice ?? null,
       cryptoPrice: data.cryptoPrice ?? null,
       tetrapayPrice: data.tetrapayPrice ?? null,
@@ -66,6 +104,7 @@ export async function updatePackage(
     originalPrice?: number | null;
     discountPercent?: number;
     label?: string | null;
+    description?: string | null;
     isActive?: boolean;
     cardPrice?: number | null;
     cryptoPrice?: number | null;
@@ -77,7 +116,7 @@ export async function updatePackage(
 }
 
 export async function deletePackage(id: number) {
-  await db.update(paymentPackagesTable).set({ isActive: false }).where(eq(paymentPackagesTable.id, id));
+  await db.delete(paymentPackagesTable).where(eq(paymentPackagesTable.id, id));
 }
 
 // ─── Payment creation ─────────────────────────────────────────────────────────
@@ -91,14 +130,18 @@ export async function createPayment(
   const pkg = await getPackageById(packageId);
   if (!pkg) throw new Error("Package not found");
 
-  // Use per-gateway override price if set, otherwise fall back to base price
-  const basePrice =
-    method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
-    method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
-    method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
-    method === "plisio"  && pkg.plisioPrice  ? pkg.plisioPrice  :
-    method === "plisio"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
-    pkg.price;
+  // For new gateway-scoped packages, price IS the gateway price.
+  // For legacy packages (null gateway), use per-gateway override if set.
+  const basePrice = pkg.gateway
+    ? pkg.price
+    : (
+        method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
+        method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
+        method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
+        method === "plisio"  && pkg.plisioPrice  ? pkg.plisioPrice  :
+        method === "plisio"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
+        pkg.price
+      );
 
   const discountPct = options?.discountPercent ?? 0;
   const finalPrice = discountPct > 0

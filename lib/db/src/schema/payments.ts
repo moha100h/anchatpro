@@ -9,16 +9,19 @@ export const plisioStatusEnum = pgEnum("plisio_status", ["pending", "completed",
 
 export const paymentPackagesTable = pgTable("payment_packages", {
   id: serial("id").primaryKey(),
+  gateway: varchar("gateway", { length: 20 }),   // 'card' | 'crypto' | 'tetrapay' | 'plisio' | null (legacy)
   coins: integer("coins").notNull(),
-  price: integer("price").notNull(),
+  price: integer("price").notNull(),              // price in gateway's native currency
   originalPrice: integer("original_price"),
   discountPercent: integer("discount_percent").default(0).notNull(),
   currency: varchar("currency", { length: 10 }).default("IRT").notNull(),
-  cardPrice: integer("card_price"),       // Override price in Tomans for card gateway
-  cryptoPrice: integer("crypto_price"),   // Price in USD for crypto gateway (nullable = disabled)
-  tetrapayPrice: integer("tetrapay_price"), // Override price in Tomans for TetraPay
-  plisioPrice: integer("plisio_price"),     // Override price in USD for Plisio
+  // Legacy per-gateway override columns (kept for backward compat, not used for new packages)
+  cardPrice: integer("card_price"),
+  cryptoPrice: integer("crypto_price"),
+  tetrapayPrice: integer("tetrapay_price"),
+  plisioPrice: integer("plisio_price"),
   label: varchar("label", { length: 100 }),
+  description: text("description"),               // Optional package description shown to users
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -24,9 +24,11 @@ export interface SessionData {
   pendingDiscountPercent?: number;
   // 📦 Admin package creation temp
   adminPkgStep?: string;
+  adminPkgGateway?: string;   // gateway scope for per-gateway package wizard
   adminPkgCoins?: number;
   adminPkgPrice?: number;
   adminPkgLabel?: string;
+  adminPkgDesc?: string;
   adminPkgCardPrice?: number;
   adminPkgCryptoPrice?: number;
   adminPkgTetrapayPrice?: number;

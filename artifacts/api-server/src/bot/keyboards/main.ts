@@ -227,50 +227,63 @@ export function timedLinkKeyboard(lang: Lang) {
     .oneTime();
 }
 
+const GW_DEFAULTS = {
+  fa: {
+    card:     "💳 پرداخت کارت‌به‌کارت",
+    crypto:   "₿ ارز دیجیتال (کریپتو)",
+    tetrapay: "🌐 درگاه آنلاین (TetraPay)",
+    plisio:   "💫 پلیزیو (Plisio)",
+  },
+  en: {
+    card:     "💳 Card Payment",
+    crypto:   "₿ Cryptocurrency",
+    tetrapay: "🌐 Online Gateway (TetraPay)",
+    plisio:   "💫 Plisio (Crypto)",
+  },
+};
+
 /** STEP 1: Gateway selection keyboard — shown first when buying coins */
 export function coinsGatewayKeyboard(
   lang: Lang,
-  enabled: { card: boolean; crypto: boolean; gateway: boolean; plisio?: boolean }
+  enabled: { card: boolean; crypto: boolean; gateway: boolean; plisio?: boolean },
+  customNames?: { card?: string; crypto?: string; tetrapay?: string; plisio?: string }
 ) {
+  const defaults = GW_DEFAULTS[lang];
   const kb = new Keyboard();
-  if (enabled.card)    kb.text(lang === "fa" ? "💳 پرداخت کارت‌به‌کارت" : "💳 Card Payment").row();
-  if (enabled.crypto)  kb.text(lang === "fa" ? "₿ ارز دیجیتال (کریپتو)" : "₿ Cryptocurrency").row();
-  if (enabled.gateway) kb.text(lang === "fa" ? "🌐 درگاه آنلاین (TetraPay)" : "🌐 Online Gateway (TetraPay)").row();
-  if (enabled.plisio)  kb.text(lang === "fa" ? "💫 پلیزیو (Plisio — کریپتو)" : "💫 Plisio (Crypto)").row();
+  if (enabled.card)    kb.text(customNames?.card     ?? defaults.card).row();
+  if (enabled.crypto)  kb.text(customNames?.crypto   ?? defaults.crypto).row();
+  if (enabled.gateway) kb.text(customNames?.tetrapay ?? defaults.tetrapay).row();
+  if (enabled.plisio)  kb.text(customNames?.plisio   ?? defaults.plisio).row();
   kb.text(lang === "fa" ? "🔙 بازگشت" : "🔙 Back");
   return kb.resized().persistent();
 }
 
-/** STEP 2: Package selection keyboard — shows per-gateway price if set */
+/** STEP 2: Package selection keyboard — uses pkg.price directly (gateway-scoped packages) */
 export function coinsPackagesKeyboard(
   packages: PaymentPackage[],
   lang: Lang,
   method?: "card" | "crypto" | "gateway" | "plisio"
 ) {
+  const isUsdMethod = method === "crypto" || method === "plisio";
   const kb = new Keyboard();
   for (const pkg of packages) {
-    // Resolve effective price for this gateway
-    const effectivePrice =
+    // Gateway-scoped packages: use pkg.price directly.
+    // Legacy packages (no gateway): resolve per-gateway override.
+    const effectivePrice = pkg.gateway ? pkg.price : (
       method === "card"    && pkg.cardPrice    ? pkg.cardPrice    :
       method === "crypto"  && pkg.cryptoPrice  ? pkg.cryptoPrice  :
       method === "gateway" && pkg.tetrapayPrice ? pkg.tetrapayPrice :
       method === "plisio"  && (pkg.plisioPrice ?? pkg.cryptoPrice) ? (pkg.plisioPrice ?? pkg.cryptoPrice)! :
-      pkg.price;
+      pkg.price
+    );
+    const isUsd = pkg.gateway ? (pkg.gateway === "crypto" || pkg.gateway === "plisio") : isUsdMethod;
+    const priceStr = isUsd ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
 
-    const priceStr = effectivePrice.toLocaleString("fa-IR");
     const hasDiscount = (pkg.discountPercent ?? 0) > 0;
     const label = pkg.label ?? (lang === "fa" ? `${pkg.coins} سکه` : `${pkg.coins} coins`);
-
-    let btnText: string;
-    if (lang === "fa") {
-      btnText = hasDiscount
-        ? `💎 ${label} | ${priceStr} تومان 🔥-${pkg.discountPercent}%`
-        : `💎 ${label} | ${priceStr} تومان`;
-    } else {
-      btnText = hasDiscount
-        ? `💎 ${pkg.coins} coins | ${effectivePrice.toLocaleString()} IRT 🔥-${pkg.discountPercent}%`
-        : `💎 ${pkg.coins} coins | ${effectivePrice.toLocaleString()} IRT`;
-    }
+    const btnText = hasDiscount
+      ? `💎 ${label} | ${priceStr} 🔥-${pkg.discountPercent}%`
+      : `💎 ${label} | ${priceStr}`;
     kb.text(btnText).row();
   }
   kb.text(lang === "fa" ? "🔙 بازگشت" : "🔙 Back");

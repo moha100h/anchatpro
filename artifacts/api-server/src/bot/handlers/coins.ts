@@ -934,7 +934,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const user   = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang   = (user?.language as "fa" | "en") ?? "fa";
     const text   = ctx.message.text;
-    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | "plisio" | undefined;
+    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | "plisio" | "stars" | undefined;
 
     // Back → return to gateway selection
     if (/^🔙/.test(text)) {
@@ -943,22 +943,24 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       ctx.session.pendingPaymentPackageId = undefined;
       ctx.session.pendingDiscountCodeId   = undefined;
       ctx.session.pendingDiscountPercent  = undefined;
-      const [cardOn, cryptoOn, gatewayOn, plisioOn] = await Promise.all([
+      const [cardOn, cryptoOn, gatewayOn, plisioOn, starsOn] = await Promise.all([
         isMethodEnabled("card"),
         isMethodEnabled("crypto"),
         isMethodEnabled("gateway"),
         isMethodEnabled("plisio"),
+        isMethodEnabled("stars"),
       ]);
       await ctx.reply(
         lang === "fa" ? "💰 روش پرداخت را انتخاب کنید:" : "💰 Choose your payment method:",
-        { reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn }) }
+        { reply_markup: coinsGatewayKeyboard(lang, { card: cardOn, crypto: cryptoOn, gateway: gatewayOn, plisio: plisioOn, stars: starsOn }) }
       );
       return;
     }
 
     // Reconstruct button text for each package and find the one that matches
     const packages = await getPackages(method ?? undefined);
-    const isUsdMethod = method === "crypto" || method === "plisio";
+    const isUsdMethod   = method === "crypto" || method === "plisio";
+    const isStarsMethod = method === "stars";
     const pkg = packages.find(p => {
       const effectivePrice = p.gateway ? p.price : (
         method === "card"    && p.cardPrice    ? p.cardPrice    :
@@ -969,8 +971,13 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       );
       const hasDisc    = (p.discountPercent ?? 0) > 0;
       const label      = p.label ?? (lang === "fa" ? `${p.coins} سکه` : `${p.coins} coins`);
-      const usd = p.gateway ? (p.gateway === "crypto" || p.gateway === "plisio") : isUsdMethod;
-      const priceStr = usd ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
+      const isStarsPkg = p.gateway === "stars" || p.currency === "XTR" || isStarsMethod;
+      const usd = !isStarsPkg && (p.gateway ? (p.gateway === "crypto" || p.gateway === "plisio") : isUsdMethod);
+      const priceStr = isStarsPkg
+        ? `⭐ ${Math.round(effectivePrice)}`
+        : usd
+          ? `$${effectivePrice}`
+          : effectivePrice.toLocaleString("fa-IR") + " تومان";
       const expected =
         lang === "fa"
           ? hasDisc
@@ -997,8 +1004,11 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       method === "plisio"  && (pkg.plisioPrice ?? pkg.cryptoPrice) ? (pkg.plisioPrice ?? pkg.cryptoPrice)! :
       pkg.price
     );
-    const usdPkg = pkg.gateway ? (pkg.gateway === "crypto" || pkg.gateway === "plisio") : isUsdMethod;
-    const priceStr = usdPkg ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
+    const isStarsPkg = pkg.gateway === "stars" || pkg.currency === "XTR" || isStarsMethod;
+    const usdPkg = !isStarsPkg && (pkg.gateway ? (pkg.gateway === "crypto" || pkg.gateway === "plisio") : isUsdMethod);
+    const priceStr = isStarsPkg
+      ? `⭐ ${Math.round(effectivePrice)}`
+      : usdPkg ? `$${effectivePrice}` : effectivePrice.toLocaleString("fa-IR") + " تومان";
     const discPct  = pkg.discountPercent ?? 0;
 
     const discKb = new InlineKeyboard()
@@ -1051,7 +1061,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       { parse_mode: "Markdown" }
     );
 
-    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | undefined;
+    const method = ctx.session.pendingPaymentMethod as "card" | "crypto" | "gateway" | "plisio" | "stars" | undefined;
     const pkgId  = ctx.session.pendingPaymentPackageId;
 
     // Text-keyboard flow: method already chosen

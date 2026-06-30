@@ -11,6 +11,7 @@ export const txTypeEnum = pgEnum("tx_type", [
   "payment",
   "refund",
   "magic_spend",
+  "unlock_restriction",
 ]);
 
 export const coinTransactionsTable = pgTable("coin_transactions", {

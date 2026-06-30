@@ -61,6 +61,9 @@ export async function findMatch(
     .where(
       and(
         ne(matchingQueueTable.userId, userId),
+        // Only match with users who are actually waiting and not already in a chat
+        eq(usersTable.isInQueue, true),
+        eq(usersTable.isInChat, false),
         blockedIds.length > 0
           ? notInArray(matchingQueueTable.userId, blockedIds)
           : undefined
@@ -104,7 +107,17 @@ export async function findMatch(
   return best?.userId ?? null;
 }
 
-export async function createChatSession(user1Id: number, user2Id: number): Promise<number> {
+export async function createChatSession(user1Id: number, user2Id: number): Promise<number | null> {
+  // Guard against race conditions: verify both users are still free before creating a session.
+  const [u1, u2] = await Promise.all([
+    db.select({ isInChat: usersTable.isInChat, isInQueue: usersTable.isInQueue })
+      .from(usersTable).where(eq(usersTable.telegramId, user1Id)).limit(1),
+    db.select({ isInChat: usersTable.isInChat, isInQueue: usersTable.isInQueue })
+      .from(usersTable).where(eq(usersTable.telegramId, user2Id)).limit(1),
+  ]);
+  // If either user is already in a chat, abort — they were snatched by a concurrent match
+  if (u1[0]?.isInChat || u2[0]?.isInChat) return null;
+
   const [session] = await db
     .insert(chatSessionsTable)
     .values({ user1Id, user2Id, status: "active", startedAt: new Date() })

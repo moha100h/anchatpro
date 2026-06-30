@@ -31,6 +31,8 @@ import {
   cleanupStaleAnonymousGroups,
   reactivateAndGetRole,
   getGroupName,
+  deleteGroupByCreator,
+  getGroupCreatorId,
 } from "../services/group.service.js";
 import { containsBadWord, issueWarning } from "../services/safety.service.js";
 import { t } from "../i18n/index.js";
@@ -846,35 +848,56 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
-    // If the user is currently in this group, leave it first
-    const currentGroupId = await getUserGroup(tgId);
-    let myAlias = "?";
-    let leaveResult: Awaited<ReturnType<typeof leaveGroup>> = null;
-    if (currentGroupId === groupId) {
-      myAlias = await generateGroupUserId(tgId, groupId);
-      leaveResult = await leaveGroup(tgId);
-    }
+    // Check via groupChatsTable.creatorId — works even if creator has leftAt set
+    const creatorId = await getGroupCreatorId(groupId);
+    const isCreatorOfThisGroup = creatorId === tgId;
 
-    // Always remove from their list
-    await dismissGroupFromList(tgId, groupId);
+    if (isCreatorOfThisGroup) {
+      // ── CREATOR: dissolve the group permanently ──────────────────────────────
+      const kickedIds = await deleteGroupByCreator(groupId);
+      await ctx.editMessageText(t(lang).groupDeletedByCreator).catch(() => {});
+      await ctx.reply(t(lang).groupDeletedByCreator, { reply_markup: mainMenuKeyboard(lang) });
 
-    await ctx.editMessageText(t(lang).groupLeaveRemoveOk).catch(() => {});
-    await ctx.reply(t(lang).groupLeaveRemoveOk, { reply_markup: mainMenuKeyboard(lang) });
+      // Notify all members (excluding creator themselves)
+      for (const memberId of kickedIds) {
+        if (memberId === tgId) continue;
+        const mUser = await getUserByTelegramId(memberId);
+        const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+        await bot.api.sendMessage(
+          memberId,
+          t(mLang).groupDissolved,
+          { reply_markup: mainMenuKeyboard(mLang) }
+        ).catch(() => {});
+      }
+    } else {
+      // ── NON-CREATOR: leave group and remove from their list ─────────────────
+      const currentGroupId = await getUserGroup(tgId);
+      let myAlias = "?";
+      let leaveResult: Awaited<ReturnType<typeof leaveGroup>> = null;
+      if (currentGroupId === groupId) {
+        myAlias = await generateGroupUserId(tgId, groupId);
+        leaveResult = await leaveGroup(tgId);
+      }
 
-    // Notify remaining members
-    if (leaveResult) {
-      const members = await getGroupMembers(leaveResult.groupId);
-      if (leaveResult.groupActuallyEnded) {
-        for (const memberId of members) {
-          const mUser = await getUserByTelegramId(memberId);
-          const mLang = (mUser?.language as "fa" | "en") ?? "fa";
-          await bot.api.sendMessage(memberId, t(mLang).groupEnded, { reply_markup: mainMenuKeyboard(mLang) }).catch(() => {});
-        }
-      } else {
-        for (const memberId of members) {
-          const mUser = await getUserByTelegramId(memberId);
-          const mLang = (mUser?.language as "fa" | "en") ?? "fa";
-          await bot.api.sendMessage(memberId, t(mLang).memberLeft(myAlias, leaveResult.remaining)).catch(() => {});
+      await dismissGroupFromList(tgId, groupId);
+
+      await ctx.editMessageText(t(lang).groupLeaveRemoveOk).catch(() => {});
+      await ctx.reply(t(lang).groupLeaveRemoveOk, { reply_markup: mainMenuKeyboard(lang) });
+
+      if (leaveResult) {
+        const members = await getGroupMembers(leaveResult.groupId);
+        if (leaveResult.groupActuallyEnded) {
+          for (const memberId of members) {
+            const mUser = await getUserByTelegramId(memberId);
+            const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+            await bot.api.sendMessage(memberId, t(mLang).groupEnded, { reply_markup: mainMenuKeyboard(mLang) }).catch(() => {});
+          }
+        } else {
+          for (const memberId of members) {
+            const mUser = await getUserByTelegramId(memberId);
+            const mLang = (mUser?.language as "fa" | "en") ?? "fa";
+            await bot.api.sendMessage(memberId, t(mLang).memberLeft(myAlias, leaveResult.remaining)).catch(() => {});
+          }
         }
       }
     }
@@ -898,10 +921,15 @@ export function registerGroupHandlers(bot: Bot<BotContext>) {
       return;
     }
 
+    // Show different confirmation text for creator (will dissolve the group) vs member (will just leave)
+    const creatorId = await getGroupCreatorId(groupId);
+    const isCreator = creatorId === tgId;
+    const confirmText = isCreator ? t(lang).groupDeleteConfirm : t(lang).groupLeaveRemoveConfirm;
+
     const kb = new InlineKeyboard()
       .text(t(lang).confirm, `group:leaverm:${groupId}:confirm`)
       .text(t(lang).cancel,  `group:leaverm:${groupId}:cancel`);
-    await ctx.reply(t(lang).groupLeaveRemoveConfirm, { reply_markup: kb });
+    await ctx.reply(confirmText, { reply_markup: kb });
   });
 
   // ─── Leave group ─────────────────────────────────────────────────────────────

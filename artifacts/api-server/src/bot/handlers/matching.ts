@@ -131,20 +131,27 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
           const left = freeAnyDaily - getFreeChatCount(tgId);
           const matchId = await findMatch(tgId, "any", user.gender ?? "other", user.language ?? undefined, ageMatch, userAge);
           if (matchId) {
-            await createChatSession(tgId, matchId);
-            ctx.session.sameAgeMatch = false;
-            const matchUser = await getUserByTelegramId(matchId);
-            const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
-            await ctx.reply(t(lang).connectedWith(matchUser ?? {}), {
-              parse_mode: "Markdown",
-              reply_markup: chatControlKeyboard(lang),
-            });
-            await bot.api
-              .sendMessage(matchId, t(matchLang).connectedWith(user), {
+            const sessionId = await createChatSession(tgId, matchId);
+            if (sessionId) {
+              ctx.session.sameAgeMatch = false;
+              const matchUser = await getUserByTelegramId(matchId);
+              const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
+              await ctx.reply(t(lang).connectedWith(matchUser ?? {}), {
                 parse_mode: "Markdown",
-                reply_markup: chatControlKeyboard(matchLang),
-              })
-              .catch(() => {});
+                reply_markup: chatControlKeyboard(lang),
+              });
+              await bot.api
+                .sendMessage(matchId, t(matchLang).connectedWith(user), {
+                  parse_mode: "Markdown",
+                  reply_markup: chatControlKeyboard(matchLang),
+                })
+                .catch(() => {});
+            } else {
+              // Race condition: the matched user was taken — fall back to queue
+              await addToQueue(tgId, "any", user.gender ?? "other");
+              await ctx.reply(t(lang).matchFreeAny(left), { reply_markup: cancelKeyboard(lang) });
+              setTimeout(() => tryMatchFromQueue(bot, tgId, "any", user.gender ?? "other", lang), 3000);
+            }
           } else {
             await addToQueue(tgId, "any", user.gender ?? "other");
             await ctx.reply(t(lang).matchFreeAny(left), { reply_markup: cancelKeyboard(lang) });
@@ -196,22 +203,31 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     const userAge = user.age ?? undefined;
     const matchId = await findMatch(tgId, pref, user.gender ?? "other", user.language ?? undefined, ageMatch, userAge);
     if (matchId) {
-      await createChatSession(tgId, matchId);
-      ctx.session.sameAgeMatch = false;
-      const matchUser = await getUserByTelegramId(matchId);
-      const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
-      await bot.api
-        .sendMessage(tgId, t(lang).connectedWith(matchUser ?? {}), {
-          parse_mode: "Markdown",
-          reply_markup: chatControlKeyboard(lang),
-        })
-        .catch(() => {});
-      await bot.api
-        .sendMessage(matchId, t(matchLang).connectedWith(user), {
-          parse_mode: "Markdown",
-          reply_markup: chatControlKeyboard(matchLang),
-        })
-        .catch(() => {});
+      const sessionId = await createChatSession(tgId, matchId);
+      if (sessionId) {
+        ctx.session.sameAgeMatch = false;
+        const matchUser = await getUserByTelegramId(matchId);
+        const matchLang = (matchUser?.language as "fa" | "en") ?? "fa";
+        await bot.api
+          .sendMessage(tgId, t(lang).connectedWith(matchUser ?? {}), {
+            parse_mode: "Markdown",
+            reply_markup: chatControlKeyboard(lang),
+          })
+          .catch(() => {});
+        await bot.api
+          .sendMessage(matchId, t(matchLang).connectedWith(user), {
+            parse_mode: "Markdown",
+            reply_markup: chatControlKeyboard(matchLang),
+          })
+          .catch(() => {});
+      } else {
+        // Race condition: matched user was taken — put in queue
+        await addToQueue(tgId, pref, user.gender ?? "other");
+        await bot.api
+          .sendMessage(tgId, t(lang).addedToQueue, { reply_markup: cancelKeyboard(lang) })
+          .catch(() => {});
+        setTimeout(() => tryMatchFromQueue(bot, tgId, pref, user.gender ?? "other", lang), 3000);
+      }
     } else {
       await addToQueue(tgId, pref, user.gender ?? "other");
       await bot.api
@@ -445,6 +461,13 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
 }
 
 // ─── Background queue matching loop ──────────────────────────────────────────
+function getTimeoutMsg(lang: "fa" | "en", pref: "male" | "female" | "any"): string {
+  if (lang !== "fa") return t(lang).queueTimeout;
+  if (pref === "female") return t(lang).queueTimeoutFemale;
+  if (pref === "male")   return t(lang).queueTimeoutMale;
+  return t(lang).queueTimeoutAny;
+}
+
 async function tryMatchFromQueue(
   bot: Bot<BotContext>,
   tgId: number,
@@ -455,16 +478,29 @@ async function tryMatchFromQueue(
 ): Promise<void> {
   if (attempt >= 12) {
     await removeFromQueue(tgId);
-    await bot.api.sendMessage(tgId, t(lang).queueTimeout).catch(() => {});
+    await bot.api.sendMessage(tgId, getTimeoutMsg(lang, pref), { reply_markup: { remove_keyboard: true } }).catch(() => {});
+    // Send main menu
+    const { mainMenuKeyboard } = await import("../keyboards/main.js");
+    await bot.api.sendMessage(tgId, "🏠", { reply_markup: mainMenuKeyboard(lang) }).catch(() => {});
     return;
   }
 
   const user = await getUserByTelegramId(tgId);
   if (!user?.isInQueue) return; // already matched or cancelled
+  if (user.isInChat) {
+    // Stale isInQueue flag — clean up
+    await removeFromQueue(tgId);
+    return;
+  }
 
   const matchId = await findMatch(tgId, pref, gender);
   if (matchId) {
-    await createChatSession(tgId, matchId);
+    const sessionId = await createChatSession(tgId, matchId);
+    if (!sessionId) {
+      // Race condition — retry soon
+      setTimeout(() => tryMatchFromQueue(bot, tgId, pref, gender, lang, attempt), 1500);
+      return;
+    }
     const [myUser, matchUser] = await Promise.all([
       getUserByTelegramId(tgId),
       getUserByTelegramId(matchId),

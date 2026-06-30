@@ -155,6 +155,19 @@ export async function reactivateAndGetRole(
   return "member";
 }
 
+/**
+ * Returns the creatorId stored in groupChatsTable.
+ * Reliable even when the creator has leftAt set in the members table.
+ */
+export async function getGroupCreatorId(groupId: number): Promise<number | null> {
+  const [g] = await db
+    .select({ creatorId: groupChatsTable.creatorId })
+    .from(groupChatsTable)
+    .where(eq(groupChatsTable.id, groupId))
+    .limit(1);
+  return g?.creatorId ?? null;
+}
+
 /** Returns the name of a group by its id, or null if not found. */
 export async function getGroupName(groupId: number): Promise<string | null> {
   const [g] = await db
@@ -358,11 +371,9 @@ export async function leaveGroup(
     .set({ memberCount: remaining })
     .where(eq(groupChatsTable.id, member.groupId));
 
-  // End the group and clear all members in these cases:
-  // 1. Anonymous group (creatorId = null) with no remaining members
-  // 2. Named group where the CREATOR is leaving (group is now leaderless)
-  const isCreatorLeaving = group.creatorId !== null && group.creatorId === userId;
-  if ((remaining === 0 && group.creatorId === null) || isCreatorLeaving) {
+  // End the group ONLY for anonymous groups (creatorId = null) with no remaining members.
+  // Named groups stay alive when the creator simply leaves — the creator can rejoin later.
+  if (remaining === 0 && group.creatorId === null) {
     await db
       .update(groupChatsTable)
       .set({ status: "ended", endedAt: new Date() })
@@ -393,6 +404,43 @@ export async function leaveGroup(
   const groupActuallyEnded = updatedGroup?.status === "ended";
 
   return { groupId: member.groupId, remaining, groupActuallyEnded };
+}
+
+// ─── Creator: permanently delete a named group ───────────────────────────────
+
+/**
+ * Called when the creator chooses "delete & dissolve" the group.
+ * Marks the group as "ended", kicks every remaining member, and
+ * returns the telegramIds of all members who were still inside.
+ */
+export async function deleteGroupByCreator(groupId: number): Promise<number[]> {
+  // Collect all still-active members (including the creator if they're inside)
+  const activeMembers = await db
+    .select()
+    .from(groupMembersTable)
+    .where(and(eq(groupMembersTable.groupId, groupId), isNull(groupMembersTable.leftAt)));
+
+  const memberIds = activeMembers.map((m) => m.userId);
+
+  // Mark group as ended
+  await db
+    .update(groupChatsTable)
+    .set({ status: "ended", endedAt: new Date(), memberCount: 0 })
+    .where(eq(groupChatsTable.id, groupId));
+
+  // Kick everyone still inside
+  for (const m of activeMembers) {
+    await db
+      .update(groupMembersTable)
+      .set({ leftAt: new Date() })
+      .where(eq(groupMembersTable.id, m.id));
+    await db
+      .update(usersTable)
+      .set({ isInGroup: false, updatedAt: new Date() })
+      .where(eq(usersTable.telegramId, m.userId));
+  }
+
+  return memberIds;
 }
 
 // ─── Creator: kick member ─────────────────────────────────────────────────────

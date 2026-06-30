@@ -125,8 +125,20 @@ export async function createPlisioOrder(
     const json = await res.json() as Record<string, unknown>;
 
     if (json["status"] !== "success") {
-      const errData = json["data"] as Record<string, unknown> | undefined;
-      const errMsg = String(errData?.["message"] ?? json["message"] ?? "Unknown error");
+      const errData = json["data"] as Record<string, unknown> | string | undefined;
+      // Plisio can return errors as: data.message (string), data (flat {field:msg}), or message (string/object)
+      let errMsg: string;
+      if (typeof errData === "object" && errData !== null && "message" in errData) {
+        errMsg = String(errData["message"]);
+      } else if (typeof errData === "object" && errData !== null) {
+        // flat field-error object e.g. {"amount":"Invalid minimal amount..."}
+        errMsg = JSON.stringify(errData);
+      } else if (json["message"]) {
+        const m = json["message"];
+        errMsg = typeof m === "string" ? m : JSON.stringify(m);
+      } else {
+        errMsg = "Unknown error";
+      }
       await db.insert(plisioTransactionsTable).values({
         paymentId, userId, orderNumber,
         amountUsd: String(amountUsd),

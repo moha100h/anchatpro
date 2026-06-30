@@ -171,7 +171,25 @@ async function handlePaymentByMethod(
     const usdAmount = payment.price;
     const result = await createPlisioOrder(payment.id, tgId, usdAmount, payment.coins);
     if (!result.success) {
-      await ctx.reply(t(lang).gatewayError(result.error ?? "Gateway error"));
+      const rawErr = result.error ?? "Gateway error";
+      // Detect minimum-amount violations from Plisio and show friendly message
+      const minMatch = rawErr.match(/greater than:\s*([\d.]+)\s*(\S+)/i);
+      if (minMatch) {
+        const minAmt = minMatch[1];
+        const currency = minMatch[2];
+        await ctx.reply(
+          lang === "fa"
+            ? `❌ مبلغ بسته انتخابی برای ارز *${currency}* کافی نیست.\n\n` +
+              `حداقل مبلغ پرداخت با این ارز *${minAmt} ${currency}* است.\n` +
+              `یک بسته با قیمت بالاتر انتخاب کنید، یا ارز دیگری را امتحان کنید.`
+            : `❌ The selected package amount is too low for *${currency}*.\n\n` +
+              `Minimum payment with this currency is *${minAmt} ${currency}*.\n` +
+              `Please select a higher-priced package or try a different currency.`,
+          { parse_mode: "Markdown" }
+        );
+      } else {
+        await ctx.reply(t(lang).gatewayError(rawErr));
+      }
       return;
     }
     const info = lang === "fa"

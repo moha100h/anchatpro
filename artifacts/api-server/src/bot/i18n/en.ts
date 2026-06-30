@@ -252,11 +252,15 @@ export const en = {
     `✅ Successful (setup complete): **${successful}**\n` +
     `⏳ Pending (setup incomplete): **${pending}**\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `💰 Total coins earned: **${coins} coins**\n\n` +
-    `🎁 Reward per successful referral:\n` +
-    `• You: **${inviterReward} coins**\n` +
-    (inviteeReward > 0 ? `• Your friend: **${inviteeReward} welcome coins**\n` : "") +
-    `\n_Only users who complete setup count as successful referrals._`,
+    `💰 Coins earned from referrals: **${coins} coins**\n\n` +
+    `🎁 **Current reward per successful referral** _(set by admin)_:\n` +
+    `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+    `🪙 You (referrer): **${inviterReward} coins** per invite\n` +
+    (inviteeReward > 0
+      ? `🎀 Your friend (new user): **${inviteeReward} welcome coins** on sign-up\n`
+      : "") +
+    `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+    `_Only users who complete setup count as successful referrals._`,
   referralLinkMsg: (link: string) =>
     `🔗 <b>Your personal invite link:</b>\n\n` +
     `<a href="${link}">👆 Tap here to join instantly</a>\n\n` +
@@ -266,18 +270,25 @@ export const en = {
   alreadyMember: "✅ You're already a member! Welcome back to the main menu.",
   alreadyJoinedVia: (name: string) => `✅ You already joined via <b>${name}</b>'s invite link.`,
   referralBanner: (link: string, inviterReward: number, inviteeReward: number, botUsername: string) =>
-    `🌟 <b>Anonymous Chat Bot — @${botUsername}</b>\n\n` +
-    `A different kind of social app:\n\n` +
-    `💬 Chat anonymously with interesting strangers\n` +
-    `📩 Send anonymous messages, stay unknown\n` +
-    `👥 Create anonymous groups\n` +
-    `🍾 Send a message in a bottle to the World of Secrets\n` +
-    `🔗 Build an emotion chain with 10 strangers\n` +
+    `✨ <b>Anonymous Chat Bot — @${botUsername}</b> ✨\n\n` +
+    `🔮 <b>A completely different world of connection:</b>\n\n` +
+    `💬 Anonymous chat with fascinating strangers\n` +
+    `📩 Send anonymous messages — stay completely hidden\n` +
+    `👥 Create private anonymous groups\n` +
+    `🍾 Send a mysterious message in a bottle to the World of Secrets\n` +
+    `🔗 Build a shared story with 10 anonymous strangers\n` +
     `✉️ Write a letter to your future self\n` +
-    `📡 Match with someone on the same vibe\n\n` +
+    `📡 Find your vibe-match anonymously\n\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `🎁 <b>Join via this link and get ${inviteeReward > 0 ? `${inviteeReward} free coins` : "free coins"} as a gift!</b>\n\n` +
-    `<a href="${link}">👉 Tap here to join now</a>`,
+    `🎁 <b>Special gift for new members:</b>\n\n` +
+    (inviteeReward > 0
+      ? `🎀 <b>${inviteeReward} welcome coins</b> — just for signing up via this link\n`
+      : "") +
+    (inviterReward > 0
+      ? `🪙 Your friend also gets <b>${inviterReward} referral coins</b>\n`
+      : "") +
+    `\n👇 <b>Join now:</b>\n` +
+    `<a href="${link}">🚀 Enter the world of anonymous</a>`,
   referralInfo: (code: string, link: string, total: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `🎁 **Invite Friends**\n\nCode: \`${code}\`\n\n` +
     `👥 Referrals: **${total}**  |  💰 Coins: **${coins}**\n\n` +

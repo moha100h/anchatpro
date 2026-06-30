@@ -23,6 +23,7 @@ timeoutMs = 20000
 
 [userenv.shared]
 BOT_USERNAME = "anymschat_bot"
+ADMIN_IDS = "277236314"
 
 [nix]
 channel = "stable-25_05"

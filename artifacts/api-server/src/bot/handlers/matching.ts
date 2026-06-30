@@ -1,6 +1,6 @@
 import { Bot, InlineKeyboard } from "grammy";
 import type { BotContext } from "../context.js";
-import { getUserByTelegramId, updateUser } from "../services/user.service.js";
+import { getUserByTelegramId, updateUser, isUserRestricted } from "../services/user.service.js";
 import { getUserGroup } from "../services/group.service.js";
 import { deductCoins } from "../services/coin.service.js";
 import {
@@ -61,6 +61,12 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user || !user.gender) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
+
+    // Check restriction (auto-lifted once the window passes)
+    if (await isUserRestricted(tgId)) {
+      await ctx.reply(t(lang).userRestricted);
+      return;
+    }
 
     if (user.isInChat)  { await ctx.reply(t(lang).alreadyInChat);  return; }
     if (user.isInQueue) { await ctx.reply(t(lang).alreadyInQueue); return; }
@@ -356,7 +362,22 @@ export function registerMatchingHandlers(bot: Bot<BotContext>) {
     if (sessionId) {
       const session = await getActiveSession(tgId);
       const partnerId = session ? await getPartnerId(session.id, tgId) : null;
-      if (partnerId) await reportUser(tgId, partnerId, reason, sessionId);
+      if (partnerId) {
+        const result = await reportUser(tgId, partnerId, reason, sessionId);
+        // Notify the reported user about the warning
+        const reportedUser = await getUserByTelegramId(partnerId);
+        const reportedLang = (reportedUser?.language as "fa" | "en") ?? "fa";
+        if (result.restricted && result.restrictedUntil) {
+          const until = result.restrictedUntil.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
+          await bot.api
+            .sendMessage(partnerId, t(reportedLang).reportedRestricted(result.recentCount, until))
+            .catch(() => {});
+        } else {
+          await bot.api
+            .sendMessage(partnerId, t(reportedLang).reportedWarning(result.recentCount))
+            .catch(() => {});
+        }
+      }
     }
     ctx.session.pendingReportSessionId = undefined;
     await ctx.editMessageText(t(lang).reportSent).catch(() => {});

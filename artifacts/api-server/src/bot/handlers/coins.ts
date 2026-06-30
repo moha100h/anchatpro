@@ -6,6 +6,7 @@ import {
   redeemGiftCode,
   getTopReferrers,
   getLeaderboardLastUpdated,
+  getReferralRank,
 } from "../services/gift.service.js";
 import {
   getPackages,
@@ -1035,23 +1036,47 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
 
-    const top = await getTopReferrers(20);
+    const [top, myRankInfo] = await Promise.all([
+      getTopReferrers(20),
+      getReferralRank(tgId),
+    ]);
+
     if (top.length === 0) {
-      await ctx.reply(t(lang).leaderboardEmpty, { parse_mode: "Markdown" });
+      let emptyMsg = t(lang).leaderboardEmpty;
+      if (myRankInfo) {
+        emptyMsg += t(lang).leaderboardMyRank(myRankInfo.rank, myRankInfo.count);
+      }
+      await ctx.reply(emptyMsg, { parse_mode: "Markdown" });
       return;
     }
 
     const lastUpdated = getLeaderboardLastUpdated();
     const minutesAgo = lastUpdated ? Math.floor((Date.now() - lastUpdated) / 60_000) : 0;
 
+    // Find if current user is in the top list
+    const myIndexInTop = top.findIndex((e) => e.telegramId === tgId);
+
     let msg = t(lang).leaderboardTitle(minutesAgo);
     for (let i = 0; i < top.length; i++) {
       const entry = top[i];
-      // Anonymize name: first 1-2 chars + ***
-      const raw = entry.firstName;
-      const anon = raw.length > 1 ? raw.slice(0, 2) + "***" : raw.slice(0, 1) + "***";
-      msg += t(lang).leaderboardRow(i + 1, anon, entry.referralCount);
+      const isMe = i === myIndexInTop;
+      // Anonymize: show first 2 chars + *** (own name shown slightly differently when "isMe")
+      const raw  = entry.firstName ?? "?";
+      const safe = raw.replace(/[*_`[\]()~>#+=|{}.!-]/g, "\\$&");
+      const anon = isMe
+        ? safe.slice(0, 3) + "\\*\\*\\*"
+        : (safe.length > 1 ? safe.slice(0, 2) + "\\*\\*\\*" : safe.slice(0, 1) + "\\*\\*\\*");
+      msg += t(lang).leaderboardRow(i + 1, anon, entry.referralCount, isMe);
     }
+
+    // Show user's rank footer
+    if (myIndexInTop < 0) {
+      // Not in top 20 — show their rank below
+      msg += myRankInfo
+        ? t(lang).leaderboardMyRank(myRankInfo.rank, myRankInfo.count)
+        : t(lang).leaderboardNotRanked;
+    }
+
     msg += t(lang).leaderboardFooter;
 
     await ctx.reply(msg, { parse_mode: "Markdown" });

@@ -237,10 +237,14 @@ export const fa = {
   leaderboardEmpty: "🏆 **برترین کاربران**\n\nهنوز هیچ دعوت موفقی ثبت نشده است.\n\nاولین نفر باشید که دوستان را دعوت می‌کند!",
   leaderboardTitle: (updatedMins: number) =>
     `🏆 **برترین کاربران رفرال**\n` +
-    `_(به‌روزرسانی هر ۳ ساعت یک‌بار — ${updatedMins} دقیقه پیش)_\n\n`,
-  leaderboardRow: (rank: number, name: string, count: number) =>
-    `${rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : `${rank}.`} **${name}** — ${count} دعوت موفق\n`,
-  leaderboardFooter: "\n_نام‌ها برای حفظ حریم خصوصی مخفی شده‌اند._",
+    `_(به‌روزرسانی هر ۵ دقیقه — ${updatedMins} دقیقه پیش)_\n\n`,
+  leaderboardRow: (rank: number, name: string, count: number, isMe = false) =>
+    `${rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : `**${rank}.**`} ${name} — ${count} دعوت${isMe ? " ◀️ **شما**" : ""}\n`,
+  leaderboardMyRank: (rank: number, count: number) =>
+    `\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+    `📍 رتبه شما: **${rank}** — ${count} دعوت موفق`,
+  leaderboardNotRanked: "\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n📍 شما هنوز در رتبه‌بندی قرار ندارید.",
+  leaderboardFooter: "\n\n_نام‌ها برای حفظ حریم خصوصی مخفی شده‌اند._",
   referralStats: (total: number, successful: number, pending: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `📊 **آمار دعوت‌هایم**\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -410,7 +414,17 @@ export const fa = {
   // ─── Safety ──────────────────────────────────────────────────────────────────
   warningIssued: (n: number) =>
     `⚠️ اخطار ${n} از 3 صادر شد.\nدر صورت تکرار، حساب شما محدود خواهد شد.`,
-  userRestricted: "🚫 حساب شما به مدت 24 ساعت محدود شده است.",
+  userRestricted: "🚫 حساب شما محدود شده است.",
+  reportedWarning: (recentCount: number) =>
+    `⚠️ **اخطار امنیتی**\n\n` +
+    `یک کاربر شما را گزارش داده است.\n` +
+    `گزارش‌های اخیر (۲۴ ساعت گذشته): **${recentCount} گزارش**\n\n` +
+    `لطفاً رفتار مناسب داشته باشید تا از محدودیت جلوگیری شود.`,
+  reportedRestricted: (recentCount: number, until: string) =>
+    `🚫 **حساب شما محدود شد!**\n\n` +
+    `در ۲۴ ساعت گذشته **${recentCount} بار** گزارش دریافت کردید.\n` +
+    `به همین دلیل دسترسی به چت ناشناس تا ساعت **${until}** (۳ ساعت) محدود شد.\n\n` +
+    `⚠️ در صورت تکرار، محدودیت طولانی‌تر اعمال خواهد شد.`,
   userBanned: "🔨 حساب شما مسدود شده است. برای اعتراض با پشتیبانی تماس بگیرید.",
   messageBlocked: "⚠️ پیام شما حاوی محتوای نامناسب بود و ارسال نشد.",
   rateLimitExceeded: "⏱️ پیام‌های بیش از حد ارسال کردید. کمی صبر کنید.",

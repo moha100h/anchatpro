@@ -14,10 +14,10 @@ export interface TopReferrer {
   coinsEarned: number;
 }
 
-// ─── 3-hour in-memory leaderboard cache ───────────────────────────────────────
+// ─── 5-minute in-memory leaderboard cache ─────────────────────────────────────
 let _lbCache: { data: TopReferrer[]; expiresAt: number } | null = null;
 let _lbLastUpdated = 0;
-const LB_TTL = 3 * 60 * 60 * 1000; // 3 hours
+const LB_TTL = 5 * 60 * 1000; // 5 minutes
 
 export function getLeaderboardLastUpdated(): number { return _lbLastUpdated; }
 
@@ -129,4 +129,32 @@ export async function getTopReferrers(limit = 20, forceRefresh = false): Promise
 
 export function invalidateLeaderboardCache(): void {
   _lbCache = null;
+}
+
+// ─── Get a user's referral rank (live query, no cache) ────────────────────────
+export async function getReferralRank(
+  userId: number
+): Promise<{ rank: number; count: number } | null> {
+  const result = await db.execute(sql`
+    WITH counts AS (
+      SELECT referrer_id, count(*)::int AS cnt
+      FROM referrals
+      WHERE rewarded > 0
+      GROUP BY referrer_id
+    ),
+    my AS (
+      SELECT cnt FROM counts WHERE referrer_id = ${userId}
+    )
+    SELECT
+      my.cnt                                              AS count,
+      (SELECT count(*)::int FROM counts WHERE cnt > my.cnt) + 1 AS rank
+    FROM my
+    LIMIT 1
+  `);
+
+  const row = (result as { rows?: { count: string | number; rank: string | number }[] }).rows?.[0];
+  if (!row) return null;
+  const count = parseInt(String(row.count), 10);
+  if (!count || count === 0) return null;
+  return { rank: parseInt(String(row.rank), 10), count };
 }

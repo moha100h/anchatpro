@@ -237,10 +237,14 @@ export const en = {
   leaderboardEmpty: "🏆 **Top Users**\n\nNo successful referrals yet.\n\nBe the first to invite friends!",
   leaderboardTitle: (updatedMins: number) =>
     `🏆 **Top Referrers**\n` +
-    `_(Updated every 3 hours — ${updatedMins} min ago)_\n\n`,
-  leaderboardRow: (rank: number, name: string, count: number) =>
-    `${rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : `${rank}.`} **${name}** — ${count} referrals\n`,
-  leaderboardFooter: "\n_Names are anonymized to protect privacy._",
+    `_(Updated every 5 min — ${updatedMins} min ago)_\n\n`,
+  leaderboardRow: (rank: number, name: string, count: number, isMe = false) =>
+    `${rank <= 3 ? ["🥇","🥈","🥉"][rank-1] : `**${rank}.**`} ${name} — ${count} referral${count !== 1 ? "s" : ""}${isMe ? " ◀️ **You**" : ""}\n`,
+  leaderboardMyRank: (rank: number, count: number) =>
+    `\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
+    `📍 Your rank: **${rank}** — ${count} referral${count !== 1 ? "s" : ""}`,
+  leaderboardNotRanked: "\n┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n📍 You are not yet ranked.",
+  leaderboardFooter: "\n\n_Names are anonymized to protect privacy._",
   referralStats: (total: number, successful: number, pending: number, coins: number, inviterReward: number, inviteeReward: number) =>
     `📊 **My Referral Stats**\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
@@ -402,7 +406,17 @@ export const en = {
   // ─── Safety ──────────────────────────────────────────────────────────────────
   warningIssued: (n: number) =>
     `⚠️ Warning ${n} of 3 issued.\nRepeated violations will result in account restriction.`,
-  userRestricted: "🚫 Your account has been restricted for 24 hours.",
+  userRestricted: "🚫 Your account has been restricted.",
+  reportedWarning: (recentCount: number) =>
+    `⚠️ **Security Warning**\n\n` +
+    `A user has reported you.\n` +
+    `Recent reports (last 24 h): **${recentCount}**\n\n` +
+    `Please maintain appropriate behavior to avoid further restrictions.`,
+  reportedRestricted: (recentCount: number, until: string) =>
+    `🚫 **Your account has been restricted!**\n\n` +
+    `You received **${recentCount} reports** in the last 24 hours.\n` +
+    `Access to anonymous chat is restricted until **${until}** (3 hours).\n\n` +
+    `⚠️ Repeated violations will result in longer restrictions.`,
   userBanned: "🔨 Your account has been banned. Contact support to appeal.",
   messageBlocked: "⚠️ Your message contains inappropriate content and was not sent.",
   rateLimitExceeded: "⏱️ You are sending too many messages. Please slow down.",

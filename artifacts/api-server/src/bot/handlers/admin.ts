@@ -480,17 +480,23 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.hears(ADMIN_BTN.COST_RESTRICTION_UNLOCK, async (ctx, next) => {
     if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
-    const costStr = await getSetting("restriction_unlock_cost");
+    const [costStr, durationStr] = await Promise.all([
+      getSetting("restriction_unlock_cost"),
+      getSetting("restriction_duration_hours"),
+    ]);
     const v = costStr ?? "20";
+    const d = durationStr ?? "3";
     await ctx.reply(
-      `🔓 *رفع محدودیت سریع — هزینه*\n\n` +
-      `• هزینه پرداخت توسط کاربر: \`${v}\` سکه\n\n` +
-      `_کاربران محدودشده می‌توانند با پرداخت این مقدار سکه، فوری از محدودیت خارج شوند._`,
+      `🔓 *محدودیت کاربران — تنظیمات*\n\n` +
+      `• مدت محدودیت پیش‌فرض: \`${d}\` ساعت\n` +
+      `• هزینه رفع فوری توسط کاربر: \`${v}\` سکه\n\n` +
+      `_کاربران محدودشده می‌توانند با پرداخت سکه، فوری از محدودیت خارج شوند._`,
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [{ text: `🔓 تغییر هزینه رفع محدودیت: ${v} سکه`, callback_data: "pay_set:restriction_unlock_cost" }],
+            [{ text: `⏱️ مدت محدودیت: ${d} ساعت`, callback_data: "pay_set:restriction_duration_hours" }],
+            [{ text: `🔓 هزینه رفع فوری: ${v} سکه`, callback_data: "pay_set:restriction_unlock_cost" }],
           ],
         },
       },
@@ -980,7 +986,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       signup_bonus:             "سکه خوش‌آمدگویی ثبت‌نام (سکه)",
       referral_reward_inviter:  "پاداش دعوت‌کننده (سکه)",
       referral_reward_invitee:  "پاداش دعوت‌شده (سکه)",
-      restriction_unlock_cost:  "هزینه رفع محدودیت سریع (سکه)",
+      restriction_unlock_cost:      "هزینه رفع محدودیت سریع (سکه)",
+      restriction_duration_hours:   "مدت محدودیت (ساعت، پیش‌فرض ۳)",
       support_link:             "لینک پشتیبانی (@username یا t.me/...)",
       tetrapay_api_key:         "کلید API تتراپی",
       tetrapay_callback_url:    "آدرس Callback تتراپی",

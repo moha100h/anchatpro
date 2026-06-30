@@ -83,7 +83,9 @@ export async function issueWarning(userId: number, reason: string, issuedBy?: nu
   await db.update(usersTable).set({ warningCount: newCount, updatedAt: new Date() }).where(eq(usersTable.telegramId, userId));
 
   if (newCount >= 3) {
-    const until = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const durationStr = await getSetting("restriction_duration_hours");
+    const durationH = Math.max(1, parseInt(durationStr ?? "3", 10));
+    const until = new Date(Date.now() + durationH * 60 * 60 * 1000);
     await db.update(usersTable).set({ status: "restricted", restrictedUntil: until, updatedAt: new Date() }).where(eq(usersTable.telegramId, userId));
   }
 
@@ -149,9 +151,11 @@ export async function reportUser(
 
   const recentCount = countRow?.cnt ?? 1;
 
-  // Every 3 reports within 24 hours → restrict for 3 hours
+  // Every 3 reports within 24 hours → restrict for configured duration
   if (recentCount > 0 && recentCount % 3 === 0) {
-    const until = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+    const durationStr = await getSetting("restriction_duration_hours");
+    const durationH = Math.max(1, parseInt(durationStr ?? "3", 10));
+    const until = new Date(now.getTime() + durationH * 60 * 60 * 1000);
     await db
       .update(usersTable)
       .set({ status: "restricted", restrictedUntil: until, updatedAt: now })

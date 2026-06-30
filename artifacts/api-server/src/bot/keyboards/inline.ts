@@ -111,10 +111,14 @@ export function proInAppConfirmKeyboard(hours: number, token: string, lang: Lang
     .text(fa ? "❌ انصراف" : "❌ Cancel", "pro_inapp_cancel");
 }
 
-export function adminUserActionsKeyboard(userId: number, lang: Lang, isBanned: boolean) {
-  return new InlineKeyboard()
+export function adminUserActionsKeyboard(userId: number, lang: Lang, isBanned: boolean, isRestricted = false) {
+  const kb = new InlineKeyboard()
     .text("➕ سکه", `admin_addcoins:${userId}`)
     .text("➖ سکه", `admin_removecoins:${userId}`).row()
-    .text(isBanned ? "✅ رفع مسدود" : "🔨 مسدود", `admin_${isBanned ? "unban" : "ban"}:${userId}`).row()
-    .text("🌳 درخت ارجاع", `admin_reftree:${userId}`);
+    .text(isBanned ? "✅ رفع مسدود" : "🔨 مسدود", `admin_${isBanned ? "unban" : "ban"}:${userId}`).row();
+  if (isRestricted) {
+    kb.text("🔓 رفع محدودیت", `admin_unrestrict:${userId}`).row();
+  }
+  kb.text("🌳 درخت ارجاع", `admin_reftree:${userId}`);
+  return kb;
 }

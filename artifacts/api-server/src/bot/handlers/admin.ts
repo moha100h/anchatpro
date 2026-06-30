@@ -52,7 +52,8 @@ import {
 import { getTetraPayCallbackUrl } from "../../lib/base-url.js";
 import { getTotalChats } from "../services/matching.service.js";
 import { db } from "@workspace/db";
-import { adminPermissionsTable } from "@workspace/db";
+import { adminPermissionsTable, usersTable } from "@workspace/db";
+import { getBotInstance } from "../bot-instance.js";
 import { eq } from "drizzle-orm";
 import { t } from "../i18n/index.js";
 import { adminUserActionsKeyboard } from "../keyboards/inline.js";
@@ -1505,6 +1506,25 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await ctx.answerCallbackQuery("✅");
   });
 
+  bot.callbackQuery(/^admin_unrestrict:(\d+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "ban_user")) { await ctx.answerCallbackQuery("❌"); return; }
+    const uid = parseInt(ctx.match![1], 10);
+    await db
+      .update(usersTable)
+      .set({ status: "active", restrictedUntil: null, updatedAt: new Date() })
+      .where(eq(usersTable.telegramId, uid));
+    await ctx.editMessageText(
+      `✅ *محدودیت کاربر \`${uid}\` توسط ادمین برداشته شد.*`,
+      { parse_mode: "Markdown", reply_markup: undefined }
+    );
+    await ctx.answerCallbackQuery("✅ رفع محدودیت شد");
+    await getBotInstance().api.sendMessage(
+      uid,
+      `✅ *ادمین محدودیت حساب شما را برداشت.*\n\nاکنون می‌تونی از تمام امکانات ربات استفاده کنی! 🎉`,
+      { parse_mode: "Markdown" }
+    ).catch(() => {});
+  });
+
   bot.callbackQuery(/^admin_reftree:(\d+)$/, async (ctx) => {
     if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery(); return; }
     const uid  = parseInt(ctx.match![1], 10);
@@ -1528,7 +1548,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (!user) { await ctx.answerCallbackQuery("کاربر یافت نشد"); return; }
     await ctx.reply(t("fa").adminUserInfo(user), {
       parse_mode: "Markdown",
-      reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned"),
+      reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned", user.status === "restricted"),
     });
     await ctx.answerCallbackQuery();
   });
@@ -1562,7 +1582,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       if (!user) { await ctx.reply(t("fa").adminNotFound); return; }
       await ctx.reply(t("fa").adminUserInfo(user), {
         parse_mode: "Markdown",
-        reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned"),
+        reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned", user.status === "restricted"),
       });
       return;
     }

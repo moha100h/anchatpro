@@ -415,7 +415,7 @@ export const en = {
     `⚠️ Warning ${n} of 3 issued.\nRepeated violations will result in account restriction.`,
   userRestricted: (remaining: string) =>
     `🚫 **Your account has been restricted.**\n\n` +
-    `⏳ Restriction lifts in approximately **${remaining}** 👽\n\n` +
+    `⏳ Restriction lifts in **${remaining}** 👽\n\n` +
     `_Or unlock it instantly with coins_ 👇`,
   restrictionUnlocked:
     `✅ **Your account restriction has been lifted!**\n\n` +

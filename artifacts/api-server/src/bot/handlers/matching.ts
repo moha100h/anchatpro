@@ -47,17 +47,22 @@ function getTodayKey(): string {
 }
 
 function formatRemainingTime(ms: number, lang: "fa" | "en"): string {
-  const totalMinutes = Math.max(1, Math.ceil(ms / 60000));
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  const totalSec = Math.max(1, Math.floor(ms / 1000));
+  const hours = Math.floor(totalSec / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
   if (lang === "fa") {
-    if (hours > 0 && minutes > 0) return `${hours} ساعت و ${minutes} دقیقه`;
-    if (hours > 0) return `${hours} ساعت`;
-    return `${minutes} دقیقه`;
+    const parts: string[] = [];
+    if (hours > 0) parts.push(`${hours} ساعت`);
+    if (minutes > 0) parts.push(`${minutes} دقیقه`);
+    if (seconds > 0 || parts.length === 0) parts.push(`${seconds} ثانیه`);
+    return parts.join(" و ");
   }
-  if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-  if (hours > 0) return `${hours} hour${hours !== 1 ? "s" : ""}`;
-  return `${minutes} minute${minutes !== 1 ? "s" : ""}`;
+  const parts: string[] = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (seconds > 0 || parts.length === 0) parts.push(`${seconds}s`);
+  return parts.join(" ");
 }
 function getFreeChatCount(tgId: number): number {
   const entry = dailyFreeMap.get(tgId);

@@ -116,8 +116,6 @@ async function handlePaymentByMethod(
   // ── Plisio crypto gateway ────────────────────────────────────────────────────
   if (method === "plisio") {
     await ctx.reply(t(lang).gatewayCreating);
-    const pkg = await getPackageById(pkgId);
-    const usdAmount = pkg?.plisioPrice ?? pkg?.cryptoPrice ?? 5;
     let payment;
     try {
       payment = await createPayment(tgId, pkgId, "plisio", { discountPercent: discPct, discountCodeId: discCode });
@@ -129,6 +127,8 @@ async function handlePaymentByMethod(
     ctx.session.pendingPaymentMethod    = "plisio";
     ctx.session.pendingPaymentPackageId = undefined;
 
+    // payment.price is already the correct USD amount (gateway-scoped uses pkg.price, legacy uses plisioPrice ?? cryptoPrice ?? price, discount already applied)
+    const usdAmount = payment.price;
     const result = await createPlisioOrder(payment.id, tgId, usdAmount, payment.coins);
     if (!result.success) {
       await ctx.reply(t(lang).gatewayError(result.error ?? "Gateway error"));
@@ -259,7 +259,10 @@ async function handlePaymentByMethod(
     ctx.session.pendingPaymentPackageId = undefined;
 
     const priceIrt = await fetchCryptoPriceWithFallback(cgId);
-    const amountRaw = priceIrt && priceIrt > 0 ? payment.price / priceIrt : payment.price / 30_000;
+    // If currency=USD (gateway-scoped crypto package), price IS already USD; otherwise IRT
+    const amountRaw = payment.currency === "USD"
+      ? (priceIrt && priceIrt > 0 ? payment.price / (priceIrt / 30000) : payment.price)
+      : (priceIrt && priceIrt > 0 ? payment.price / priceIrt : payment.price / 30_000);
     const amountStr = amountRaw < 0.001 ? `${amountRaw.toFixed(8)} ${symbol}` : `${amountRaw.toFixed(6)} ${symbol}`;
 
     const info = lang === "fa"
@@ -541,7 +544,10 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     ctx.session.pendingDiscountPercent  = undefined;
 
     const pkg = await getPackageById(pkgId);
-    const priceStr = pkg?.price.toLocaleString("fa-IR") ?? "";
+    const isUsdPkg = pkg?.currency === "USD" || pkg?.gateway === "crypto" || pkg?.gateway === "plisio";
+    const priceStr = isUsdPkg
+      ? `$${pkg?.price ?? ""}`
+      : `${(pkg?.price ?? 0).toLocaleString("fa-IR")} تومان`;
     const discPct  = pkg?.discountPercent ?? 0;
 
     const discKb = new InlineKeyboard()
@@ -550,10 +556,10 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
 
     const msg = lang === "fa"
       ? `✅ بسته انتخاب شد: *${pkg?.coins ?? pkgId} سکه*\n` +
-        `💵 قیمت: *${priceStr} تومان*` +
+        `💵 قیمت: *${priceStr}*` +
         (discPct > 0 ? ` 🔥 (${discPct}% تخفیف)` : "") +
         `\n\nآیا کد تخفیف دارید؟`
-      : `✅ Package: *${pkg?.coins ?? pkgId} coins*\n💵 Price: *${priceStr} IRT*\n\nDo you have a discount code?`;
+      : `✅ Package: *${pkg?.coins ?? pkgId} coins*\n💵 Price: *${priceStr}*\n\nDo you have a discount code?`;
 
     await ctx.editMessageText(msg, { parse_mode: "Markdown", reply_markup: discKb });
     await ctx.answerCallbackQuery();
@@ -787,9 +793,10 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
 
     const cgId     = c.coinGeckoId ?? c.symbol.toLowerCase();
     const priceIrt = await fetchCryptoPriceWithFallback(cgId);
-    let amountRaw  = priceIrt && priceIrt > 0
-      ? payment.price / priceIrt
-      : payment.price / 30000;
+    // If currency=USD (gateway-scoped crypto package), price IS already USD; otherwise IRT
+    let amountRaw  = payment.currency === "USD"
+      ? (priceIrt && priceIrt > 0 ? payment.price / (priceIrt / 30000) : payment.price)
+      : (priceIrt && priceIrt > 0 ? payment.price / priceIrt : payment.price / 30000);
     const amountStr = amountRaw < 0.001
       ? `${amountRaw.toFixed(8)} ${c.symbol}`
       : `${amountRaw.toFixed(6)} ${c.symbol}`;
@@ -936,10 +943,10 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
 
     const msg = lang === "fa"
       ? `✅ *بسته انتخاب شد: ${pkg.label ?? pkg.coins + " سکه"}*\n` +
-        `💵 قیمت: *${priceStr} تومان*` +
+        `💵 قیمت: *${priceStr}*` +
         (discPct > 0 ? ` 🔥 (${discPct}% تخفیف)` : "") +
         `\n\n🏷️ آیا کد تخفیف دارید؟`
-      : `✅ *Package: ${pkg.coins} coins*\n💵 Price: *${effectivePrice.toLocaleString()} IRT*` +
+      : `✅ *Package: ${pkg.coins} coins*\n💵 Price: *${priceStr}*` +
         (discPct > 0 ? ` 🔥 (${discPct}% off)` : "") +
         `\n\n🏷️ Do you have a discount code?`;
 

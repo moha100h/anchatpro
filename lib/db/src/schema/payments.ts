@@ -1,4 +1,4 @@
-import { pgTable, serial, bigint, integer, text, timestamp, varchar, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, bigint, integer, text, timestamp, varchar, boolean, pgEnum, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -11,15 +11,15 @@ export const paymentPackagesTable = pgTable("payment_packages", {
   id: serial("id").primaryKey(),
   gateway: varchar("gateway", { length: 20 }),   // 'card' | 'crypto' | 'tetrapay' | 'plisio' | null (legacy)
   coins: integer("coins").notNull(),
-  price: integer("price").notNull(),              // price in gateway's native currency
-  originalPrice: integer("original_price"),
+  price: doublePrecision("price").notNull(),              // price in gateway's native currency
+  originalPrice: doublePrecision("original_price"),
   discountPercent: integer("discount_percent").default(0).notNull(),
   currency: varchar("currency", { length: 10 }).default("IRT").notNull(),
   // Legacy per-gateway override columns (kept for backward compat, not used for new packages)
-  cardPrice: integer("card_price"),
-  cryptoPrice: integer("crypto_price"),
-  tetrapayPrice: integer("tetrapay_price"),
-  plisioPrice: integer("plisio_price"),
+  cardPrice: doublePrecision("card_price"),
+  cryptoPrice: doublePrecision("crypto_price"),
+  tetrapayPrice: doublePrecision("tetrapay_price"),
+  plisioPrice: doublePrecision("plisio_price"),
   label: varchar("label", { length: 100 }),
   description: text("description"),               // Optional package description shown to users
   isActive: boolean("is_active").default(true).notNull(),
@@ -31,7 +31,7 @@ export const paymentsTable = pgTable("payments", {
   userId: bigint("user_id", { mode: "number" }).notNull(),
   packageId: integer("package_id"),
   coins: integer("coins").notNull(),
-  price: integer("price").notNull(),
+  price: doublePrecision("price").notNull(),
   currency: varchar("currency", { length: 10 }).default("IRT").notNull(),
   method: paymentMethodEnum("method").notNull(),
   status: paymentStatusEnum("status").default("pending").notNull(),

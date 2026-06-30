@@ -2048,16 +2048,16 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     }
 
     if (action === "admin_pkg_create_price") {
-      const price = parseInt(text, 10);
-      if (isNaN(price) || price < 1) {
-        await ctx.reply("❌ عدد صحیح مثبت وارد کنید.");
+      const price = parseFloat(text.replace(/,/g, ""));
+      if (isNaN(price) || price <= 0) {
+        await ctx.reply("❌ عدد مثبت وارد کنید (مثال: 5 یا 1.5).");
         ctx.session.adminAction = "admin_pkg_create_price";
         return;
       }
       ctx.session.adminPkgPrice = price;
       ctx.session.adminAction   = "admin_pkg_create_discount";
       await ctx.reply(
-        `✅ قیمت پایه: *${price.toLocaleString("fa-IR")}* تومان\n\n*مرحله ۳/۷:* درصد تخفیف (۰ = بدون تخفیف):`,
+        `✅ قیمت پایه: *${price}*\n\n*مرحله ۳/۷:* درصد تخفیف (۰ = بدون تخفیف):`,
         { parse_mode: "Markdown" }
       );
       return;
@@ -2096,14 +2096,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       if (text.trim() === "-") {
         ctx.session.adminPkgCardPrice = undefined;
       } else {
-        const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        const v = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
         ctx.session.adminPkgCardPrice = v;
       }
       ctx.session.adminAction = "admin_pkg_create_crypto_price";
       await ctx.reply(
-        `✅ قیمت کارت: *${ctx.session.adminPkgCardPrice ? ctx.session.adminPkgCardPrice.toLocaleString("fa-IR") + " تومان" : "قیمت پایه"}*\n\n` +
-        `*مرحله ۶/۷:* قیمت ویژه کریپتو ($USD — عدد صحیح)\n` +
+        `✅ قیمت کارت: *${ctx.session.adminPkgCardPrice ?? "قیمت پایه"}*\n\n` +
+        `*مرحله ۶/۷:* قیمت ویژه کریپتو ($USD — اعشاری مجاز مثلاً 1.5)\n` +
         `_یا دقیقاً \`-\` بفرستید تا از قیمت پایه استفاده شود:_`,
         { parse_mode: "Markdown" }
       );
@@ -2114,14 +2114,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       if (text.trim() === "-") {
         ctx.session.adminPkgCryptoPrice = undefined;
       } else {
-        const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        const v = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
         ctx.session.adminPkgCryptoPrice = v;
       }
       ctx.session.adminAction = "admin_pkg_create_tetrapay_price";
       await ctx.reply(
         `✅ قیمت کریپتو: *${ctx.session.adminPkgCryptoPrice ? "$" + ctx.session.adminPkgCryptoPrice : "قیمت پایه"}*\n\n` +
-        `*مرحله ۷/۷:* قیمت ویژه TetraPay (تومان)\n` +
+        `*مرحله ۷/۷:* قیمت ویژه TetraPay (تومان — اعشاری مجاز)\n` +
         `_یا دقیقاً \`-\` بفرستید تا از قیمت پایه استفاده شود:_`,
         { parse_mode: "Markdown" }
       );
@@ -2132,14 +2132,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       if (text.trim() === "-") {
         ctx.session.adminPkgTetrapayPrice = undefined;
       } else {
-        const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        const v = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
         ctx.session.adminPkgTetrapayPrice = v;
       }
       ctx.session.adminAction = "admin_pkg_create_plisio_price";
       await ctx.reply(
-        `✅ قیمت TetraPay: *${ctx.session.adminPkgTetrapayPrice ? ctx.session.adminPkgTetrapayPrice.toLocaleString("fa-IR") + " تومان" : "قیمت پایه"}*\n\n` +
-        `*مرحله ۸/۸:* قیمت ویژه Plisio ($USD — عدد صحیح)\n` +
+        `✅ قیمت TetraPay: *${ctx.session.adminPkgTetrapayPrice ?? "قیمت پایه"}*\n\n` +
+        `*مرحله ۸/۸:* قیمت ویژه Plisio ($USD — اعشاری مجاز مثلاً 1.5)\n` +
         `_یا دقیقاً \`-\` بفرستید تا از قیمت کریپتو استفاده شود:_`,
         { parse_mode: "Markdown" }
       );
@@ -2150,8 +2150,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       if (text.trim() === "-") {
         ctx.session.adminPkgPlisioPrice = undefined;
       } else {
-        const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+        const v = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
         ctx.session.adminPkgPlisioPrice = v;
       }
 
@@ -2203,11 +2203,11 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       const field = parts[2]!;
       if (field === "coins") {
         const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد صحیح مثبت وارد کنید."); return; }
         await updatePackage(id, { coins: v });
       } else if (field === "price") {
-        const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        const v = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت وارد کنید (اعشاری مجاز مثلاً 1.5)."); return; }
         await updatePackage(id, { price: v });
       } else if (field === "discount") {
         const v = parseInt(text, 10);
@@ -2219,32 +2219,32 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         if (text.trim() === "-") {
           await updatePackage(id, { cardPrice: null });
         } else {
-          const v = parseInt(text, 10);
-          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          const v = parseFloat(text.replace(/,/g, ""));
+          if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
           await updatePackage(id, { cardPrice: v });
         }
       } else if (field === "crypto_price") {
         if (text.trim() === "-") {
           await updatePackage(id, { cryptoPrice: null });
         } else {
-          const v = parseInt(text, 10);
-          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          const v = parseFloat(text.replace(/,/g, ""));
+          if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
           await updatePackage(id, { cryptoPrice: v });
         }
       } else if (field === "tetrapay_price") {
         if (text.trim() === "-") {
           await updatePackage(id, { tetrapayPrice: null });
         } else {
-          const v = parseInt(text, 10);
-          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          const v = parseFloat(text.replace(/,/g, ""));
+          if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
           await updatePackage(id, { tetrapayPrice: v });
         }
       } else if (field === "plisio_price") {
         if (text.trim() === "-") {
           await updatePackage(id, { plisioPrice: null });
         } else {
-          const v = parseInt(text, 10);
-          if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
+          const v = parseFloat(text.replace(/,/g, ""));
+          if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت یا - وارد کنید."); return; }
           await updatePackage(id, { plisioPrice: v });
         }
       }
@@ -2289,12 +2289,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     }
 
     if (action === "gpkg_price") {
-      const price = parseInt(text, 10);
-      if (isNaN(price) || price < 1) { await ctx.reply("❌ عدد صحیح مثبت وارد کنید."); return; }
+      const price = parseFloat(text.replace(/,/g, ""));
+      if (isNaN(price) || price <= 0) { await ctx.reply("❌ عدد مثبت وارد کنید (اعشاری مجاز مثلاً 1.5)."); return; }
       ctx.session.adminPkgPrice = price;
       ctx.session.adminAction   = "gpkg_discount";
+      const gw = ctx.session.adminPkgGateway ?? "card";
+      const isUsd = gw === "crypto" || gw === "plisio";
       await ctx.reply(
-        `✅ قیمت: *${price.toLocaleString("fa-IR")}*\n\n*مرحله ۳/۵:* درصد تخفیف (۰ = بدون تخفیف):`,
+        `✅ قیمت: *${isUsd ? "$" : ""}${price}${isUsd ? "" : " تومان"}*\n\n*مرحله ۳/۵:* درصد تخفیف (۰ = بدون تخفیف):`,
         { parse_mode: "Markdown" }
       );
       return;
@@ -2361,11 +2363,11 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       const field = parts[2]!;
       if (field === "coins") {
         const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد صحیح مثبت وارد کنید."); return; }
         await updatePackage(id, { coins: v });
       } else if (field === "price") {
-        const v = parseInt(text, 10);
-        if (isNaN(v) || v < 1) { await ctx.reply("❌ عدد مثبت وارد کنید."); return; }
+        const v = parseFloat(text.replace(/,/g, ""));
+        if (isNaN(v) || v <= 0) { await ctx.reply("❌ عدد مثبت وارد کنید (اعشاری مجاز مثلاً 1.5)."); return; }
         await updatePackage(id, { price: v });
       } else if (field === "discount") {
         const v = parseInt(text, 10);

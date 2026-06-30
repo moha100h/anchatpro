@@ -144,9 +144,11 @@ export async function createPayment(
       );
 
   const discountPct = options?.discountPercent ?? 0;
-  const finalPrice = discountPct > 0
-    ? Math.round(basePrice * (100 - discountPct) / 100)
-    : basePrice;
+  // For IRT prices: round to nearest integer. For USD prices: keep 2 decimal places.
+  const rawPrice = discountPct > 0 ? basePrice * (100 - discountPct) / 100 : basePrice;
+  const finalPrice = (method === "plisio" || pkg.currency === "USD")
+    ? Math.round(rawPrice * 100) / 100
+    : Math.round(rawPrice);
 
   const [payment] = await db
     .insert(paymentsTable)

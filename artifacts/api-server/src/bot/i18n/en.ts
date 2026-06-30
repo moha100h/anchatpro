@@ -252,15 +252,11 @@ export const en = {
     `✅ Successful (setup complete): **${successful}**\n` +
     `⏳ Pending (setup incomplete): **${pending}**\n` +
     `━━━━━━━━━━━━━━━━━━━━━\n` +
-    `💰 Coins earned from referrals: **${coins} coins**\n\n` +
-    `🎁 **Current reward per successful referral** _(set by admin)_:\n` +
-    `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-    `🪙 You (referrer): **${inviterReward} coins** per invite\n` +
-    (inviteeReward > 0
-      ? `🎀 Your friend (new user): **${inviteeReward} welcome coins** on sign-up\n`
-      : "") +
-    `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n` +
-    `_Only users who complete setup count as successful referrals._`,
+    `💰 Coins earned: **${coins} coins**\n\n` +
+    `🎁 **Reward per successful referral:**\n` +
+    `• You: **${inviterReward} coins**\n` +
+    (inviteeReward > 0 ? `• Your friend: **${inviteeReward} welcome coins**\n` : "") +
+    `\n_Only users who complete setup count as successful referrals._`,
   referralLinkMsg: (link: string) =>
     `🔗 <b>Your personal invite link:</b>\n\n` +
     `<a href="${link}">👆 Tap here to join instantly</a>\n\n` +

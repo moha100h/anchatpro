@@ -61,8 +61,10 @@ export async function findMatch(
     .where(
       and(
         ne(matchingQueueTable.userId, userId),
-        // Only match with users who are actually waiting and not already in a chat
-        eq(usersTable.isInQueue, true),
+        // Presence in matchingQueueTable is the authoritative "in queue" signal.
+        // We only guard against users already in an active chat (isInChat=false).
+        // Requiring isInQueue=true here caused false negatives when the flag was
+        // out-of-sync with the queue table (e.g. after a server restart).
         eq(usersTable.isInChat, false),
         blockedIds.length > 0
           ? notInArray(matchingQueueTable.userId, blockedIds)

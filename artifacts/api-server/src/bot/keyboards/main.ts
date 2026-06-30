@@ -171,6 +171,7 @@ export function helpMenuKeyboard(lang: Lang) {
 export function inviteMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
+    .text(i.inviteBtnSpin).row()
     .text(i.inviteBtnGetLink).row()
     .text(i.inviteBtnStats).row()
     .text(i.inviteBtnLeaderboard).text(i.inviteBtnGiftCode).row()

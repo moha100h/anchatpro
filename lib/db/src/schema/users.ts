@@ -32,6 +32,7 @@ export const usersTable = pgTable("users", {
   reportCount: integer("report_count").default(0).notNull(),
   restrictedUntil: timestamp("restricted_until"),
   lastSeen: timestamp("last_seen").defaultNow(),
+  lastSpinDate: varchar("last_spin_date", { length: 10 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

@@ -26,6 +26,7 @@ import {
 import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { t } from "../i18n/index.js";
 import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard, coinsPackagesKeyboard, coinsGatewayKeyboard } from "../keyboards/main.js";
+import { spinWheel, hasSpunToday } from "../services/spin.service.js";
 import { packagesKeyboard, paymentMethodKeyboard, paymentReviewKeyboard } from "../keyboards/inline.js";
 
 /** Translate a coin transaction type + description to Persian */
@@ -61,6 +62,7 @@ function txLabelFa(type: string, description: string | null): string {
     magic_spend:     "🔮 هزینه ویژگی‌های اقیانوس",
     payment:         "🛒 خرید سکه",
     refund:          "↩️ بازگشت وجه",
+    daily_spin:      "🎰 گردونه شانس روزانه",
   };
   return map[type] ?? type;
 }
@@ -79,6 +81,7 @@ function txLabelEn(type: string, description: string | null): string {
     magic_spend:     "🔮 Mystery feature",
     payment:         "🛒 Coin purchase",
     refund:          "↩️ Refund",
+    daily_spin:      "🎰 Daily spin wheel",
   };
   return map[type] ?? type;
 }
@@ -1096,6 +1099,53 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       one_time_keyboard: true,
     };
     await ctx.reply(t(lang).giftCodePrompt, { parse_mode: "Markdown", reply_markup: cancelKb });
+  });
+
+  // ─── Spin Wheel — text button ─────────────────────────────────────────────
+  bot.hears(["🎰 گردونه شانس", "🎰 Spin Wheel"], async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    if (!user) return;
+    const lang = (user.language as "fa" | "en") ?? "fa";
+
+    const alreadySpun = await hasSpunToday(tgId);
+    const kb = alreadySpun
+      ? undefined
+      : new InlineKeyboard().text(t(lang).spinWheelBtn, "spin:do");
+
+    await ctx.reply(t(lang).spinWheelIntro(alreadySpun), {
+      parse_mode: "Markdown",
+      reply_markup: kb,
+    });
+  });
+
+  // ─── Spin Wheel — callback (actual spin) ──────────────────────────────────
+  bot.callbackQuery("spin:do", async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    // Show spinning animation immediately
+    await ctx.editMessageText(t(lang).spinSpinning, { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery();
+
+    // Short delay for suspense (1.5s)
+    await new Promise<void>((resolve) => setTimeout(resolve, 1500));
+
+    const result = await spinWheel(tgId);
+
+    if (!result.success) {
+      if (result.reason === "already_spun") {
+        await ctx.editMessageText(t(lang).spinAlreadySpun, { parse_mode: "Markdown" });
+      }
+      return;
+    }
+
+    const msg = result.tier === "high"
+      ? t(lang).spinResultHigh(result.coins, result.newBalance)
+      : t(lang).spinResultLow(result.coins, result.newBalance);
+
+    await ctx.editMessageText(msg, { parse_mode: "Markdown" });
   });
 
   // ─── Gift code text input ─────────────────────────────────────────────────

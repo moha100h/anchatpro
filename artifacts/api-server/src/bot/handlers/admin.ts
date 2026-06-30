@@ -157,6 +157,7 @@ export const ADMIN_BTN = {
   COST_TIMED:     "🔗 لینک مدت‌دار",
   COST_MAGIC:     "🔮 اقیانوس",
   COST_RESTRICTION_UNLOCK: "🔓 رفع محدودیت سریع",
+  COST_SPIN_WHEEL:         "🎰 گردونه شانس روزانه",
   // System sub-menu
   WELCOME:     "📝 خوش‌آمدگویی",
   BROADCAST:   "📣 پیام همگانی",
@@ -224,6 +225,7 @@ function adminCostsKeyboard(): Keyboard {
     .text(ADMIN_BTN.COST_PRO_LINK).text(ADMIN_BTN.COST_TIMED).row()
     .text(ADMIN_BTN.COST_MAGIC).row()
     .text(ADMIN_BTN.COST_RESTRICTION_UNLOCK).row()
+    .text(ADMIN_BTN.COST_SPIN_WHEEL).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
 }
@@ -501,6 +503,38 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
           ],
         },
       },
+    );
+  });
+
+  // ── 🎰 گردونه شانس روزانه (costs sub) ──────────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_SPIN_WHEEL, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const [minStr, maxStr] = await Promise.all([
+      getSetting("spin_min_coins"),
+      getSetting("spin_max_coins"),
+    ]);
+    const minV = minStr ?? "1";
+    const maxV = maxStr ?? "10";
+    const mid = Math.floor((parseInt(minV, 10) + parseInt(maxV, 10)) / 2);
+    await ctx.reply(
+      `🎰 *گردونه شانس روزانه — تنظیمات*\n\n` +
+      `• حداقل سکه: \`${minV}\`\n` +
+      `• حداکثر سکه: \`${maxV}\`\n` +
+      `• نقطه میانی (mid): \`${mid}\`\n\n` +
+      `📊 *توزیع احتمال:*\n` +
+      `• ۷۰٪ مواقع: \`${minV}\` تا \`${mid}\` سکه\n` +
+      `• ۳۰٪ مواقع: \`${mid + 1}\` تا \`${maxV}\` سکه\n\n` +
+      `_روی دکمه مورد نظر برای تغییر کلیک کنید._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `📉 حداقل سکه: ${minV}`, callback_data: "pay_set:spin_min_coins" }],
+            [{ text: `📈 حداکثر سکه: ${maxV}`, callback_data: "pay_set:spin_max_coins" }],
+          ],
+        },
+      }
     );
   });
 
@@ -989,6 +1023,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       referral_reward_invitee:  "پاداش دعوت‌شده (سکه)",
       restriction_unlock_cost:      "هزینه رفع محدودیت سریع (سکه)",
       restriction_duration_hours:   "مدت محدودیت (ساعت، پیش‌فرض ۳)",
+      spin_min_coins:               "حداقل سکه گردونه شانس",
+      spin_max_coins:               "حداکثر سکه گردونه شانس",
       support_link:             "لینک پشتیبانی (@username یا t.me/...)",
       tetrapay_api_key:         "کلید API تتراپی",
       tetrapay_callback_url:    "آدرس Callback تتراپی",

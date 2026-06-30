@@ -223,6 +223,35 @@ export const en = {
   inviteBtnStats: "📊 My Detailed Referral Stats",
   inviteBtnLeaderboard: "🏆 Top Users",
   inviteBtnGiftCode: "🎟️ Gift Code",
+  inviteBtnSpin: "🎰 Spin Wheel",
+
+  // ─── Spin Wheel ───────────────────────────────────────────────────────────────
+  spinWheelIntro: (hasSpun: boolean) =>
+    hasSpun
+      ? `🎰 **Spin Wheel**\n\n⏰ You've already spun today!\n\nCome back tomorrow for another spin 🍀`
+      : `🎰 **Spin Wheel**\n\n✨ Spin once per day and win free coins!\n\n🎲 Try your luck!\n\n👇 Press the button below to spin:`,
+  spinWheelBtn: "🎡 Spin!",
+  spinSpinning: "🎡 Spinning...",
+  spinResultLow: (coins: number, balance: number) =>
+    `🎰 **Spin Wheel**\n\n` +
+    `╔══════════════════╗\n` +
+    `║  🎲  **+${coins} coins**  🎲  ║\n` +
+    `╚══════════════════╝\n\n` +
+    `✅ You won **${coins} coins** today!\n` +
+    `💰 New balance: **${balance} coins**\n\n` +
+    `⏰ Come back tomorrow for another spin!`,
+  spinResultHigh: (coins: number, balance: number) =>
+    `🎰 **Spin Wheel**\n\n` +
+    `╔════════════════════╗\n` +
+    `║ 🎊 **+${coins} coins** 🎊 ║\n` +
+    `╚════════════════════╝\n\n` +
+    `🏆 **Lucky you!** Special reward!\n` +
+    `💰 New balance: **${balance} coins**\n\n` +
+    `⏰ Come back tomorrow — maybe you'll get lucky again!`,
+  spinAlreadySpun:
+    `🎰 **Spin Wheel**\n\n` +
+    `⏰ You've already spun today!\n\n` +
+    `Come back tomorrow 🍀`,
 
   // ─── Gift Codes ───────────────────────────────────────────────────────────────
   giftCodePrompt: "🎟️ **Enter your gift code:**\n\n_(Type the code exactly — case doesn't matter)_",

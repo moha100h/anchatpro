@@ -1,0 +1,80 @@
+ be used.
+Get:1 http://de.archive.ubuntu.com/ubuntu noble-updates/main amd64 nginx-common all 1.24.0-2ubuntu7.13 [44.5 kB]
+Get:2 http://de.archive.ubuntu.com/ubuntu noble-updates/main amd64 nginx amd64 1.24.0-2ubuntu7.13 [524 kB]
+Fetched 568 kB in 0s (2,173 kB/s)
+Preconfiguring packages ...
+Selecting previously unselected package nginx-common.
+(Reading database ... 111635 files and directories currently installed.)
+Preparing to unpack .../nginx-common_1.24.0-2ubuntu7.13_all.deb ...
+Unpacking nginx-common (1.24.0-2ubuntu7.13) ...
+Selecting previously unselected package nginx.
+Preparing to unpack .../nginx_1.24.0-2ubuntu7.13_amd64.deb ...
+Unpacking nginx (1.24.0-2ubuntu7.13) ...
+Setting up nginx-common (1.24.0-2ubuntu7.13) ...
+Created symlink /etc/systemd/system/multi-user.target.wants/nginx.service → /usr/lib/systemd/system/nginx.service.
+Setting up nginx (1.24.0-2ubuntu7.13) ...
+ * Upgrading binary nginx                          [ OK ] 
+Processing triggers for man-db (2.12.0-4build2) ...
+Scanning processes...                                     
+Scanning candidates...                                    
+Scanning linux images...                                  
+
+Running kernel seems to be up-to-date.
+
+Restarting services...
+
+Service restarts being deferred:
+ /etc/needrestart/restart.d/dbus.service
+ systemctl restart systemd-logind.service
+
+No containers need to be restarted.
+
+User sessions running outdated binaries:
+ root @ session #2838: PM2 v7.0.1: God[1243492]
+
+No VM guests are running outdated hypervisor (qemu)
+ binaries on this host.
+root@fastcreate-018519:~# cat > /etc/nginx/sites-available/anchatbot << 'EOF'
+server {
+    listen 80;
+    server_name tisabuy.com www.tisabuy.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+ln -sf /etc/nginx/sites-available/anchatbot /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+root@fastcreate-018519:~# bash -c "echo 'BASE_URL=https://tisabuy.com' >> /opt/anchatpro/.env && pm2 restart anchatbot"
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [anchatbot](ids: [ 8 ])
+[PM2] [anchatbot](8) ✓
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 8  │ anchatbot          │ fork     │ 2    │ online    │ 0%       │ 10.0mb   │
+│ 1  │ hiddenpmbot        │ fork     │ 16   │ errored   │ 0%       │ 0b       │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@fastcreate-018519:~# curl https://tisabuy.com/webhook/plisio -I
+HTTP/2 521 
+date: Wed, 01 Jul 2026 23:28:32 GMT
+content-type: text/plain; charset=UTF-8
+content-length: 16
+cache-control: private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0
+expires: Thu, 01 Jan 1970 00:00:01 GMT
+referrer-policy: same-origin
+x-frame-options: SAMEORIGIN
+server: cloudflare
+cf-ray: a149300e2af34f22-LHR
+alt-svc: h3=":443"; ma=86400
+
+root@fastcreate-018519:~#

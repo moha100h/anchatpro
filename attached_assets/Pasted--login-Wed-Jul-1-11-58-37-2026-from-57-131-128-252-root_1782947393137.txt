@@ -1,0 +1,138 @@
+ login: Wed Jul  1 11:58:37 2026 from 57.131.128.252
+root@fastcreate-018519:~# cd /opt/anchatpro && git pull origin main && chmod +x install.sh && ./install.sh
+remote: Enumerating objects: 43, done.
+remote: Counting objects: 100% (43/43), done.
+remote: Compressing objects: 100% (7/7), done.
+remote: Total 25 (delta 16), reused 25 (delta 16), pack-reused 0 (from 0)
+Unpacking objects: 100% (25/25), 9.00 KiB | 485.00 KiB/s, done.
+From https://github.com/moha100h/anchatpro
+ * branch            main       -> FETCH_HEAD
+   c072d2d..580cc63  main       -> origin/main
+Updating c072d2d..580cc63
+Fast-forward
+ .agents/memory/MEMORY.md              |   3 +-
+ README.md                             | 153 ++++++++++--
+ .../.replit-artifact/artifact.toml    |   2 +-
+ .../src/bot/handlers/admin.ts         |  30 ++-
+ .../bot/services/plisio.service.ts    |  10 +-
+ .../api-server/src/routes/plisio.ts   | 129 ++++++++--
+ install.sh                            |  63 ++++-
+ 7 files changed, 330 insertions(+), 60 deletions(-)
+
+═══════════════════════════════════════════════════
+   🤖 AnymsChatBot — Installer v2
+═══════════════════════════════════════════════════
+
+Step 1 — Credentials
+
+🤖 Telegram Bot Token (from @BotFather): 8593161968:AAHPyYD_zBqa0LPXpB6g0lpkyZsim4J6rUg
+👤 Super Admin Telegram ID (numeric): 277236314
+👤 Second Admin ID (optional, press Enter to skip): 
+
+  🌐 Domain / Webhook URL
+  برای درگاه‌های پرداخت (Plisio, TetraPay) آدرس عمومی سرور لازم است.
+  اگر دامنه یا IP عمومی دارید وارد کنید — در غیر این صورت Enter بزنید.
+
+  آدرس سرور (مثال: https://mybotdomain.com یا http://1.2.3.4:5000): 
+ℹ  Domain/URL not set — you can add it later with:
+ℹ    echo 'BASE_URL=https://yourdomain.com' >> .env && pm2 restart anchatbot
+
+ℹ  OS detected: ubuntu
+
+Step 2 — Node.js 22 (LTS)
+✅ Node.js v22.23.1 ready
+
+Step 3 — pnpm
+✅ pnpm 10.34.4 ready
+
+Step 4 — PostgreSQL
+✅ PostgreSQL running
+ℹ  Creating database 'anchatbot' and user 'anchatbot'...
+ALTER ROLE
+ALTER DATABASE
+GRANT
+✅ Database connection verified
+
+Step 5 — Environment file
+✅ .env created at /opt/anchatpro/.env
+
+Step 6 — Node.js dependencies
+ℹ  Running pnpm install...
+. preinstall: Done
+Done in 4.1s using pnpm v10.34.4
+✅ Dependencies installed
+
+Step 7 — Build
+ℹ  Building with esbuild (fast)...
+
+> @workspace/api-server@0.0.0 build /opt/anchatpro/artifacts/api-server
+> node ./build.mjs
+
+
+  dist/index.mjs                       3.0mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.0kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   5.1mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+
+⚡ Done in 1257ms
+✅ Build complete
+
+Step 8 — Database schema
+ℹ  Pushing schema (drizzle-kit)...
+[⣷] Pulling schema from database...
+[⣯] Pulling schema from database...
+[⣟] Pulling schema from database...
+[✓] Pulling schema from database...
+[✓] Changes applied
+✅ Database schema applied
+ℹ  Applying column migrations...
+✅ Column migrations done
+
+Step 9 — Process manager (PM2)
+✅ PM2 7.0.1 ready
+✅ PM2 auto-start on reboot configured
+
+Step 10 — Health check
+⚠  Bot process status: 'unknown'
+⚠  Check logs with: pm2 logs anchatbot
+
+
+═══════════════════════════════════════════════════
+   🎉 Installation complete!
+═══════════════════════════════════════════════════
+
+  Bot Token:             8593161968:A…
+  Admin IDs:             277236314
+  DB Host:               localhost:5432/anchatbot
+  DB Password:           17966dfe997e438f701436649552
+
+  ⚠  BASE_URL not set — درگاه‌های پرداخت آنلاین (Plisio/TetraPay) کار نخواهند کرد.
+     برای فعال‌سازی یک دستور در ترمینال اجرا کنید:
+
+     bash -c "echo 'BASE_URL=https://yourdomain.com' >> /opt/anchatpro/.env && pm2 restart anchatbot"
+
+  PM2 commands:
+    pm2 status              — view process status
+    pm2 logs anchatbot      — view live logs
+    pm2 restart anchatbot   — restart the bot
+    pm2 stop anchatbot      — stop the bot
+    pm2 monit               — live CPU/memory monitor
+
+  First steps in Telegram:
+    1. Open your bot and send /start
+    2. Send /admin to open the admin panel
+    3. Admin → پرداخت → Plisio → ✏️ ویرایش Callback URL
+       و آدرس زیر را وارد کنید:  https://yourdomain.com/webhook/plisio?json=true
+    4. Admin → Backup → 🔑 Generate code → send /verify_backup CODE in group
+
+  Backup & Restore:
+    - Backup: Admin panel → 💾 Backup → 📤 Send now
+    - Restore: Send backup_*.json.gz file directly to the bot
+═══════════════════════════════════════════════════
+root@fastcreate-018519:/opt/anchatpro#

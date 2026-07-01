@@ -1216,14 +1216,32 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   bot.callbackQuery("plisio:auto_url", async (ctx) => {
     if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
     const url = getPlisioCallbackUrl();
+
+    // Guard: localhost means BASE_URL is not set — saving this would break webhooks on VPS.
+    const isLocalhost = url.includes("localhost") || url.includes("127.0.0.1");
+    if (isLocalhost) {
+      await ctx.answerCallbackQuery("⚠️ URL نامعتبر — ذخیره نشد");
+      await ctx.reply(
+        `⚠️ <b>تشخیص خودکار URL ناموفق بود</b>\n\n` +
+        `آدرس تشخیص داده‌شده:\n<code>${url}</code>\n\n` +
+        `این آدرس فقط روی سرور محلی کار می‌کند و برای دریافت webhook از Plisio مناسب نیست.\n\n` +
+        `<b>راه‌حل:</b>\n` +
+        `متغیر <code>BASE_URL</code> را در فایل <code>.env</code> تنظیم کنید:\n` +
+        `<code>BASE_URL=https://yourdomain.com</code>\n\n` +
+        `سپس ربات را ری‌استارت کنید و دوباره امتحان کنید، یا از دکمه ✏️ ویرایش Callback URL آدرس را به صورت دستی وارد کنید.`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
     await setSetting("plisio_callback_url", url);
-    await ctx.answerCallbackQuery("✅ URL تنظیم شد");
+    await ctx.answerCallbackQuery("✅ URL ذخیره شد");
     await ctx.reply(
-      `✅ *Callback URL پلیزیو تنظیم شد:*\n\n` +
-      `\`${url}\`\n\n` +
-      `⚠️ در پنل Plisio، این آدرس را در *Status URL* با پسوند \`?json=true\` ثبت کنید:\n` +
-      `\`${url}?json=true\``,
-      { parse_mode: "Markdown" }
+      `✅ <b>Callback URL پلیزیو ذخیره شد:</b>\n\n` +
+      `<code>${url}</code>\n\n` +
+      `در پنل Plisio، این آدرس را در فیلد <b>Status URL</b> وارد کنید:\n` +
+      `<code>${url}?json=true</code>`,
+      { parse_mode: "HTML" }
     );
   });
 

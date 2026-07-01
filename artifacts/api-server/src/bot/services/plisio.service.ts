@@ -181,6 +181,8 @@ export interface PlisioVerifyResult {
   alreadyVerified?: boolean;
   coins?: number;
   userId?: number;
+  /** Actual Plisio status string, available even on failure */
+  paymentStatus?: string;
   error?: string;
 }
 
@@ -215,7 +217,13 @@ export async function handlePlisioCallback(
     await db.update(plisioTransactionsTable)
       .set({ status: mapped as any, txnId: txnId || undefined })
       .where(eq(plisioTransactionsTable.id, tx.id));
-    return { success: false, error: `Payment status: ${status}` };
+    // Always return userId so the webhook route can notify the user
+    return {
+      success: false,
+      userId: tx.userId,
+      paymentStatus: mapped,
+      error: `Payment status: ${status}`,
+    };
   }
 
   // Payment completed — credit coins

@@ -1,0 +1,74 @@
+pm2 status
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 8  │ anchatbot          │ fork     │ 0    │ online    │ 0%       │ 95.7mb   │
+│ 1  │ hiddenpmbot        │ fork     │ 16   │ errored   │ 0%       │ 0b       │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+root@fastcreate-018519:/opt/anchatpro# pm2 logs anchatbot --lines 30 --nostream
+[TAILING] Tailing last 30 lines for [anchatbot] process (change the value with --lines option)
+/root/.pm2/logs/anchatbot-error.log last 30 lines:
+8|anchatbo |   cause: error: column "schedule_minutes" does not exist
+8|anchatbo |       at <anonymous> (/opt/anchatpro/node_modules/.pnpm/pg-pool@3.14.0_pg@8.22.0/node_modules/pg-pool/index.js:45:11)
+8|anchatbo |       at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+8|anchatbo |       at async <anonymous> (/opt/anchatpro/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.22.0/node_modules/src/node-postgres/session.ts:161:13)
+8|anchatbo |       at async NodePgPreparedQuery.queryWithCache (/opt/anchatpro/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.22.0/node_modules/src/pg-core/session.ts:71:12)
+8|anchatbo |       at async <anonymous> (/opt/anchatpro/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.22.0/node_modules/src/node-postgres/session.ts:154:19)
+8|anchatbo |       at async getBackupConfig (/opt/anchatpro/artifacts/api-server/src/bot/services/backup.service.ts:37:20)
+8|anchatbo |       at async showBackupSection (/opt/anchatpro/artifacts/api-server/src/bot/handlers/admin.ts:2860:18)
+8|anchatbo |       at async <anonymous> (/opt/anchatpro/artifacts/api-server/src/bot/handlers/admin.ts:654:7)
+8|anchatbo |       at async /opt/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:578:13
+8|anchatbo |       at async /opt/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:62:13 {
+8|anchatbo |     length: 116,
+8|anchatbo |     severity: 'ERROR',
+8|anchatbo |     code: '42703',
+8|anchatbo |     detail: undefined,
+8|anchatbo |     hint: undefined,
+8|anchatbo |     position: '61',
+8|anchatbo |     internalPosition: undefined,
+8|anchatbo |     internalQuery: undefined,
+8|anchatbo |     where: undefined,
+8|anchatbo |     schema: undefined,
+8|anchatbo |     table: undefined,
+8|anchatbo |     column: undefined,
+8|anchatbo |     dataType: undefined,
+8|anchatbo |     constraint: undefined,
+8|anchatbo |     file: 'parse_relation.c',
+8|anchatbo |     line: '3722',
+8|anchatbo |     routine: 'errorMissingColumn'
+8|anchatbo |   }
+8|anchatbo | }
+
+/root/.pm2/logs/anchatbot-out.log last 30 lines:
+8|anchatbo | {"level":30,"time":1782936989200,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":47,"method":"GET","url":"/health"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782936989598,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":48,"method":"GET","url":"/api/statuses"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782936989893,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":49,"method":"GET","url":"/api/v1/config/"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782936990276,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":50,"method":"GET","url":"/api/v1/flows"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782936990654,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":51,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782936991170,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":52,"method":"GET","url":"/openapi.json"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782937020394,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782937980534,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782938834838,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":53,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782938940497,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782939163283,"pid":2613341,"hostname":"fastcreate-018519","req":{"id":54,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+8|anchatbo | {"level":30,"time":1782939900349,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782940860367,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782941820335,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782942780398,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782943740586,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782944700337,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782945660369,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | {"level":30,"time":1782946620343,"pid":2613341,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+8|anchatbo | /opt/anchatpro/artifacts/api-server:
+8|anchatbo |  ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 start: `node --enable-source-maps ./dist/index.mjs`
+8|anchatbo | Command failed with signal "SIGINT"
+8|anchatbo | 
+8|anchatbo | > @workspace/api-server@0.0.0 start /opt/anchatpro/artifacts/api-server
+8|anchatbo | > node --enable-source-maps ./dist/index.mjs
+8|anchatbo | 
+8|anchatbo | {"level":30,"time":1782947322517,"pid":2770690,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+8|anchatbo | {"level":30,"time":1782947322647,"pid":2770690,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+8|anchatbo | {"level":30,"time":1782947322741,"pid":2770690,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+8|anchatbo | {"level":30,"time":1782947580526,"pid":2770690,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+
+root@fastcreate-018519:/opt/anchatpro# 

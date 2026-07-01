@@ -226,9 +226,9 @@ export const en = {
   inviteBtnSpin: "🎰 Spin Wheel",
 
   // ─── Spin Wheel ───────────────────────────────────────────────────────────────
-  spinWheelIntro: (hasSpun: boolean) =>
+  spinWheelIntro: (hasSpun: boolean, countdown?: string) =>
     hasSpun
-      ? `🎰 **Spin Wheel**\n\n⏰ You've already spun today!\n\nCome back tomorrow for another spin 🍀`
+      ? `🎰 **Spin Wheel**\n\n⏰ You've already spun today!\n\n⏳ Resets in: \`${countdown ?? "--:--:--"}\`\n\nCome back tomorrow for another spin 🍀`
       : `🎰 **Spin Wheel**\n\n✨ Spin once per day and win free coins!\n\n🎲 Try your luck!\n\n👇 Press the button below to spin:`,
   spinWheelBtn: "🎡 Spin!",
   spinSpinning: "🎡 Spinning...",

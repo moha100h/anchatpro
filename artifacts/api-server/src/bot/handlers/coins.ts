@@ -29,7 +29,7 @@ import { createTetraPayOrder } from "../services/tetrapay.service.js";
 import { createPlisioOrder } from "../services/plisio.service.js";
 import { t } from "../i18n/index.js";
 import { mainMenuKeyboard, coinsSubMenuKeyboard, inviteMenuKeyboard, coinsPackagesKeyboard, coinsGatewayKeyboard } from "../keyboards/main.js";
-import { spinWheel, hasSpunToday } from "../services/spin.service.js";
+import { spinWheel, hasSpunToday, getSecondsUntilMidnightTehran, formatCountdown } from "../services/spin.service.js";
 import { packagesKeyboard, paymentMethodKeyboard, paymentReviewKeyboard } from "../keyboards/inline.js";
 
 /** Translate a coin transaction type + description to Persian */
@@ -1275,14 +1275,50 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const lang = (user.language as "fa" | "en") ?? "fa";
 
     const alreadySpun = await hasSpunToday(tgId);
-    const kb = alreadySpun
-      ? undefined
-      : new InlineKeyboard().text(t(lang).spinWheelBtn, "spin:do");
+    let kb: InlineKeyboard;
+    let countdown: string | undefined;
+    if (alreadySpun) {
+      countdown = formatCountdown(getSecondsUntilMidnightTehran());
+      kb = new InlineKeyboard().text(
+        lang === "fa" ? "🔄 بروزرسانی تایمر" : "🔄 Refresh Timer",
+        "spin:refresh"
+      );
+    } else {
+      kb = new InlineKeyboard().text(t(lang).spinWheelBtn, "spin:do");
+    }
 
-    await ctx.reply(t(lang).spinWheelIntro(alreadySpun), {
+    await ctx.reply(t(lang).spinWheelIntro(alreadySpun, countdown), {
       parse_mode: "Markdown",
       reply_markup: kb,
     });
+  });
+
+  // ─── Spin Wheel — refresh timer ────────────────────────────────────────────
+  bot.callbackQuery("spin:refresh", async (ctx) => {
+    const tgId = ctx.from!.id;
+    const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
+    const lang = (user?.language as "fa" | "en") ?? "fa";
+
+    const alreadySpun = await hasSpunToday(tgId);
+    if (!alreadySpun) {
+      // Wheel is now available — update to spin button
+      await ctx.editMessageText(t(lang).spinWheelIntro(false), {
+        parse_mode: "Markdown",
+        reply_markup: new InlineKeyboard().text(t(lang).spinWheelBtn, "spin:do"),
+      });
+      await ctx.answerCallbackQuery(lang === "fa" ? "🎡 گردونه آماده‌ست!" : "🎡 Wheel is ready!");
+      return;
+    }
+
+    const countdown = formatCountdown(getSecondsUntilMidnightTehran());
+    await ctx.editMessageText(t(lang).spinWheelIntro(true, countdown), {
+      parse_mode: "Markdown",
+      reply_markup: new InlineKeyboard().text(
+        lang === "fa" ? "🔄 بروزرسانی تایمر" : "🔄 Refresh Timer",
+        "spin:refresh"
+      ),
+    });
+    await ctx.answerCallbackQuery(countdown);
   });
 
   // ─── Spin Wheel — callback (actual spin) ──────────────────────────────────

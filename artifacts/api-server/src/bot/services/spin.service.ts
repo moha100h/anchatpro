@@ -8,6 +8,24 @@ function getTehranDate(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Tehran" });
 }
 
+/** Returns seconds remaining until midnight Tehran (when spin resets) */
+export function getSecondsUntilMidnightTehran(): number {
+  const now = new Date();
+  const tehranHour   = parseInt(now.toLocaleString("en-US", { timeZone: "Asia/Tehran", hour:   "numeric", hour12: false }), 10);
+  const tehranMinute = parseInt(now.toLocaleString("en-US", { timeZone: "Asia/Tehran", minute: "numeric" }), 10);
+  const tehranSecond = now.getSeconds();
+  const passed = tehranHour * 3600 + tehranMinute * 60 + tehranSecond;
+  return Math.max(0, 86400 - passed);
+}
+
+/** Format seconds as HH:MM:SS */
+export function formatCountdown(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 /**
  * Weighted random coin picker:
  * 70% of the time → low range [min, mid]

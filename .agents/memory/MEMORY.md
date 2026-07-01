@@ -8,6 +8,7 @@
 - [UX overhaul patterns](ux-overhaul.md) — Gender labels پسر/دختر; ocean→🔮 دنیای اسرار; persistent sub-menus; group invite tokens; timed anon links; drizzle-kit push needs SQL fallback in non-TTY env.
 - [Back button text bug](back-button-text.md) — fa.ts `back` key is "🔙 بازگشت" (bāzgasht), NOT "🔙 برگشت" (bargasht); always use regex /^🔙 بازگشت/ not exact string; settings.ts catch-all clears ALL session state.
 - [Admin panel UX](admin-panel-ux.md) — Admin panel uses persistent reply keyboard (not inline); adminMode session tracks section; admin registered BEFORE settings in bot/index.ts. Costs section uses adminMode="costs" + adminCostsKeyboard() sub-keyboard; MAGIC removed from main panel.
+- [Admin session resilience](admin-session-resilience.md) — Grammy in-memory sessions clear on server restart; never gate hears() on adminMode checks — use isAdmin() only + set adminMode inside the handler body to auto-restore mode.
 - [Matching configurable costs](matching-costs.md) — matching.ts reads match_free_daily/match_cost_gender/match_cost_any from getSetting(); anonymousMessagesTable column is createdAt not sentAt.
 - [Admin callback conflict rule](admin-callback-conflict.md) — Never register two bot.callbackQuery() handlers with the same string key; Grammy silently runs only the first. Use grep to check for duplicates before adding new callbacks.
 - [Grammy botInfo lazy access](grammy-botinfo-lazy.md) — Never access bot.botInfo at handler-registration time; use a lazy getter inside callback closures.

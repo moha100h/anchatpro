@@ -277,7 +277,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🔙 خروج از پنل ادمین ─────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.EXIT, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     ctx.session.adminMode = undefined;
     ctx.session.adminAction = undefined;
     const user = await getUserByTelegramId(ctx.from!.id);
@@ -287,14 +287,14 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🔙 پنل ادمین (از زیرمنوها) ──────────────────────────────────────────────
   bot.hears(ADMIN_BTN.BACK_PANEL, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     ctx.session.adminAction = undefined;
     await showAdminPanel(ctx);
   });
 
   // ── 👤 کاربران ────────────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.USERS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     if (!canDo(ctx.from!.id, "search_user")) {
       await ctx.reply("❌ دسترسی ندارید.");
       return;
@@ -308,7 +308,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 📊 آمار سیستم ────────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.STATS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     const [s, pendingReports] = await Promise.all([
       getActiveUserStats(),
       getPendingReportsCount(),
@@ -342,7 +342,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 💳 روش‌های پرداخت ────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.PAYMENT, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     ctx.session.adminMode = "payment";
     ctx.session.adminAction = undefined;
@@ -351,7 +351,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 💰 هزینه‌های سیستم ───────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.COSTS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     ctx.session.adminMode = "costs";
     ctx.session.adminAction = undefined;
@@ -363,7 +363,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🎭 اتصال ناشناس (costs sub) ─────────────────────────────────────────────
   bot.hears(ADMIN_BTN.COST_MATCH, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [freeDailyStr, costGenderStr, costAnyStr] = await Promise.all([
       getSetting("match_free_daily"),
@@ -394,7 +395,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 👥 گروه ناشناس (costs sub) ───────────────────────────────────────────────
   bot.hears(ADMIN_BTN.COST_GROUP, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [groupCreate, groupJoin, groupExpand, groupAdminPromote, groupExpandAdmin] = await Promise.all([
       getSetting("group_create_cost"),
@@ -433,7 +435,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 💎 لینک پرو (costs sub) ──────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.COST_PRO_LINK, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const permLink = await getSetting("perm_anon_link_cost");
     const v = permLink ?? "10";
@@ -452,7 +455,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🔗 لینک مدت‌دار (costs sub) ─────────────────────────────────────────────
   bot.hears(ADMIN_BTN.COST_TIMED, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [c1, c6, c24, c168] = await Promise.all([
       getSetting("timed_link_cost_1h"),
@@ -488,7 +492,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🔓 رفع محدودیت سریع (costs sub) ─────────────────────────────────────────
   bot.hears(ADMIN_BTN.COST_RESTRICTION_UNLOCK, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [costStr, durationStr] = await Promise.all([
       getSetting("restriction_unlock_cost"),
@@ -515,7 +520,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🎰 گردونه شانس روزانه (costs sub) ──────────────────────────────────────────
   bot.hears(ADMIN_BTN.COST_SPIN_WHEEL, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "costs") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [minStr, maxStr] = await Promise.all([
       getSetting("spin_min_coins"),
@@ -547,7 +553,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── ⚙️ تنظیمات سیستم ─────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.SYSTEM, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     ctx.session.adminMode = "system";
     ctx.session.adminAction = undefined;
     await ctx.reply(
@@ -558,21 +564,21 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 🔮 اقیانوس ───────────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.MAGIC, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showMagicSection(ctx);
   });
 
   // ── 🎁 رفرال و جوایز ─────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.REFERRAL, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showReferralSection(ctx);
   });
 
   // ── 🏆 برترین رفرال‌ها ────────────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.TOP_REF, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || !ctx.session.adminMode) return next();
+    if (!isAdmin(ctx.from!.id)) return next();
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showTopReferrers(ctx);
   });
@@ -580,7 +586,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   // ── ⚙️ System sub-menu handlers ──────────────────────────────────────────────
 
   bot.hears(ADMIN_BTN.WELCOME, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!canDo(ctx.from!.id, "welcome_msg")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const current = await getSetting("welcome_message");
     const msgText = current ? t("fa").currentWelcomeMsg(current) : t("fa").noWelcomeMsg;
@@ -596,7 +603,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   bot.hears(ADMIN_BTN.BROADCAST, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!canDo(ctx.from!.id, "broadcast")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     // Reset broadcast filter state
     ctx.session.broadcastGender = undefined;
@@ -621,13 +629,15 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   bot.hears(ADMIN_BTN.GIFTS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showGiftsSection(ctx);
   });
 
   bot.hears(ADMIN_BTN.BADWORDS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!canDo(ctx.from!.id, "badwords")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     ctx.session.adminAction = "add_badword";
     await ctx.reply(
@@ -637,19 +647,27 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   bot.hears(ADMIN_BTN.BACKUP, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!canDo(ctx.from!.id, "backup")) { await ctx.reply("❌ دسترسی ندارید."); return; }
-    await showBackupSection(ctx);
+    try {
+      await showBackupSection(ctx);
+    } catch (err: any) {
+      console.error("showBackupSection error:", err);
+      await ctx.reply(`❌ خطا در بارگذاری بخش بکاپ: ${String(err?.message ?? err)}`).catch(() => {});
+    }
   });
 
   bot.hears(ADMIN_BTN.FORCE_JOIN, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!isSuperAdmin(ctx.from!.id)) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showForceJoinSection(ctx);
   });
 
   bot.hears(ADMIN_BTN.ADMINS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "system") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "system";
     if (!isSuperAdmin(ctx.from!.id)) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showManageAdmins(ctx);
   });
@@ -657,7 +675,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   // ── 💳 Payment sub-menu handlers ─────────────────────────────────────────────
 
   bot.hears(ADMIN_BTN.CARD, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
     const [cardNo, holderName, bankName, reviewGroup, methodVal] = await Promise.all([
       getSetting("card_number"),
@@ -692,7 +711,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   bot.hears(ADMIN_BTN.CRYPTO, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
     const [reviewGroup, methodVal] = await Promise.all([
       getSetting("crypto_review_group"),
@@ -726,7 +746,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   bot.hears(ADMIN_BTN.TETRAPAY, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
     const [apiKey, cbUrl, reviewGroup, methodVal] = await Promise.all([
       getSetting("tetrapay_api_key"),
@@ -758,7 +779,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── 💫 Plisio crypto gateway ───────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.PLISIO, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [apiKey, cbUrl, currencies, reviewGroup, methodVal] = await Promise.all([
       getSetting("plisio_api_key"),
@@ -802,7 +824,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ── ⭐ Telegram Stars gateway ──────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.STARS, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     const [methodVal, stats] = await Promise.all([
       getSetting("payment_method_stars"),
@@ -837,7 +860,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ─── Package management (overview — grouped by gateway) ──────────────────────
   bot.hears(ADMIN_BTN.PACKAGES, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
     const GWS: Array<{ key: string; label: string; cb: string }> = [
       { key: "card",     label: "💳 کارت بانکی",      cb: "gw_pkgs:card"     },
@@ -859,7 +883,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   // ─── Discount code management ──────────────────────────────────────────────────
   bot.hears(ADMIN_BTN.DISCOUNT_CODES, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id) || ctx.session.adminMode !== "payment") return next();
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "payment";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌"); return; }
     const codes = await listDiscountCodes();
     const kb: Array<Array<{ text: string; callback_data: string }>> = [];

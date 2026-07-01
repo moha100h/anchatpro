@@ -27,7 +27,7 @@ export const backupConfigTable = pgTable("backup_config", {
   chatId: bigint("chat_id", { mode: "number" }),
   verificationCode: varchar("verification_code", { length: 32 }),
   isVerified: boolean("is_verified").default(false).notNull(),
-  scheduleHours: integer("schedule_hours").default(24).notNull(),
+  scheduleMinutes: integer("schedule_minutes").default(60).notNull(),
   lastBackupAt: timestamp("last_backup_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -1618,8 +1618,61 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   bot.callbackQuery("backup:schedule", async (ctx) => {
     if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery(); return; }
-    ctx.session.adminAction = "set_backup_schedule";
-    await ctx.reply("⏱️ فاصله بکاپ را به ساعت وارد کنید (مثلاً ۲۴):");
+    await ctx.reply(
+      "⏱️ *فاصله زمانی بکاپ خودکار را انتخاب کنید:*",
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "۱۵ دقیقه",  callback_data: "backup:sched:15" },
+              { text: "۳۰ دقیقه",  callback_data: "backup:sched:30" },
+              { text: "۱ ساعت",    callback_data: "backup:sched:60" },
+            ],
+            [
+              { text: "۲ ساعت",    callback_data: "backup:sched:120" },
+              { text: "۴ ساعت",    callback_data: "backup:sched:240" },
+              { text: "۶ ساعت",    callback_data: "backup:sched:360" },
+            ],
+            [
+              { text: "۱۲ ساعت",   callback_data: "backup:sched:720" },
+              { text: "۲۴ ساعت",   callback_data: "backup:sched:1440" },
+              { text: "۴۸ ساعت",   callback_data: "backup:sched:2880" },
+            ],
+          ],
+        },
+      }
+    );
+    await ctx.answerCallbackQuery();
+  });
+
+  bot.callbackQuery(/^backup:sched:(\d+)$/, async (ctx) => {
+    if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery(); return; }
+    const minutes = parseInt(ctx.match[1], 10);
+    if (!minutes || minutes < 1) { await ctx.answerCallbackQuery("❌ مقدار نامعتبر"); return; }
+    await setBackupSchedule(minutes);
+    const label = minutes < 60
+      ? `${minutes} دقیقه`
+      : minutes === 60
+        ? "۱ ساعت"
+        : `${minutes / 60} ساعت`;
+    await ctx.reply(`✅ بکاپ خودکار هر *${label}* انجام می‌شود.`, { parse_mode: "Markdown" });
+    await ctx.answerCallbackQuery("✅ ذخیره شد");
+  });
+
+  bot.callbackQuery("backup:restore_help", async (ctx) => {
+    if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery(); return; }
+    await ctx.reply(
+      `📥 *راهنمای بازیابی دیتابیس*\n\n` +
+      `برای بازیابی داده‌ها:\n\n` +
+      `۱. فایل بکاپ (\`backup_*.json.gz\`) را از گروه بکاپ یا ذخیره محلی‌تان پیدا کنید.\n` +
+      `۲. آن فایل را مستقیماً *برای این ربات* ارسال کنید (Forward یا Upload).\n` +
+      `۳. ربات محتوای فایل را بررسی کرده و جزئیات نشان می‌دهد.\n` +
+      `۴. تأیید کنید تا بازیابی شروع شود.\n\n` +
+      `⚠️ *نکته:* بازیابی داده‌های موجود را بازنویسی می‌کند (upsert). داده جدید حذف نمی‌شود.\n\n` +
+      `🔒 *فقط فایل‌هایی با نام \`backup_*.json.gz\` پذیرفته می‌شوند.*`,
+      { parse_mode: "Markdown" }
+    );
     await ctx.answerCallbackQuery();
   });
 
@@ -1952,10 +2005,11 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     }
 
     if (action === "set_backup_schedule") {
-      const hours = parseInt(text, 10);
-      if (isNaN(hours) || hours < 1) { await ctx.reply("❌ مقدار نامعتبر"); return; }
-      await setBackupSchedule(hours);
-      await ctx.reply(`✅ بکاپ خودکار هر *${hours}* ساعت.`, { parse_mode: "Markdown" });
+      const minutes = parseInt(text, 10);
+      if (isNaN(minutes) || minutes < 1) { await ctx.reply("❌ مقدار نامعتبر"); return; }
+      await setBackupSchedule(minutes);
+      const label = minutes < 60 ? `${minutes} دقیقه` : `${Math.round(minutes / 60)} ساعت`;
+      await ctx.reply(`✅ بکاپ خودکار هر *${label}* انجام می‌شود.`, { parse_mode: "Markdown" });
       return;
     }
 
@@ -2782,20 +2836,31 @@ async function showBackupSection(ctx: BotContext): Promise<void> {
   const config = await getBackupConfig();
   const status = config?.isVerified
     ? `✅ تنظیم شده (گروه: \`${config.chatId}\`)`
-    : "❌ تنظیم نشده";
+    : "❌ تنظیم نشده — ابتدا کد تأیید بگیرید";
   const lastBackup = config?.lastBackupAt
     ? `\n🕐 آخرین بکاپ: \`${new Date(config.lastBackupAt).toLocaleString("fa-IR")}\``
     : "";
+  const intervalMin = config?.scheduleMinutes ?? 60;
+  const intervalLabel = intervalMin < 60
+    ? `${intervalMin} دقیقه`
+    : intervalMin === 60
+      ? "۱ ساعت"
+      : `${Math.round(intervalMin / 60)} ساعت`;
+  const scheduleInfo = `\n⏱️ زمان‌بندی: هر *${intervalLabel}* یکبار`;
+
   await ctx.reply(
-    `💾 *تنظیمات بکاپ*\n\nوضعیت: ${status}${lastBackup}\n\n` +
-    `📥 *بازیابی:* برای بازیابی، فایل \`backup_*.json.gz\` را مستقیم به ربات ارسال کنید.`,
+    `💾 *تنظیمات بکاپ*\n\n` +
+    `وضعیت: ${status}${lastBackup}${scheduleInfo}\n\n` +
+    `📥 *بازیابی دیتابیس:*\n` +
+    `فایل \`backup_*.json.gz\` را مستقیم برای ربات ارسال کنید تا فرآیند بازیابی آغاز شود.`,
     {
       parse_mode: "Markdown",
       reply_markup: {
         inline_keyboard: [
-          [{ text: "🔑 کد تأیید جدید",   callback_data: "backup:gencode" }],
-          [{ text: "📤 ارسال بکاپ الان", callback_data: "backup:send" }],
-          [{ text: "⏱️ تنظیم زمان‌بندی", callback_data: "backup:schedule" }],
+          [{ text: "🔑 کد تأیید جدید",    callback_data: "backup:gencode" }],
+          [{ text: "📤 ارسال بکاپ الان",  callback_data: "backup:send" }],
+          [{ text: "⏱️ تنظیم زمان‌بندی",  callback_data: "backup:schedule" }],
+          [{ text: "📥 راهنمای بازیابی",  callback_data: "backup:restore_help" }],
         ],
       },
     }

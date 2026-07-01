@@ -187,19 +187,21 @@ export async function createBot(): Promise<Bot<BotContext>> {
     }
   });
 
-  // Scheduled backup
-  cron.schedule("0 * * * *", async () => {
+  // Scheduled backup — runs every minute, checks elapsed minutes
+  cron.schedule("* * * * *", async () => {
     try {
       const config = await getBackupConfig();
       if (!config?.isVerified || !config.chatId) return;
       const now = new Date();
       const lastBackup = config.lastBackupAt ? new Date(config.lastBackupAt) : null;
-      const hoursSinceLast = lastBackup
-        ? (now.getTime() - lastBackup.getTime()) / (1000 * 60 * 60)
+      const minutesSinceLast = lastBackup
+        ? (now.getTime() - lastBackup.getTime()) / (1000 * 60)
         : Infinity;
-      if (hoursSinceLast >= config.scheduleHours) {
-        await sendBackup(bot);
-        logger.info("Scheduled backup sent");
+      const intervalMinutes = config.scheduleMinutes ?? 60;
+      if (minutesSinceLast >= intervalMinutes) {
+        const ok = await sendBackup(bot);
+        if (ok) logger.info({ intervalMinutes }, "Scheduled backup sent");
+        else logger.warn("Scheduled backup skipped (sendBackup returned false)");
       }
     } catch (e) {
       logger.error({ err: e }, "Scheduled backup error");

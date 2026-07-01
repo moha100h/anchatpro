@@ -86,7 +86,7 @@ sudo bash install.sh
 ## ⚙️ نصب دستی (بدون اسکریپت)
 
 ### پیش‌نیازها
-- Node.js 20+
+- Node.js 22+
 - PostgreSQL 14+
 - pnpm 8+
 
@@ -152,7 +152,7 @@ pm2 startup
 | 💰 نرخ‌ها | هزینه اتصال، گروه، لینک پرو، ادمین‌سازی، افزایش ظرفیت |
 | 🎁 رفرال | پاداش دعوت‌کننده و دعوت‌شده (سکه) |
 | 📢 پخش | ارسال به همه / کاربران فعال |
-| 💾 بکاپ | گروه بکاپ، زمان‌بندی، بکاپ دستی |
+| 💾 بکاپ | گروه بکاپ، زمان‌بندی (دقیقه‌ای)، بکاپ دستی، بازیابی |
 | 🔮 Magic | فعال/غیرفعال، هزینه، محدودیت روزانه |
 | 💬 پشتیبانی | ست کردن لینک + فعال/غیرفعال |
 | 🚫 کلمات | افزودن/حذف کلمات فیلتر |
@@ -178,10 +178,38 @@ pm2 startup
 
 ## 💾 راه‌اندازی بکاپ
 
-1. `/admin` → بکاپ → تولید کد تأیید
-2. ربات را به یک گروه تلگرامی اضافه کنید (باید ادمین باشد)
-3. در آن گروه تایپ کنید: `/verify_backup <کد>`
-4. زمان‌بندی بکاپ را تنظیم کنید
+### تنظیم اولیه
+1. `/admin` → ⚙️ تنظیمات سیستم → 💾 بکاپ
+2. روی **🔑 کد تأیید جدید** کلیک کنید
+3. ربات را به یک گروه تلگرامی اضافه کنید (باید ادمین باشد)
+4. در آن گروه تایپ کنید: `/verify_backup <کد>`
+5. زمان‌بندی بکاپ را با **⏱️ تنظیم زمان‌بندی** انتخاب کنید (15 دقیقه تا 48 ساعت)
+6. برای تست: **📤 ارسال بکاپ الان**
+
+### بازیابی (Restore)
+1. `/admin` → ⚙️ تنظیمات سیستم → 💾 بکاپ → **📥 راهنمای بازیابی**
+2. فایل `.json.gz` بکاپ را مستقیماً برای ربات ارسال کنید
+3. ربات جزئیات فایل را نشان می‌دهد — تأیید کنید تا بازیابی شروع شود
+
+> ⚠️ بازیابی داده‌های موجود را بازنویسی می‌کند (upsert). داده‌های جدید حذف نمی‌شوند.
+
+---
+
+## 🔄 به‌روزرسانی (Update)
+
+```bash
+cd /path/to/anymschatbot
+git pull
+pnpm install --frozen-lockfile
+pnpm --filter @workspace/api-server run build
+pnpm --filter @workspace/db run push-force
+pm2 restart anchatbot
+```
+
+اگر از نسخه قدیمی آپدیت می‌کنید، این migration را هم اجرا کنید (یک‌بار کافی است):
+```bash
+sudo -u anchatbot psql anchatbot -c "ALTER TABLE backup_config RENAME COLUMN schedule_hours TO schedule_minutes;" 2>/dev/null || true
+```
 
 ---
 
@@ -249,7 +277,7 @@ pnpm --filter @workspace/api-server run build  # بیلد مجدد
 | بخش | تکنولوژی |
 |-----|----------|
 | Bot Framework | [Grammy](https://grammy.dev/) v1 |
-| Runtime | Node.js 20 + TypeScript 5.9 |
+| Runtime | Node.js 22 + TypeScript 5.9 |
 | Database | PostgreSQL + [Drizzle ORM](https://orm.drizzle.team/) |
 | Validation | Zod v4 |
 | API Server | Express 5 |

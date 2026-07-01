@@ -234,6 +234,13 @@ else
         || die "Database schema push failed. Check DATABASE_URL and PostgreSQL logs."
 fi
 
+# ─── Column migrations (safe — no-op if already applied) ─────────────────────
+info "Applying column migrations..."
+PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+    -c "ALTER TABLE backup_config RENAME COLUMN schedule_hours TO schedule_minutes;" \
+    >/dev/null 2>&1 || true
+ok "Column migrations done"
+
 # ─── Step 10: PM2 process manager ────────────────────────────────────────────
 echo -e "\n${BOLD}Step 9 — Process manager (PM2)${NC}"
 

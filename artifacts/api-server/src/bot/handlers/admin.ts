@@ -1687,18 +1687,17 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
   bot.callbackQuery("backup:restore_help", async (ctx) => {
     if (!isAdmin(ctx.from!.id)) { await ctx.answerCallbackQuery(); return; }
+    await ctx.answerCallbackQuery();
     await ctx.reply(
-      `📥 *راهنمای بازیابی دیتابیس*\n\n` +
-      `برای بازیابی داده‌ها:\n\n` +
-      `۱. فایل بکاپ (\`backup_*.json.gz\`) را از گروه بکاپ یا ذخیره محلی‌تان پیدا کنید.\n` +
-      `۲. آن فایل را مستقیماً *برای این ربات* ارسال کنید (Forward یا Upload).\n` +
+      `📥 <b>راهنمای بازیابی دیتابیس</b>\n\nبرای بازیابی داده‌ها:\n\n` +
+      `۱. فایل بکاپ (<code>backup_YYYY-MM-DD.json.gz</code>) را از گروه بکاپ یا ذخیره محلی پیدا کنید.\n` +
+      `۲. آن فایل را مستقیماً <b>برای این ربات</b> ارسال کنید (Forward یا Upload).\n` +
       `۳. ربات محتوای فایل را بررسی کرده و جزئیات نشان می‌دهد.\n` +
       `۴. تأیید کنید تا بازیابی شروع شود.\n\n` +
-      `⚠️ *نکته:* بازیابی داده‌های موجود را بازنویسی می‌کند (upsert). داده جدید حذف نمی‌شود.\n\n` +
-      `🔒 *فقط فایل‌هایی با نام \`backup_*.json.gz\` پذیرفته می‌شوند.*`,
-      { parse_mode: "Markdown" }
+      `⚠️ <b>نکته:</b> بازیابی داده‌های موجود را بازنویسی می‌کند (upsert). داده جدید حذف نمی‌شود.\n\n` +
+      `🔒 فقط فایل‌هایی با پسوند <code>.json.gz</code> یا <code>.json</code> پذیرفته می‌شوند.`,
+      { parse_mode: "HTML" }
     );
-    await ctx.answerCallbackQuery();
   });
 
   bot.command("verify_backup", async (ctx) => {

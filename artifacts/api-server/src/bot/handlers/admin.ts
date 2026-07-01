@@ -2859,10 +2859,10 @@ async function showGiftsSection(ctx: BotContext): Promise<void> {
 async function showBackupSection(ctx: BotContext): Promise<void> {
   const config = await getBackupConfig();
   const status = config?.isVerified
-    ? `✅ تنظیم شده (گروه: \`${config.chatId}\`)`
+    ? `✅ تنظیم شده (گروه: <code>${config.chatId}</code>)`
     : "❌ تنظیم نشده — ابتدا کد تأیید بگیرید";
   const lastBackup = config?.lastBackupAt
-    ? `\n🕐 آخرین بکاپ: \`${new Date(config.lastBackupAt).toLocaleString("fa-IR")}\``
+    ? `\n🕐 آخرین بکاپ: <code>${new Date(config.lastBackupAt).toLocaleString("fa-IR")}</code>`
     : "";
   const intervalMin = config?.scheduleMinutes ?? 60;
   const intervalLabel = intervalMin < 60
@@ -2870,15 +2870,15 @@ async function showBackupSection(ctx: BotContext): Promise<void> {
     : intervalMin === 60
       ? "۱ ساعت"
       : `${Math.round(intervalMin / 60)} ساعت`;
-  const scheduleInfo = `\n⏱️ زمان‌بندی: هر *${intervalLabel}* یکبار`;
+  const scheduleInfo = `\n⏱️ زمان‌بندی: هر <b>${intervalLabel}</b> یکبار`;
 
   await ctx.reply(
-    `💾 *تنظیمات بکاپ*\n\n` +
+    `💾 <b>تنظیمات بکاپ</b>\n\n` +
     `وضعیت: ${status}${lastBackup}${scheduleInfo}\n\n` +
-    `📥 *بازیابی دیتابیس:*\n` +
-    `فایل \`backup_*.json.gz\` را مستقیم برای ربات ارسال کنید تا فرآیند بازیابی آغاز شود.`,
+    `📥 <b>بازیابی دیتابیس:</b>\n` +
+    `فایل <code>.json.gz</code> را مستقیم برای ربات ارسال کنید تا فرآیند بازیابی آغاز شود.`,
     {
-      parse_mode: "Markdown",
+      parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [
           [{ text: "🔑 کد تأیید جدید",    callback_data: "backup:gencode" }],

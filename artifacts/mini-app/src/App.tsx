@@ -5,13 +5,24 @@ import { HomeScreen }   from "./screens/HomeScreen.js";
 import { QueueScreen }  from "./screens/QueueScreen.js";
 import { CallScreen }   from "./screens/CallScreen.js";
 import { EndedScreen }  from "./screens/EndedScreen.js";
+import { detectLang, translations } from "./i18n.js";
+import type { Lang } from "./i18n.js";
 
 const API_BASE = "/api/call";
 
 export default function App() {
+  const [lang] = useState<Lang>(() => detectLang());
+  const t = translations[lang];
+
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir  = t.dir;
+  }, [lang, t.dir]);
+
   const [screen,      setScreen]      = useState<Screen>("home");
   const [config,      setConfig]      = useState<Config | null>(null);
   const [coins,       setCoins]       = useState(0);
+  const [authFailed,  setAuthFailed]  = useState(false);
   const [callType,    setCallType]    = useState<CallType>("voice");
   const [isReceiver,  setIsReceiver]  = useState(false);
   const [iceServers,  setIceServers]  = useState<IceServer[]>([]);
@@ -21,7 +32,6 @@ export default function App() {
   const [loading,     setLoading]     = useState(false);
   const [peerOffer,   setPeerOffer]   = useState<string | undefined>();
   const [peerAnswer,  setPeerAnswer]  = useState<string | undefined>();
-  // Array: accumulate ALL candidates so none are lost to React batching
   const [peerCands,   setPeerCands]   = useState<RTCIceCandidateInit[]>([]);
 
   const sendRef = useRef<((msg: object) => void) | null>(null);
@@ -35,34 +45,49 @@ export default function App() {
   });
 
   useEffect(() => {
-    // Config is public; balance is best-effort (returns 0 for unauthenticated)
     fetch(`${API_BASE}/config`, { headers: apiHeaders() })
       .then(r => r.json())
       .then(cfg => setConfig(cfg as Config))
       .catch(() => setConfig({ callEnabled: false } as any));
 
+    // Balance comes from auth_ok WS message (more reliable than HTTP fetch)
+    // HTTP fetch is a best-effort pre-load only
     fetch(`${API_BASE}/balance`, { headers: apiHeaders() })
       .then(r => r.json())
-      .then(bal => setCoins(bal.coins ?? 0))
-      .catch(() => setCoins(0));
+      .then(bal => { if (bal.authenticated !== false) setCoins(bal.coins ?? 0); })
+      .catch(() => { /* WS auth_ok will provide the balance */ });
   }, []);
 
   const handleWsMessage = useCallback((msg: WsInMessage) => {
     switch (msg.type) {
-      case "auth_ok": break;
+      case "auth_ok":
+        setAuthFailed(false);
+        // Server includes user's current coin balance in auth_ok
+        if (typeof (msg as any).coins === "number") {
+          setCoins((msg as any).coins);
+        }
+        break;
+
       case "error": {
         setLoading(false);
-        const map: Record<string, string> = {
-          insufficient_coins: `موجودی کافی نیست. نیاز به ${(msg as any).required ?? "?"} سکه.`,
-          call_disabled:      "ویژگی تماس غیرفعال است.",
-          video_disabled:     "تماس تصویری غیرفعال است.",
-          already_in_call:    "شما در حال حاضر در یک تماس هستید.",
+        const code = (msg as any).code as string;
+        if (code === "auth_failed" || code === "not_authenticated") {
+          setAuthFailed(true);
+          return;
+        }
+        const errMap: Record<string, string> = {
+          insufficient_coins: t.errInsufficient((msg as any).required ?? 0),
+          call_disabled:      t.errCallDisabled,
+          video_disabled:     t.errVideoDisabled,
+          already_in_call:    t.errAlreadyInCall,
         };
-        setError(map[(msg as any).code] ?? `خطا: ${(msg as any).code}`);
+        setError(errMap[code] ?? t.errGeneric(code));
         break;
       }
+
       case "queued":       setLoading(false); setScreen("queue"); break;
       case "left_queue":   setScreen("home"); break;
+
       case "matched":
         setLoading(false);
         setIceServers((msg as any).iceServers);
@@ -72,6 +97,7 @@ export default function App() {
         setCallType((msg as any).callType);
         setScreen("call");
         break;
+
       case "offer":         setPeerOffer((msg as any).sdp);  break;
       case "answer":        setPeerAnswer((msg as any).sdp); break;
       case "ice_candidate": setPeerCands(prev => [...prev, (msg as any).candidate]); break;
@@ -79,7 +105,7 @@ export default function App() {
       case "call_ended":    setEndReason("partner_ended"); setScreen("ended"); break;
       case "force_end":     setEndReason((msg as any).reason); setScreen("ended"); break;
     }
-  }, []);
+  }, [t]);
 
   const { send } = useSignaling(handleWsMessage);
   useEffect(() => { sendRef.current = send; }, [send]);
@@ -104,8 +130,8 @@ export default function App() {
     setError(null); setScreen("home");
     try {
       const bal = await fetch(`${API_BASE}/balance`, { headers: apiHeaders() }).then(r => r.json());
-      setCoins(bal.coins ?? 0);
-    } catch { /* ignore */ }
+      if (bal.authenticated !== false) setCoins(bal.coins ?? 0);
+    } catch { /* WS auth_ok provides balance on reconnect */ }
   }, []);
 
   if (!config) {
@@ -113,7 +139,20 @@ export default function App() {
       <div style={center}>
         <div style={loadRing} />
         <p style={{ fontSize: "14px", color: "var(--muted, rgba(240,240,245,0.45))", marginTop: "20px" }}>
-          در حال بارگذاری...
+          {t.loading}
+        </p>
+      </div>
+    );
+  }
+
+  // Auth failed: not opened from Telegram
+  if (authFailed) {
+    return (
+      <div style={{ ...center, gap: "16px", padding: "32px 24px", textAlign: "center" }}>
+        <span style={{ fontSize: "56px" }}>🔒</span>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, lineHeight: 1.4 }}>{t.authFailed}</h2>
+        <p style={{ fontSize: "14px", color: "var(--muted, rgba(240,240,245,0.45))", maxWidth: "260px", lineHeight: 1.6 }}>
+          {t.authFailedSub}
         </p>
       </div>
     );
@@ -123,9 +162,9 @@ export default function App() {
     return (
       <div style={{ ...center, gap: "16px", padding: "32px 24px", textAlign: "center" }}>
         <span style={{ fontSize: "56px" }}>🚫</span>
-        <h2 style={{ fontSize: "18px", fontWeight: 700 }}>ویژگی تماس ناشناس<br />در حال حاضر غیرفعال است</h2>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, whiteSpace: "pre-line" }}>{t.callDisabledTitle}</h2>
         <p style={{ fontSize: "14px", color: "var(--muted, rgba(240,240,245,0.45))", maxWidth: "240px" }}>
-          لطفاً بعداً دوباره امتحان کنید.
+          {t.callDisabledSub}
         </p>
       </div>
     );
@@ -133,19 +172,19 @@ export default function App() {
 
   switch (screen) {
     case "home":
-      return <HomeScreen config={config} coins={coins} onStart={startCall} loading={loading} error={error} />;
+      return <HomeScreen lang={lang} config={config} coins={coins} onStart={startCall} loading={loading} error={error} />;
     case "queue":
-      return <QueueScreen callType={callType} onCancel={cancelQueue} />;
+      return <QueueScreen lang={lang} callType={callType} onCancel={cancelQueue} />;
     case "call":
       return (
         <CallScreen
-          callType={callType} isReceiver={isReceiver} iceServers={iceServers}
+          lang={lang} callType={callType} isReceiver={isReceiver} iceServers={iceServers}
           coinsSpent={coinsSpent} onSend={send} onEnded={endCall}
           peerOffer={peerOffer} peerAnswer={peerAnswer} peerCands={peerCands}
         />
       );
     case "ended":
-      return <EndedScreen reason={endReason} onAgain={startAgain} />;
+      return <EndedScreen lang={lang} reason={endReason} onAgain={startAgain} />;
   }
 }
 

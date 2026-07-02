@@ -1,6 +1,7 @@
 import { Keyboard } from "grammy";
 import { t, type Lang } from "../i18n/index.js";
 import type { PaymentPackage } from "@workspace/db";
+export type { Lang };
 
 // Auto-resolve call mini-app URL from environment (same priority as index.ts)
 function _resolveCallAppUrl(): string {
@@ -12,17 +13,24 @@ function _resolveCallAppUrl(): string {
 }
 export const CALL_APP_URL = process.env["CALL_MINI_APP_URL"] ?? _resolveCallAppUrl();
 
+// Module-level toggle — seeded from DB on startup, updated live by admin handler
+let _callBtnEnabled = true;
+export function setCallBtnEnabled(v: boolean): void { _callBtnEnabled = v; }
+
 export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
-  return new Keyboard()
+  const kb = new Keyboard()
     .text(i.menuConnect).text(i.menuGroup).row()
     .text(i.menuAnonProLink).text(i.menuMyLink).row()
     .text(i.menuMagic).row()
     .text(i.menuCoins).text(i.menuReferral).row()
-    .text(i.menuHelp).text(i.menuSettings).row()
-    .webApp(i.menuCall, CALL_APP_URL)
-    .resized()
-    .persistent();
+    .text(i.menuHelp).text(i.menuSettings);
+
+  if (_callBtnEnabled) {
+    kb.row().webApp(i.menuCall, CALL_APP_URL);
+  }
+
+  return kb.resized().persistent();
 }
 
 export function magicMenuKeyboard(lang: Lang) {

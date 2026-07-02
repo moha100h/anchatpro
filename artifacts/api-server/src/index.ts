@@ -101,6 +101,11 @@ server.listen(port, async () => {
         }
         logger.info({ miniAppUrl, turnHost }, "Call settings auto-configured");
 
+        // Sync keyboard call button state with DB setting
+        const { setCallBtnEnabled } = await import("./bot/keyboards/main.js");
+        const callMiniAppEnabled = await getSetting("call_mini_app_enabled");
+        setCallBtnEnabled((callMiniAppEnabled ?? "1") !== "0");
+
         // Set BotFather menu button to the auto-detected mini-app URL
         await bot.api.setChatMenuButton({
           menu_button: { type: "web_app", text: "📞 تماس ناشناس", web_app: { url: miniAppUrl } },

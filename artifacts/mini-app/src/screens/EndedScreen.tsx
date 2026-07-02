@@ -1,24 +1,20 @@
-interface Props { reason: string; onAgain: () => void; }
+import { translations } from "../i18n.js";
+import type { Lang } from "../i18n.js";
 
-const REASONS: Record<string, { icon: string; msg: string }> = {
-  user_ended:           { icon: "📵", msg: "تماس توسط شما پایان یافت." },
-  partner_ended:        { icon: "👋", msg: "طرف مقابل تماس را قطع کرد." },
-  partner_disconnected: { icon: "📡", msg: "اتصال طرف مقابل قطع شد." },
-  max_duration_reached: { icon: "⏰", msg: "مدت مجاز تماس به پایان رسید." },
-  connection_failed:    { icon: "🔴", msg: "اتصال برقرار نشد. دوباره امتحان کنید." },
-};
+interface Props { lang: Lang; reason: string; onAgain: () => void; }
 
-export function EndedScreen({ reason, onAgain }: Props) {
-  const { icon, msg } = REASONS[reason] ?? { icon: "📵", msg: "تماس به پایان رسید." };
+export function EndedScreen({ lang, reason, onAgain }: Props) {
+  const t = translations[lang];
+  const { icon, msg } = t.reasons[reason] ?? { icon: "📵", msg: t.reasons["user_ended"]?.msg ?? "" };
   return (
     <div style={s.page}>
       <div style={s.card}>
         <span style={s.icon}>{icon}</span>
-        <h2 style={s.title}>تماس پایان یافت</h2>
+        <h2 style={s.title}>{t.endedTitle}</h2>
         <p style={s.msg}>{msg}</p>
       </div>
       <button style={s.btn} onClick={onAgain}>
-        🔄  تماس مجدد
+        {t.endedAgain}
       </button>
     </div>
   );

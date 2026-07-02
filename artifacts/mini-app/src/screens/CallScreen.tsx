@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { IceServer } from "../types.js";
 import { useWebRTC } from "../hooks/useWebRTC.js";
+import { translations } from "../i18n.js";
+import type { Lang } from "../i18n.js";
 
 interface Props {
+  lang:        Lang;
   callType:    "voice" | "video";
   isReceiver:  boolean;
   iceServers:  IceServer[];
@@ -17,6 +20,7 @@ interface Props {
 const BAR_COUNT = 7;
 
 export function CallScreen(props: Props) {
+  const t = translations[props.lang];
   const localRef  = useRef<HTMLVideoElement | null>(null);
   const remoteRef = useRef<HTMLVideoElement | null>(null);
   const [duration,   setDuration]   = useState(0);
@@ -85,7 +89,7 @@ export function CallScreen(props: Props) {
           <div style={sv.topBar}>
             {connected
               ? <div style={sv.statusOn}><span style={sv.dot} /> {mm}:{ss}</div>
-              : <div style={sv.statusWait}>⏳ در حال اتصال...</div>}
+              : <div style={sv.statusWait}>⏳ {t.callConnecting}</div>}
             <div style={sv.coinsBadge}>🪙 {props.coinsSpent}</div>
           </div>
 
@@ -105,9 +109,9 @@ export function CallScreen(props: Props) {
     <div style={voiceS.page}>
       <div style={voiceS.topBar}>
         {connected
-          ? <div style={voiceS.statusOn}><span style={voiceS.dot} /> در تماس</div>
-          : <div style={voiceS.statusWait}>⏳ در حال اتصال...</div>}
-        <div style={voiceS.coinsBadge}>🪙 {props.coinsSpent} کسر شد</div>
+          ? <div style={voiceS.statusOn}><span style={voiceS.dot} /> {t.callConnected}</div>
+          : <div style={voiceS.statusWait}>⏳ {t.callConnecting}</div>}
+        <div style={voiceS.coinsBadge}>🪙 {t.callCoinsSpent(props.coinsSpent)}</div>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "32px" }}>
@@ -131,14 +135,14 @@ export function CallScreen(props: Props) {
       <div style={voiceS.controls}>
         <button style={voiceS.ctrlBtn} onClick={toggleMute}>
           <span style={voiceS.ctrlIcon}>{muted ? "🔇" : "🎙️"}</span>
-          <span style={voiceS.ctrlLbl}>{muted ? "بی‌صدا" : "میکروفون"}</span>
+          <span style={voiceS.ctrlLbl}>{muted ? t.callMuteLabel : t.callUnmuteLabel}</span>
         </button>
         <button style={voiceS.endCircle} onClick={endCall}>
           <span style={{ fontSize: "28px" }}>📵</span>
         </button>
         <button style={voiceS.ctrlBtn}>
           <span style={voiceS.ctrlIcon}>🔊</span>
-          <span style={voiceS.ctrlLbl}>بلندگو</span>
+          <span style={voiceS.ctrlLbl}>{t.callSpeakerLabel}</span>
         </button>
       </div>
     </div>

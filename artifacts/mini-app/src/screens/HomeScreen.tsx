@@ -1,8 +1,11 @@
 import { useState } from "react";
 import type { Config, CallType, GenderFilter } from "../types.js";
 import { CoinBadge } from "../components/CoinBadge.js";
+import { translations } from "../i18n.js";
+import type { Lang } from "../i18n.js";
 
 interface Props {
+  lang:    Lang;
   config:  Config;
   coins:   number;
   onStart: (callType: CallType, genderFilter: GenderFilter) => void;
@@ -10,7 +13,8 @@ interface Props {
   error:   string | null;
 }
 
-export function HomeScreen({ config, coins, onStart, loading, error }: Props) {
+export function HomeScreen({ lang, config, coins, onStart, loading, error }: Props) {
+  const t = translations[lang];
   const [callType,     setCallType]     = useState<CallType>("voice");
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("random");
 
@@ -30,14 +34,14 @@ export function HomeScreen({ config, coins, onStart, loading, error }: Props) {
           <span style={s.logoEmoji}>📞</span>
           <div style={s.logoBg} />
         </div>
-        <h1 style={s.title}>تماس ناشناس</h1>
-        <p style={s.subtitle}>با یک غریبه صحبت کن</p>
+        <h1 style={s.title}>{t.title}</h1>
+        <p style={s.subtitle}>{t.subtitle}</p>
         <CoinBadge coins={coins} />
       </div>
 
       {/* Call type */}
       <div style={s.section}>
-        <p style={s.label}>نوع تماس</p>
+        <p style={s.label}>{t.callTypeLabel}</p>
         <div style={s.tabs}>
           {(["voice", "video"] as CallType[]).map(ct => {
             const active   = callType === ct;
@@ -50,8 +54,8 @@ export function HomeScreen({ config, coins, onStart, loading, error }: Props) {
                 style={{ ...s.tab, ...(active ? s.tabActive : {}), ...(disabled ? s.tabDis : {}) }}
               >
                 <span style={s.tabIcon}>{ct === "voice" ? "🎤" : "📹"}</span>
-                <span style={s.tabText}>{ct === "voice" ? "صوتی" : "تصویری"}</span>
-                {disabled && <span style={s.tabBadge}>غیرفعال</span>}
+                <span style={s.tabText}>{ct === "voice" ? t.voiceLabel : t.videoLabel}</span>
+                {disabled && <span style={s.tabBadge}>{t.disabled}</span>}
               </button>
             );
           })}
@@ -60,12 +64,12 @@ export function HomeScreen({ config, coins, onStart, loading, error }: Props) {
 
       {/* Gender */}
       <div style={s.section}>
-        <p style={s.label}>طرف مقابل</p>
+        <p style={s.label}>{t.partnerLabel}</p>
         <div style={s.chips}>
           {([
-            { v: "random", icon: "🎲", label: "هر کسی" },
-            { v: "male",   icon: "👦", label: "پسر"    },
-            { v: "female", icon: "👧", label: "دختر"   },
+            { v: "random", icon: "🎲", label: t.anyone  },
+            { v: "male",   icon: "👦", label: t.male    },
+            { v: "female", icon: "👧", label: t.female  },
           ] as { v: GenderFilter; icon: string; label: string }[]).map(({ v, icon, label }) => (
             <button
               key={v}
@@ -81,10 +85,10 @@ export function HomeScreen({ config, coins, onStart, loading, error }: Props) {
 
       {/* Cost */}
       <div style={s.costRow}>
-        <span style={s.costLbl}>هزینه اتصال</span>
+        <span style={s.costLbl}>{t.costLabel}</span>
         <div style={s.costVal}>
           <span style={s.costNum}>{cost}</span>
-          <span style={s.costUnit}> سکه 🪙</span>
+          <span style={s.costUnit}> {t.coinUnit}</span>
         </div>
       </div>
 
@@ -103,10 +107,10 @@ export function HomeScreen({ config, coins, onStart, loading, error }: Props) {
         disabled={!canCall}
       >
         {loading
-          ? <><span style={s.spinner} />{"  "}در حال اتصال...</>
+          ? <><span style={s.spinner} />{"  "}{t.connecting}</>
           : coins < cost
-            ? `موجودی کافی نیست (${cost} سکه لازم)`
-            : callType === "voice" ? "🎤  شروع تماس صوتی" : "📹  شروع تماس تصویری"}
+            ? t.notEnoughCoins(cost)
+            : callType === "voice" ? t.startVoice : t.startVideo}
       </button>
     </div>
   );

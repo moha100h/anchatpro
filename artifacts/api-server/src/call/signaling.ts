@@ -133,7 +133,9 @@ async function handleMessage(client: CallClient, raw: string): Promise<void> {
     client.userId        = user.id;
     client.authenticated = true;
     clients.set(user.id, client);
-    send(client, { type: "auth_ok" });
+    // Include current coin balance so mini-app shows correct amount immediately
+    const coins = await getUserCoins(user.id).catch(() => 0);
+    send(client, { type: "auth_ok", coins });
     return;
   }
 

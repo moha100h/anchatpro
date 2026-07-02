@@ -1,6 +1,10 @@
-interface Props { callType: "voice" | "video"; onCancel: () => void; }
+import { translations } from "../i18n.js";
+import type { Lang } from "../i18n.js";
 
-export function QueueScreen({ callType, onCancel }: Props) {
+interface Props { lang: Lang; callType: "voice" | "video"; onCancel: () => void; }
+
+export function QueueScreen({ lang, callType, onCancel }: Props) {
+  const t = translations[lang];
   return (
     <div style={s.page}>
       <div style={s.pulseWrap}>
@@ -14,25 +18,23 @@ export function QueueScreen({ callType, onCancel }: Props) {
 
       <div style={s.textWrap}>
         <h2 style={s.title}>
-          در حال جستجو
+          {t.queueSearching}
           <span style={{ ...s.dot, animationDelay: "0s"   }}>.</span>
           <span style={{ ...s.dot, animationDelay: ".3s"  }}>.</span>
           <span style={{ ...s.dot, animationDelay: ".6s"  }}>.</span>
         </h2>
         <p style={s.sub}>
-          {callType === "video"
-            ? "در حال پیدا کردن یک شریک برای تماس تصویری..."
-            : "در حال پیدا کردن یک شریک برای تماس صوتی..."}
+          {callType === "video" ? t.queueSubVideo : t.queueSubVoice}
         </p>
       </div>
 
       <div style={s.hint}>
         <span style={s.hintDot} />
-        <span>اتصال ایمن و کاملاً ناشناس</span>
+        <span>{t.queueSecure}</span>
       </div>
 
       <button style={s.cancelBtn} onClick={onCancel}>
-        انصراف
+        {t.queueCancel}
       </button>
     </div>
   );

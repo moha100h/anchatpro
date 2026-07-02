@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
+import path from "node:path";
 import router, { tetraPayRouter, plisioRouter } from "./routes";
 import { logger } from "./lib/logger";
 
@@ -32,5 +33,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use("/api", router);
 app.use("/webhook/tetrapay", tetraPayRouter);
 app.use("/webhook/plisio",  plisioRouter);
+
+// ── Mini App static files at /call/ ──────────────────────────────────────
+const miniAppDist = path.resolve(__dirname, "../../mini-app/dist");
+app.use("/call", express.static(miniAppDist, { index: "index.html" }));
+app.use("/call", (_req, res) => {
+  res.sendFile(path.join(miniAppDist, "index.html"));
+});
 
 export default app;

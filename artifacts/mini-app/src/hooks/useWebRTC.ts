@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect } from "react";
 import type { IceServer } from "../types.js";
 
-interface UseWebRTCOptions {
+interface Opts {
   iceServers:   IceServer[];
   localRef:     React.RefObject<HTMLVideoElement | null>;
   remoteRef:    React.RefObject<HTMLVideoElement | null>;
@@ -12,11 +12,12 @@ interface UseWebRTCOptions {
   onAnswer:     (sdp: string) => void;
   onReady:      () => void;
   onEnded:      (reason: string) => void;
+  onStream?:    (stream: MediaStream) => void;
 }
 
-export function useWebRTC(opts: UseWebRTCOptions) {
-  const pcRef      = useRef<RTCPeerConnection | null>(null);
-  const streamRef  = useRef<MediaStream | null>(null);
+export function useWebRTC(opts: Opts) {
+  const pcRef     = useRef<RTCPeerConnection | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const cleanup = useCallback(() => {
     pcRef.current?.close();
@@ -31,15 +32,13 @@ export function useWebRTC(opts: UseWebRTCOptions) {
       video: opts.callType === "video",
     });
     streamRef.current = stream;
+    opts.onStream?.(stream);
 
-    if (opts.localRef.current) {
-      opts.localRef.current.srcObject = stream;
-    }
+    if (opts.localRef.current) opts.localRef.current.srcObject = stream;
 
     const pc = new RTCPeerConnection({ iceServers: opts.iceServers as RTCIceServer[] });
     pcRef.current = pc;
-
-    stream.getTracks().forEach(track => pc.addTrack(track, stream));
+    stream.getTracks().forEach(t => pc.addTrack(t, stream));
 
     pc.ontrack = (ev) => {
       const [remoteStream] = ev.streams;

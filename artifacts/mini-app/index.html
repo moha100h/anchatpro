@@ -2,19 +2,45 @@
 <html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/call/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
     <title>تماس ناشناس</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body, #root {
-        height: 100%;
-        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-        background: var(--tg-theme-bg-color, #1a1a2e);
-        color: var(--tg-theme-text-color, #ffffff);
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg:          #09090f;
+        --card:        rgba(255,255,255,0.045);
+        --card-b:      rgba(255,255,255,0.09);
+        --accent:      #7c3aed;
+        --accent2:     #2563eb;
+        --grd:         linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
+        --text:        #f0f0f5;
+        --muted:       rgba(240,240,245,0.45);
+        --danger:      #ef4444;
+        --success:     #10b981;
+        --gold:        #fbbf24;
       }
+
+      html, body {
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+      #root { height: 100%; }
+      button { font-family: inherit; }
+
+      @keyframes spin      { to { transform: rotate(360deg); } }
+      @keyframes fadeUp    { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes pulsering { 0% { transform: scale(1);   opacity: .65; } 100% { transform: scale(2.5); opacity: 0; } }
+      @keyframes wave      { 0%,100% { transform: scaleY(0.3); } 50% { transform: scaleY(1); } }
+      @keyframes glow      { 0%,100% { opacity: .5; } 50% { opacity: 1; } }
+      @keyframes float     { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+      @keyframes scalePop  { from { transform: scale(.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
   </head>
   <body>

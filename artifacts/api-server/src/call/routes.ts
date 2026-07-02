@@ -24,7 +24,7 @@ function authRequired(req: any, res: any, next: any): void {
 
 // ─── GET /api/call/config ─────────────────────────────────────────────────────
 
-router.get("/config", authRequired, async (_req, res) => {
+router.get("/config", async (_req, res) => {
   try {
     const [
       callEnabled, videoEnabled,
@@ -71,7 +71,11 @@ router.get("/config", authRequired, async (_req, res) => {
 
 // ─── GET /api/call/balance ────────────────────────────────────────────────────
 
-router.get("/balance", authRequired, async (req: any, res) => {
+router.get("/balance", async (req: any, res) => {
+  const userId = getCallUserId(req);
+  if (!userId) { res.json({ coins: 0, authenticated: false }); return; }
+  // Re-attach for downstream use
+  (req as any).callUserId = userId;
   try {
     const coins = await getUserCoins(req.callUserId);
     res.json({ coins });

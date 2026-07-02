@@ -304,12 +304,12 @@ async function handleMessage(client: CallClient, raw: string): Promise<void> {
 
   // ── Call end ─────────────────────────────────────────────────────────────
   if (msg.type === "call_end") {
+    // Only notify the PARTNER — caller already knows they ended the call
     sendToPartner(client, { type: "call_ended" });
     const partnerId = client.partnerId;
     const partner   = partnerId ? clients.get(partnerId) : undefined;
     await cleanupSession(client, "user_ended");
     if (partner) await cleanupSession(partner, "partner_ended");
-    send(client, { type: "call_ended" });
     return;
   }
 }

@@ -59,7 +59,7 @@ import { getBotInstance } from "../bot-instance.js";
 import { eq } from "drizzle-orm";
 import { t } from "../i18n/index.js";
 import { adminUserActionsKeyboard } from "../keyboards/inline.js";
-import { mainMenuKeyboard, setCallBtnEnabled } from "../keyboards/main.js";
+import { mainMenuKeyboard } from "../keyboards/main.js";
 
 // ─── Group verification tokens ────────────────────────────────────────────────
 
@@ -672,9 +672,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     await setSetting(key, newVal);
     await ctx.answerCallbackQuery(newVal === "1" ? "✅ فعال شد" : "❌ غیرفعال شد");
 
-    // When mini-app visibility changes → update keyboard toggle + BotFather menu button live
+    // When mini-app visibility changes → update BotFather menu button live
     if (key === "call_mini_app_enabled") {
-      setCallBtnEnabled(newVal === "1");
       try {
         if (newVal === "1") {
           const miniAppUrl = (await getSetting("call_mini_app_url")) ?? "https://tisabuy.com/call/";

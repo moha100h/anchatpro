@@ -52,6 +52,8 @@ export interface I18n {
   callSpeakerLabel: string;
   endedTitle: string;
   endedAgain: string;
+  endedReconnectHint: string;
+  endedDismiss: string;
   reasons: Record<string, { icon: string; msg: string }>;
 }
 
@@ -97,6 +99,8 @@ const fa: I18n = {
   callSpeakerLabel: "بلندگو",
   endedTitle: "تماس پایان یافت",
   endedAgain: "🔄  تماس مجدد",
+  endedReconnectHint: "میخوای با یه نفر دیگه صحبت کنی؟",
+  endedDismiss: "نه، ممنون",
   reasons: {
     user_ended:           { icon: "📵", msg: "تماس توسط شما پایان یافت." },
     partner_ended:        { icon: "👋", msg: "طرف مقابل تماس را قطع کرد." },
@@ -148,6 +152,8 @@ const en: I18n = {
   callSpeakerLabel: "Speaker",
   endedTitle: "Call Ended",
   endedAgain: "🔄  New Call",
+  endedReconnectHint: "Want to talk to someone else?",
+  endedDismiss: "No thanks",
   reasons: {
     user_ended:           { icon: "📵", msg: "You ended the call." },
     partner_ended:        { icon: "👋", msg: "Partner disconnected." },

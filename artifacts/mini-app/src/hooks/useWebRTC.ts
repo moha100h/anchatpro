@@ -2,29 +2,29 @@ import { useRef, useCallback, useEffect } from "react";
 import type { IceServer } from "../types.js";
 
 interface Opts {
-  iceServers:   IceServer[];
-  localRef:     React.RefObject<HTMLVideoElement | null>;
-  remoteRef:    React.RefObject<HTMLVideoElement | null>;
-  callType:     "voice" | "video";
-  isReceiver:   boolean;
-  onIceCand:    (cand: RTCIceCandidateInit) => void;
-  onOffer:      (sdp: string) => void;
-  onAnswer:     (sdp: string) => void;
-  onReady:      () => void;
-  onEnded:      (reason: string) => void;
-  onStream?:    (stream: MediaStream) => void;
+  iceServers:      IceServer[];
+  localRef:        React.RefObject<HTMLVideoElement | null>;
+  remoteRef:       React.RefObject<HTMLVideoElement | null>;
+  remoteAudioRef?: React.RefObject<HTMLAudioElement | null>;
+  callType:        "voice" | "video";
+  isReceiver:      boolean;
+  onIceCand:       (cand: RTCIceCandidateInit) => void;
+  onOffer:         (sdp: string) => void;
+  onAnswer:        (sdp: string) => void;
+  onReady:         () => void;
+  onEnded:         (reason: string) => void;
+  onStream?:       (stream: MediaStream) => void;
 }
 
 export function useWebRTC(opts: Opts) {
   const pcRef            = useRef<RTCPeerConnection | null>(null);
   const streamRef        = useRef<MediaStream | null>(null);
-  // Queue ICE candidates that arrive before remote description is set
   const iceCandQueueRef  = useRef<RTCIceCandidateInit[]>([]);
-  // Store offer that arrives before PC is created (race condition fix)
   const pendingOfferRef  = useRef<string | null>(null);
   const remoteDescSetRef = useRef(false);
   const readyFiredRef    = useRef(false);
-  // Use ref for opts to avoid stale closures without re-creating callbacks
+  // Prevent false onEnded when PC is closed intentionally (cleanup/unmount)
+  const isClosingRef     = useRef(false);
   const optsRef          = useRef(opts);
   optsRef.current = opts;
 
@@ -47,9 +47,14 @@ export function useWebRTC(opts: Opts) {
 
   const setupPC = useCallback((pc: RTCPeerConnection) => {
     pc.ontrack = (ev) => {
-      const [remoteStream] = ev.streams;
-      if (optsRef.current.remoteRef.current && remoteStream) {
-        optsRef.current.remoteRef.current.srcObject = remoteStream;
+      const stream = ev.streams[0] ?? new MediaStream(ev.track ? [ev.track] : []);
+      // Video element (video calls)
+      if (optsRef.current.remoteRef.current && stream) {
+        optsRef.current.remoteRef.current.srcObject = stream;
+      }
+      // Audio element (voice calls — hidden <audio> element)
+      if (optsRef.current.remoteAudioRef?.current && stream) {
+        optsRef.current.remoteAudioRef.current.srcObject = stream;
       }
       fireReady();
     };
@@ -61,20 +66,24 @@ export function useWebRTC(opts: Opts) {
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === "connected") fireReady();
-      if (state === "failed" || state === "closed") {
+      // Only end on "failed" — NOT on "closed" (that fires during intentional cleanup)
+      if (state === "failed" && !isClosingRef.current) {
         optsRef.current.onEnded("connection_failed");
       }
     };
 
-    // Additional fallback: ICE connection state
     pc.oniceconnectionstatechange = () => {
       const s = pc.iceConnectionState;
       if (s === "connected" || s === "completed") fireReady();
-      if (s === "failed") optsRef.current.onEnded("connection_failed");
+      // "disconnected" is transient; "failed" is permanent
+      if (s === "failed" && !isClosingRef.current) {
+        optsRef.current.onEnded("connection_failed");
+      }
     };
   }, [fireReady]);
 
   const cleanup = useCallback(() => {
+    isClosingRef.current = true;   // mark intentional close before closing PC
     pcRef.current?.close();
     pcRef.current = null;
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -86,10 +95,19 @@ export function useWebRTC(opts: Opts) {
   }, []);
 
   const start = useCallback(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: true,
-      video: optsRef.current.callType === "video",
-    });
+    isClosingRef.current = false;  // reset for new call
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: optsRef.current.callType === "video",
+      });
+    } catch {
+      // Permission denied or device unavailable
+      optsRef.current.onEnded("connection_failed");
+      return;
+    }
+
     streamRef.current = stream;
     optsRef.current.onStream?.(stream);
 
@@ -99,6 +117,7 @@ export function useWebRTC(opts: Opts) {
 
     const pc = new RTCPeerConnection({
       iceServers: optsRef.current.iceServers as RTCIceServer[],
+      iceTransportPolicy: "all",
     });
     pcRef.current = pc;
     stream.getTracks().forEach(t => pc.addTrack(t, stream));
@@ -106,48 +125,54 @@ export function useWebRTC(opts: Opts) {
 
     if (!optsRef.current.isReceiver) {
       // Caller: create and send offer immediately
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      optsRef.current.onOffer(offer.sdp!);
+      try {
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: optsRef.current.callType === "video" });
+        await pc.setLocalDescription(offer);
+        optsRef.current.onOffer(offer.sdp!);
+      } catch { optsRef.current.onEnded("connection_failed"); }
     } else if (pendingOfferRef.current) {
       // Receiver: offer arrived before PC was ready — process it now
       const sdp = pendingOfferRef.current;
       pendingOfferRef.current = null;
-      await pc.setRemoteDescription({ type: "offer", sdp });
-      remoteDescSetRef.current = true;
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-      optsRef.current.onAnswer(answer.sdp!);
-      await drainIceCandidates();
+      try {
+        await pc.setRemoteDescription({ type: "offer", sdp });
+        remoteDescSetRef.current = true;
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        optsRef.current.onAnswer(answer.sdp!);
+        await drainIceCandidates();
+      } catch { optsRef.current.onEnded("connection_failed"); }
     }
   }, [setupPC, drainIceCandidates]);
 
   const handleOffer = useCallback(async (sdp: string) => {
     const pc = pcRef.current;
     if (!pc) {
-      // PC not created yet (getUserMedia still running) — queue for start()
       pendingOfferRef.current = sdp;
       return;
     }
-    await pc.setRemoteDescription({ type: "offer", sdp });
-    remoteDescSetRef.current = true;
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    optsRef.current.onAnswer(answer.sdp!);
-    await drainIceCandidates();
+    try {
+      await pc.setRemoteDescription({ type: "offer", sdp });
+      remoteDescSetRef.current = true;
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      optsRef.current.onAnswer(answer.sdp!);
+      await drainIceCandidates();
+    } catch { /* ignore stale / invalid offer */ }
   }, [drainIceCandidates]);
 
   const handleAnswer = useCallback(async (sdp: string) => {
     const pc = pcRef.current;
     if (!pc) return;
-    await pc.setRemoteDescription({ type: "answer", sdp });
-    remoteDescSetRef.current = true;
-    await drainIceCandidates();
+    try {
+      await pc.setRemoteDescription({ type: "answer", sdp });
+      remoteDescSetRef.current = true;
+      await drainIceCandidates();
+    } catch { /* ignore */ }
   }, [drainIceCandidates]);
 
   const handleIceCandidate = useCallback(async (cand: RTCIceCandidateInit) => {
     if (!remoteDescSetRef.current || !pcRef.current) {
-      // Remote description not set yet — queue until after setRemoteDescription
       iceCandQueueRef.current.push(cand);
       return;
     }

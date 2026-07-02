@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { IceServer } from "../types.js";
 import { useWebRTC } from "../hooks/useWebRTC.js";
 import { translations } from "../i18n.js";
@@ -21,35 +21,36 @@ const BAR_COUNT = 7;
 
 export function CallScreen(props: Props) {
   const t = translations[props.lang];
-  const localRef  = useRef<HTMLVideoElement | null>(null);
-  const remoteRef = useRef<HTMLVideoElement | null>(null);
+  const localRef   = useRef<HTMLVideoElement | null>(null);
+  const remoteRef  = useRef<HTMLVideoElement | null>(null);
+  const audioRef   = useRef<HTMLAudioElement | null>(null);   // remote audio for voice calls
   const [duration,   setDuration]   = useState(0);
   const [connected,  setConnected]  = useState(false);
   const [muted,      setMuted]      = useState(false);
+  const [speakerOn,  setSpeakerOn]  = useState(false);
   const streamRef = useRef<MediaStream | null>(null);
 
   const { start, handleOffer, handleAnswer, handleIceCandidate, cleanup } = useWebRTC({
-    iceServers:  props.iceServers,
+    iceServers:     props.iceServers,
     localRef,
     remoteRef,
-    callType:    props.callType,
-    isReceiver:  props.isReceiver,
-    onIceCand:   (c) => props.onSend({ type: "ice_candidate", candidate: c }),
-    onOffer:     (s) => props.onSend({ type: "offer",  sdp: s }),
-    onAnswer:    (s) => props.onSend({ type: "answer", sdp: s }),
-    onReady:     ()  => setConnected(true),
-    onEnded:     (r) => props.onEnded(r),
-    onStream:    (s) => { streamRef.current = s; },
+    remoteAudioRef: audioRef,
+    callType:       props.callType,
+    isReceiver:     props.isReceiver,
+    onIceCand:      (c) => props.onSend({ type: "ice_candidate", candidate: c }),
+    onOffer:        (s) => props.onSend({ type: "offer",  sdp: s }),
+    onAnswer:       (s) => props.onSend({ type: "answer", sdp: s }),
+    onReady:        () => setConnected(true),
+    onEnded:        (r) => props.onEnded(r),
+    onStream:       (s) => { streamRef.current = s; },
   });
 
-  // Track how many peerCands we've already processed (avoids re-processing)
   const processedCandsRef = useRef(0);
 
   useEffect(() => { start(); return () => cleanup(); }, []);
   useEffect(() => { if (props.peerOffer)  handleOffer(props.peerOffer);  }, [props.peerOffer]);
   useEffect(() => { if (props.peerAnswer) handleAnswer(props.peerAnswer); }, [props.peerAnswer]);
 
-  // Process only newly arrived ICE candidates (never skip, never double-process)
   useEffect(() => {
     const cands = props.peerCands ?? [];
     const newOnes = cands.slice(processedCandsRef.current);
@@ -59,12 +60,12 @@ export function CallScreen(props: Props) {
 
   useEffect(() => {
     if (!connected) return;
-    const t = setInterval(() => setDuration(d => d + 1), 1000);
-    return () => clearInterval(t);
+    const id = setInterval(() => setDuration(d => d + 1), 1000);
+    return () => clearInterval(id);
   }, [connected]);
 
-  const mm  = String(Math.floor(duration / 60)).padStart(2, "0");
-  const ss  = String(duration % 60).padStart(2, "0");
+  const mm = String(Math.floor(duration / 60)).padStart(2, "0");
+  const ss = String(duration % 60).padStart(2, "0");
 
   const endCall = () => {
     cleanup();
@@ -79,11 +80,32 @@ export function CallScreen(props: Props) {
     setMuted(m => !m);
   };
 
+  const toggleSpeaker = useCallback(async () => {
+    const audio = audioRef.current as any;
+    const next = !speakerOn;
+    setSpeakerOn(next);
+    if (audio && typeof audio.setSinkId === "function") {
+      try {
+        // 'speaker' deviceId not valid; use '' for default speaker or enumerate
+        if (next) {
+          const devices = await navigator.mediaDevices.enumerateDevices().catch(() => [] as MediaDeviceInfo[]);
+          const spk = devices.find(d => d.kind === "audiooutput" && d.label.toLowerCase().includes("speaker"));
+          await audio.setSinkId(spk?.deviceId ?? "");
+        } else {
+          await audio.setSinkId("default");
+        }
+      } catch { /* setSinkId not supported on this device */ }
+    }
+  }, [speakerOn]);
+
+  // ── Video call ──────────────────────────────────────────────────────────
   if (props.callType === "video") {
     return (
       <div style={sv.wrap}>
         <video ref={remoteRef as any} autoPlay playsInline style={sv.remote} />
         <video ref={localRef  as any} autoPlay playsInline muted style={sv.local} />
+        {/* Hidden audio element also needed for audio track */}
+        <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
 
         <div style={sv.overlay}>
           <div style={sv.topBar}>
@@ -107,6 +129,9 @@ export function CallScreen(props: Props) {
   // ── Voice call ──────────────────────────────────────────────────────────
   return (
     <div style={voiceS.page}>
+      {/* Hidden audio element — plays remote audio stream */}
+      <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
+
       <div style={voiceS.topBar}>
         {connected
           ? <div style={voiceS.statusOn}><span style={voiceS.dot} /> {t.callConnected}</div>
@@ -122,7 +147,6 @@ export function CallScreen(props: Props) {
 
         <div style={voiceS.timer}>{mm}:{ss}</div>
 
-        {/* Equalizer bars */}
         {connected && (
           <div style={voiceS.eq}>
             {Array.from({ length: BAR_COUNT }).map((_, i) => (
@@ -137,11 +161,16 @@ export function CallScreen(props: Props) {
           <span style={voiceS.ctrlIcon}>{muted ? "🔇" : "🎙️"}</span>
           <span style={voiceS.ctrlLbl}>{muted ? t.callMuteLabel : t.callUnmuteLabel}</span>
         </button>
+
         <button style={voiceS.endCircle} onClick={endCall}>
           <span style={{ fontSize: "28px" }}>📵</span>
         </button>
-        <button style={voiceS.ctrlBtn}>
-          <span style={voiceS.ctrlIcon}>🔊</span>
+
+        <button
+          style={{ ...voiceS.ctrlBtn, ...(speakerOn ? voiceS.ctrlBtnActive : {}) }}
+          onClick={toggleSpeaker}
+        >
+          <span style={voiceS.ctrlIcon}>{speakerOn ? "🔊" : "🔈"}</span>
           <span style={voiceS.ctrlLbl}>{t.callSpeakerLabel}</span>
         </button>
       </div>
@@ -167,13 +196,13 @@ const sv: Record<string, React.CSSProperties> = {
 
 // Voice styles
 const voiceS: Record<string, React.CSSProperties> = {
-  page:       { minHeight: "100vh", display: "flex", flexDirection: "column", padding: "20px 20px 36px", animation: "fadeUp .35s ease both" },
-  topBar:     { display: "flex", justifyContent: "space-between", alignItems: "center" },
-  statusOn:   { display: "flex", alignItems: "center", gap: "6px", fontSize: "15px", fontWeight: 600 },
-  statusWait: { fontSize: "14px", color: "var(--muted)" },
-  dot:        { width: "8px", height: "8px", borderRadius: "50%", background: "#10b981", display: "inline-block", boxShadow: "0 0 8px rgba(16,185,129,0.7)" },
-  coinsBadge: { fontSize: "13px", fontWeight: 600, color: "var(--gold)", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "20px", padding: "4px 12px" },
-  avatarWrap: { position: "relative", display: "flex", alignItems: "center", justifyContent: "center" },
+  page:        { minHeight: "100vh", display: "flex", flexDirection: "column", padding: "20px 20px 36px", animation: "fadeUp .35s ease both" },
+  topBar:      { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  statusOn:    { display: "flex", alignItems: "center", gap: "6px", fontSize: "15px", fontWeight: 600 },
+  statusWait:  { fontSize: "14px", color: "var(--muted)" },
+  dot:         { width: "8px", height: "8px", borderRadius: "50%", background: "#10b981", display: "inline-block", boxShadow: "0 0 8px rgba(16,185,129,0.7)" },
+  coinsBadge:  { fontSize: "13px", fontWeight: 600, color: "var(--gold)", background: "rgba(251,191,36,0.1)", border: "1px solid rgba(251,191,36,0.2)", borderRadius: "20px", padding: "4px 12px" },
+  avatarWrap:  { position: "relative", display: "flex", alignItems: "center", justifyContent: "center" },
   avatar: {
     width: "120px", height: "120px", borderRadius: "50%",
     background: "linear-gradient(135deg,rgba(124,58,237,0.25),rgba(37,99,235,0.25))",
@@ -186,7 +215,7 @@ const voiceS: Record<string, React.CSSProperties> = {
     border: "2px solid rgba(124,58,237,0.4)",
     animation: "pulsering 2s ease-out infinite",
   },
-  timer:  { fontSize: "52px", fontWeight: 800, letterSpacing: "4px", fontVariantNumeric: "tabular-nums", color: "#fff" },
+  timer:   { fontSize: "52px", fontWeight: 800, letterSpacing: "4px", fontVariantNumeric: "tabular-nums", color: "#fff" },
   eq: { display: "flex", gap: "5px", alignItems: "flex-end", height: "36px" },
   bar: {
     width: "5px", borderRadius: "3px",
@@ -195,9 +224,10 @@ const voiceS: Record<string, React.CSSProperties> = {
     transformOrigin: "bottom",
     height: "100%",
   },
-  controls:   { display: "flex", justifyContent: "center", alignItems: "center", gap: "20px" },
-  ctrlBtn:    { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "18px", padding: "14px 20px", color: "var(--text)", cursor: "pointer" },
-  ctrlIcon:   { fontSize: "24px" },
-  ctrlLbl:    { fontSize: "11px", color: "var(--muted)", fontWeight: 600 },
-  endCircle:  { width: "72px", height: "72px", borderRadius: "50%", border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(239,68,68,0.5)" },
+  controls:    { display: "flex", justifyContent: "center", alignItems: "center", gap: "20px" },
+  ctrlBtn:     { display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "18px", padding: "14px 20px", color: "var(--text)", cursor: "pointer" },
+  ctrlBtnActive: { background: "rgba(124,58,237,0.2)", border: "1px solid rgba(124,58,237,0.5)" },
+  ctrlIcon:    { fontSize: "24px" },
+  ctrlLbl:     { fontSize: "11px", color: "var(--muted)", fontWeight: 600 },
+  endCircle:   { width: "72px", height: "72px", borderRadius: "50%", border: "none", background: "#ef4444", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 8px 32px rgba(239,68,68,0.5)" },
 };

@@ -13,24 +13,16 @@ function _resolveCallAppUrl(): string {
 }
 export const CALL_APP_URL = process.env["CALL_MINI_APP_URL"] ?? _resolveCallAppUrl();
 
-// Module-level toggle — seeded from DB on startup, updated live by admin handler
-let _callBtnEnabled = true;
-export function setCallBtnEnabled(v: boolean): void { _callBtnEnabled = v; }
-
 export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
-  const kb = new Keyboard()
+  return new Keyboard()
     .text(i.menuConnect).text(i.menuGroup).row()
     .text(i.menuAnonProLink).text(i.menuMyLink).row()
     .text(i.menuMagic).row()
     .text(i.menuCoins).text(i.menuReferral).row()
-    .text(i.menuHelp).text(i.menuSettings);
-
-  if (_callBtnEnabled) {
-    kb.row().webApp(i.menuCall, CALL_APP_URL);
-  }
-
-  return kb.resized().persistent();
+    .text(i.menuHelp).text(i.menuSettings)
+    .resized()
+    .persistent();
 }
 
 export function magicMenuKeyboard(lang: Lang) {

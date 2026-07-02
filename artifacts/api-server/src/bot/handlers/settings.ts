@@ -52,6 +52,12 @@ export function registerSettingsHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     if (!user) return;
     const lang = (user.language as "fa" | "en") ?? "fa";
+    // Clear any stale payment/step session state
+    ctx.session.step                    = undefined;
+    ctx.session.pendingPaymentMethod    = undefined;
+    ctx.session.pendingPaymentPackageId = undefined;
+    ctx.session.pendingDiscountCodeId   = undefined;
+    ctx.session.pendingDiscountPercent  = undefined;
 
     const genderLabel =
       user.gender === "male"   ? t(lang).male

@@ -525,7 +525,7 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     ];
     let method: "card" | "crypto" | "gateway" | "plisio" | "stars" | null = null;
     for (const gw of GW_MAP) {
-      if (gw.names.some(n => text === n || text.startsWith(n.slice(0, 2)))) {
+      if (gw.names.some(n => text === n)) {
         method = gw.method;
         break;
       }

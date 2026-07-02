@@ -302,6 +302,57 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       return;
     }
 
+    // ── 1f. Handle Plisio payment return (success / expired / fail) ─────────
+    if (arg.startsWith("plisio_ok")) {
+      const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+      const lang = (user.language as "fa" | "en") ?? "fa";
+      await ctx.reply(
+        lang === "fa"
+          ? "✅ <b>پرداخت با موفقیت انجام شد!</b>\n\n" +
+            "سکه‌های خریداری‌شده به حسابتان اضافه شدند.\n" +
+            "می‌توانید موجودی خود را از منوی اصلی مشاهده کنید."
+          : "✅ <b>Payment successful!</b>\n\n" +
+            "Your purchased coins have been added to your account.\n" +
+            "You can check your balance from the main menu.",
+        { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
+      );
+      return;
+    }
+
+    if (arg.startsWith("plisio_exp")) {
+      const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+      const lang = (user.language as "fa" | "en") ?? "fa";
+      await ctx.reply(
+        lang === "fa"
+          ? "⏰ <b>مهلت پرداخت منقضی شد</b>\n\n" +
+            "لینک پرداخت Plisio پس از ۳۰ دقیقه منقضی می‌شود.\n" +
+            "برای خرید مجدد سکه از منوی 🪙 <b>خرید سکه</b> اقدام کنید."
+          : "⏰ <b>Payment link expired</b>\n\n" +
+            "Plisio payment links expire after 30 minutes.\n" +
+            "To buy coins again, use the 🪙 <b>Buy Coins</b> menu.",
+        { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
+      );
+      return;
+    }
+
+    if (arg.startsWith("plisio_fail") || arg.startsWith("plisio_cancel")) {
+      const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+      const lang = (user.language as "fa" | "en") ?? "fa";
+      await ctx.reply(
+        lang === "fa"
+          ? "❌ <b>پرداخت انجام نشد</b>\n\n" +
+            "تراکنش شما لغو یا ناموفق بود.\n" +
+            "اگر مبلغی از کیف پول کسر شده، با پشتیبانی تماس بگیرید.\n" +
+            "در غیر این صورت می‌توانید مجدداً از منوی 🪙 <b>خرید سکه</b> اقدام کنید."
+          : "❌ <b>Payment not completed</b>\n\n" +
+            "Your transaction was cancelled or failed.\n" +
+            "If funds were deducted from your wallet, please contact support.\n" +
+            "Otherwise, you can try again from the 🪙 <b>Buy Coins</b> menu.",
+        { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
+      );
+      return;
+    }
+
     // ── 2. Extract referral code (supports inv / ref_ / r_ formats) ─────────
     let referralCode: string | undefined;
     if (arg.startsWith("inv"))      referralCode = arg.slice(3);

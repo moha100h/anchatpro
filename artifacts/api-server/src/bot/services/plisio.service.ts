@@ -15,6 +15,7 @@ import { plisioTransactionsTable, paymentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { addCoins } from "./coin.service.js";
 import { getSetting } from "./payment.service.js";
+import { getBotUsername } from "../bot-instance.js";
 import { nanoid } from "nanoid";
 
 const PLISIO_BASE_URL = "https://api.plisio.net/api/v1";
@@ -115,6 +116,12 @@ export async function createPlisioOrder(
     allowed_psys_cids: allowedCurrencies,
     expire_min:        "30",
   });
+
+  const botUsername = getBotUsername();
+  if (botUsername) {
+    params.set("success_callback_url", `https://t.me/${botUsername}?start=plisio_ok`);
+    params.set("fail_callback_url",    `https://t.me/${botUsername}?start=plisio_exp`);
+  }
 
   try {
     const res = await fetch(`${PLISIO_BASE_URL}/invoices/new?${params}`, {

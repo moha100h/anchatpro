@@ -7,6 +7,7 @@ import type { Bot } from "grammy";
 import type { BotContext } from "./context.js";
 
 let _bot: Bot<BotContext> | null = null;
+let _botUsername: string | null = null;
 
 export function setBotInstance(bot: Bot<BotContext>): void {
   _bot = bot;
@@ -14,4 +15,12 @@ export function setBotInstance(bot: Bot<BotContext>): void {
 
 export function getBotInstance(): Bot<BotContext> | null {
   return _bot;
+}
+
+export function setBotUsername(username: string): void {
+  _botUsername = username;
+}
+
+export function getBotUsername(): string | null {
+  return _botUsername;
 }

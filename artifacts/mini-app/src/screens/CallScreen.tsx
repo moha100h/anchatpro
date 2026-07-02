@@ -10,7 +10,7 @@ interface Props {
   onEnded:     (reason: string) => void;
   peerOffer?:  string;
   peerAnswer?: string;
-  peerCand?:   RTCIceCandidateInit;
+  peerCands?:  RTCIceCandidateInit[];
   coinsSpent:  number;
 }
 
@@ -38,10 +38,20 @@ export function CallScreen(props: Props) {
     onStream:    (s) => { streamRef.current = s; },
   });
 
+  // Track how many peerCands we've already processed (avoids re-processing)
+  const processedCandsRef = useRef(0);
+
   useEffect(() => { start(); return () => cleanup(); }, []);
   useEffect(() => { if (props.peerOffer)  handleOffer(props.peerOffer);  }, [props.peerOffer]);
   useEffect(() => { if (props.peerAnswer) handleAnswer(props.peerAnswer); }, [props.peerAnswer]);
-  useEffect(() => { if (props.peerCand)   handleIceCandidate(props.peerCand); }, [props.peerCand]);
+
+  // Process only newly arrived ICE candidates (never skip, never double-process)
+  useEffect(() => {
+    const cands = props.peerCands ?? [];
+    const newOnes = cands.slice(processedCandsRef.current);
+    processedCandsRef.current = cands.length;
+    newOnes.forEach(c => handleIceCandidate(c));
+  }, [props.peerCands]);
 
   useEffect(() => {
     if (!connected) return;

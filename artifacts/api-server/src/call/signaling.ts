@@ -217,7 +217,12 @@ async function handleMessage(client: CallClient, raw: string): Promise<void> {
     const turnCred   = (await getSetting("call_turn_credential")) ?? "";
 
     const iceServers = [
+      // STUN: public Google servers always included as base fallback
+      { urls: "stun:stun.l.google.com:19302" },
+      { urls: "stun:stun1.l.google.com:19302" },
+      // STUN on configured TURN host
       { urls: `stun:${turnHost}:${turnPort}` },
+      // TURN: only if credentials are configured
       ...(turnUser && turnCred
         ? [{
             urls: [`turn:${turnHost}:${turnPort}`, `turns:${turnHost}:5349`],

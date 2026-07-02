@@ -72,6 +72,7 @@ server.listen(port, async () => {
         const otherDefaults: Record<string, string> = {
           call_enabled:              "1",
           call_video_enabled:        "1",
+          call_mini_app_enabled:     "1",
           call_cost_voice_random:    "3",
           call_cost_voice_gender:    "5",
           call_cost_video_random:    "6",
@@ -84,6 +85,18 @@ server.listen(port, async () => {
           const existing = await getSetting(key);
           if (existing === null || existing === undefined) {
             await setSetting(key, val);
+          }
+        }
+
+        // Auto-seed TURN credentials from env (set by install.sh or manually)
+        const turnUsername = process.env["TURN_USERNAME"] ?? "";
+        const turnPassword = process.env["TURN_PASSWORD"] ?? "";
+        if (turnUsername && turnPassword) {
+          const existingUser = await getSetting("call_turn_username");
+          if (!existingUser) {
+            await setSetting("call_turn_username", turnUsername);
+            await setSetting("call_turn_credential", turnPassword);
+            logger.info({ turnUsername }, "TURN credentials auto-seeded from env");
           }
         }
         logger.info({ miniAppUrl, turnHost }, "Call settings auto-configured");

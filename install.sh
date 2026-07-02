@@ -213,9 +213,12 @@ pnpm --filter @workspace/db run push-force 2>&1 | tail -5 \
         || die "Database schema push failed."; }
 ok "Database schema applied"
 
-# Safe migration (no-op if already done)
+# Safe migrations (no-op if already done)
 PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
     -c "ALTER TABLE backup_config RENAME COLUMN schedule_hours TO schedule_minutes;" \
+    >/dev/null 2>&1 || true
+PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+    -c "ALTER TYPE tx_type ADD VALUE IF NOT EXISTS 'call_cost';" \
     >/dev/null 2>&1 || true
 
 # ─── Step 10: PM2 ────────────────────────────────────────────────────────────
@@ -370,24 +373,24 @@ if ! command -v turnserver &>/dev/null; then
     esac
 fi
 
-# Generate TURN secret
-TURN_SECRET="$(openssl rand -hex 24 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(24))')"
+# Static credentials (simpler than HMAC — works directly with the bot)
+TURN_USERNAME="anchatbot_turn"
+TURN_PASSWORD="$(openssl rand -hex 20 2>/dev/null || python3 -c 'import secrets; print(secrets.token_hex(20))')"
+TURN_EXT_IP="${SERVER_IP:-$(curl -s --max-time 5 https://ifconfig.me/ip 2>/dev/null || echo ${PUBLIC_DOMAIN})}"
 
 # Write coturn config
 TURN_CONF="/etc/turnserver.conf"
 cat > "$TURN_CONF" << TURNEOF
 listening-port=3478
 tls-listening-port=5349
-external-ip=${SERVER_IP:-$(curl -s https://ifconfig.me/ip 2>/dev/null)}
+external-ip=${TURN_EXT_IP}
 server-name=${PUBLIC_DOMAIN}
 realm=${PUBLIC_DOMAIN}
 fingerprint
 lt-cred-mech
-use-auth-secret
-static-auth-secret=${TURN_SECRET}
+user=${TURN_USERNAME}:${TURN_PASSWORD}
 min-port=49152
 max-port=65535
-verbose
 TURNEOF
 
 # Add TLS cert if available
@@ -407,11 +410,14 @@ sleep 2
 
 if systemctl is-active --quiet coturn 2>/dev/null || service coturn status >/dev/null 2>&1; then
     ok "coturn TURN server running on port 3478"
-    # Save TURN credentials to .env for reference
-    echo "TURN_SECRET=${TURN_SECRET}" >> "$ENV_FILE"
 else
     warn "coturn may not be running — check: systemctl status coturn"
 fi
+
+# Save TURN credentials to .env (auto-seeded into DB on startup)
+echo "TURN_USERNAME=${TURN_USERNAME}" >> "$ENV_FILE"
+echo "TURN_PASSWORD=${TURN_PASSWORD}" >> "$ENV_FILE"
+export TURN_USERNAME TURN_PASSWORD
 
 # ─── Step 14: Health check ───────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 13 — Health check${NC}"

@@ -1,4 +1,4 @@
-import { db, usersTable } from "@workspace/db";
+import { db, usersTable, coinTransactionsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { getSetting } from "../bot/services/payment.service.js";
 
@@ -12,7 +12,6 @@ const COST_DEFAULTS: Record<string, number> = {
   call_cost_video_gender: 10,
 };
 
-/** Returns coin cost for callType + genderFilter combo */
 export async function getCallCost(callType: CallType, genderFilter: GenderFilter): Promise<number> {
   const key =
     callType === "voice"
@@ -22,7 +21,6 @@ export async function getCallCost(callType: CallType, genderFilter: GenderFilter
   return val ? Math.max(0, parseInt(val, 10)) : COST_DEFAULTS[key]!;
 }
 
-/** Get current coin balance */
 export async function getUserCoins(userId: number): Promise<number> {
   const [user] = await db
     .select({ coins: usersTable.coins })
@@ -35,7 +33,7 @@ export async function getUserCoins(userId: number): Promise<number> {
 /**
  * Atomically deducts coins from BOTH users in one transaction.
  * Row-level locking in consistent ID order prevents deadlocks.
- * If either user cannot afford it → no deduction occurs.
+ * Records a `call_cost` transaction entry for each user.
  */
 export async function deductCallCoinsFromBoth(
   callerUserId:   number,
@@ -51,7 +49,7 @@ export async function deductCallCoinsFromBoth(
       .select({ telegramId: usersTable.telegramId, coins: usersTable.coins })
       .from(usersTable)
       .where(sql`${usersTable.telegramId} = ANY(ARRAY[${callerUserId}::bigint, ${receiverUserId}::bigint])`)
-      .orderBy(usersTable.telegramId) // consistent lock order → no deadlock
+      .orderBy(usersTable.telegramId)
       .for("update");
 
     const callerRow   = rows.find(r => r.telegramId === callerUserId);
@@ -66,15 +64,35 @@ export async function deductCallCoinsFromBoth(
 
     const [c] = await tx
       .update(usersTable)
-      .set({ coins: sql`${usersTable.coins} - ${callerAmount}` })
+      .set({ coins: sql`${usersTable.coins} - ${callerAmount}`, updatedAt: new Date() })
       .where(eq(usersTable.telegramId, callerUserId))
       .returning({ coins: usersTable.coins });
 
     const [r] = await tx
       .update(usersTable)
-      .set({ coins: sql`${usersTable.coins} - ${receiverAmount}` })
+      .set({ coins: sql`${usersTable.coins} - ${receiverAmount}`, updatedAt: new Date() })
       .where(eq(usersTable.telegramId, receiverUserId))
       .returning({ coins: usersTable.coins });
+
+    // Record transaction history for both users
+    await tx.insert(coinTransactionsTable).values([
+      {
+        userId:        callerUserId,
+        amount:        -callerAmount,
+        type:          "call_cost",
+        description:   "تماس ناشناس",
+        balanceBefore: callerRow!.coins,
+        balanceAfter:  c!.coins,
+      },
+      {
+        userId:        receiverUserId,
+        amount:        -receiverAmount,
+        type:          "call_cost",
+        description:   "تماس ناشناس",
+        balanceBefore: receiverRow!.coins,
+        balanceAfter:  r!.coins,
+      },
+    ]);
 
     return { success: true as const, callerBalance: c!.coins, receiverBalance: r!.coins };
   });

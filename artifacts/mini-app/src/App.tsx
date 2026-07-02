@@ -21,7 +21,8 @@ export default function App() {
   const [loading,     setLoading]     = useState(false);
   const [peerOffer,   setPeerOffer]   = useState<string | undefined>();
   const [peerAnswer,  setPeerAnswer]  = useState<string | undefined>();
-  const [peerCand,    setPeerCand]    = useState<RTCIceCandidateInit | undefined>();
+  // Array: accumulate ALL candidates so none are lost to React batching
+  const [peerCands,   setPeerCands]   = useState<RTCIceCandidateInit[]>([]);
 
   const sendRef = useRef<((msg: object) => void) | null>(null);
 
@@ -73,7 +74,7 @@ export default function App() {
         break;
       case "offer":         setPeerOffer((msg as any).sdp);  break;
       case "answer":        setPeerAnswer((msg as any).sdp); break;
-      case "ice_candidate": setPeerCand((msg as any).candidate); break;
+      case "ice_candidate": setPeerCands(prev => [...prev, (msg as any).candidate]); break;
       case "partner_left":
       case "call_ended":    setEndReason("partner_ended"); setScreen("ended"); break;
       case "force_end":     setEndReason((msg as any).reason); setScreen("ended"); break;
@@ -95,11 +96,11 @@ export default function App() {
 
   const endCall = useCallback((reason: string) => {
     setEndReason(reason); setScreen("ended");
-    setPeerOffer(undefined); setPeerAnswer(undefined); setPeerCand(undefined);
+    setPeerOffer(undefined); setPeerAnswer(undefined); setPeerCands([]);
   }, []);
 
   const startAgain = useCallback(async () => {
-    setPeerOffer(undefined); setPeerAnswer(undefined); setPeerCand(undefined);
+    setPeerOffer(undefined); setPeerAnswer(undefined); setPeerCands([]);
     setError(null); setScreen("home");
     try {
       const bal = await fetch(`${API_BASE}/balance`, { headers: apiHeaders() }).then(r => r.json());
@@ -140,7 +141,7 @@ export default function App() {
         <CallScreen
           callType={callType} isReceiver={isReceiver} iceServers={iceServers}
           coinsSpent={coinsSpent} onSend={send} onEnded={endCall}
-          peerOffer={peerOffer} peerAnswer={peerAnswer} peerCand={peerCand}
+          peerOffer={peerOffer} peerAnswer={peerAnswer} peerCands={peerCands}
         />
       );
     case "ended":

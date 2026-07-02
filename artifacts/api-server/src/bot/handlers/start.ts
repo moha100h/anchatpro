@@ -26,7 +26,7 @@ import {
 } from "../services/group.service.js";
 import { eq as eqDrizzle } from "drizzle-orm";
 import { t } from "../i18n/index.js";
-import { languageKeyboard, genderKeyboard, mainMenuKeyboard, groupControlKeyboard } from "../keyboards/main.js";
+import { languageKeyboard, genderKeyboard, mainMenuKeyboard, groupControlKeyboard, coinsSubMenuKeyboard } from "../keyboards/main.js";
 
 // Bilingual welcome shown before language is selected
 const BILINGUAL_WELCOME =
@@ -333,11 +333,6 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       }
 
       const balance = await getBalance(tgId);
-      const { InlineKeyboard } = await import("grammy");
-      const okKb = new InlineKeyboard().text(
-        lang === "fa" ? "🛒 خرید سکه بیشتر" : "🛒 Buy More Coins",
-        "buy_coins"
-      );
 
       await ctx.reply(
         lang === "fa"
@@ -347,7 +342,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
           : `✅ <b>Payment successful!</b>\n\n` +
             `🪙 Coins purchased: <b>${recentTx.coins} coins</b>\n` +
             `💰 Current balance: <b>${balance} coins</b>`,
-        { parse_mode: "HTML", reply_markup: okKb }
+        { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
       );
       return;
     }
@@ -383,21 +378,15 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         return;
       }
 
-      const { InlineKeyboard } = await import("grammy");
-      const expKb = new InlineKeyboard().text(
-        lang === "fa" ? "🛒 خرید سکه" : "🛒 Buy Coins",
-        "buy_coins"
-      );
-
       await ctx.reply(
         lang === "fa"
           ? `⏰ <b>مهلت پرداخت منقضی شد</b>\n\n` +
             `لینک پرداخت Plisio پس از ۳۰ دقیقه منقضی می‌شود.\n` +
-            `برای خرید مجدد سکه از دکمه زیر اقدام کنید.`
+            `برای خرید مجدد سکه از دکمه 🛒 خرید سکه استفاده کنید.`
           : `⏰ <b>Payment link expired</b>\n\n` +
             `Plisio payment links expire after 30 minutes.\n` +
-            `Use the button below to buy coins again.`,
-        { parse_mode: "HTML", reply_markup: expKb }
+            `Use the 🛒 Buy Coins button to try again.`,
+        { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
       );
       return;
     }
@@ -434,23 +423,17 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         return;
       }
 
-      const { InlineKeyboard } = await import("grammy");
-      const failKb = new InlineKeyboard().text(
-        lang === "fa" ? "🛒 تلاش مجدد" : "🛒 Try Again",
-        "buy_coins"
-      );
-
       await ctx.reply(
         lang === "fa"
           ? `❌ <b>پرداخت انجام نشد</b>\n\n` +
             `تراکنش شما لغو یا ناموفق بود.\n` +
             `اگر مبلغی از کیف پول کسر شده، با پشتیبانی تماس بگیرید.\n` +
-            `در غیر این صورت از دکمه زیر مجدداً اقدام کنید.`
+            `در غیر این صورت از دکمه 🛒 خرید سکه مجدداً اقدام کنید.`
           : `❌ <b>Payment not completed</b>\n\n` +
             `Your transaction was cancelled or failed.\n` +
             `If funds were deducted, please contact support.\n` +
-            `Otherwise, use the button below to try again.`,
-        { parse_mode: "HTML", reply_markup: failKb }
+            `Otherwise, use the 🛒 Buy Coins button to try again.`,
+        { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
       );
       return;
     }

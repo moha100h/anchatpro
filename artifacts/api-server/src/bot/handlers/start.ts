@@ -10,7 +10,7 @@ import {
   getUserByReferralCode,
   getUserReferral,
 } from "../services/user.service.js";
-import { processReferralReward, deductCoins, addCoins } from "../services/coin.service.js";
+import { processReferralReward, deductCoins, addCoins, getBalance } from "../services/coin.service.js";
 import { getSetting } from "../services/payment.service.js";
 import { getActiveSession, endChatSession } from "../services/matching.service.js";
 import {
@@ -306,15 +306,48 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     if (arg.startsWith("plisio_ok")) {
       const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
       const lang = (user.language as "fa" | "en") ?? "fa";
+
+      // Security: only show if user has a real completed transaction in last 2h
+      const { db, plisioTransactionsTable, paymentsTable } = await import("@workspace/db");
+      const { desc, gte, and: andDb, eq: eqDb } = await import("drizzle-orm");
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+      const [recentTx] = await db
+        .select({ coins: paymentsTable.coins })
+        .from(plisioTransactionsTable)
+        .innerJoin(paymentsTable, eqDb(paymentsTable.id, plisioTransactionsTable.paymentId))
+        .where(
+          andDb(
+            eqDb(plisioTransactionsTable.userId, tgId),
+            eqDb(plisioTransactionsTable.status, "completed"),
+            gte(plisioTransactionsTable.createdAt, twoHoursAgo)
+          )
+        )
+        .orderBy(desc(plisioTransactionsTable.createdAt))
+        .limit(1);
+
+      if (!recentTx) {
+        // Random link clicker — no recent payment, show main menu silently
+        await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+        return;
+      }
+
+      const balance = await getBalance(tgId);
+      const { InlineKeyboard } = await import("grammy");
+      const okKb = new InlineKeyboard().text(
+        lang === "fa" ? "🛒 خرید سکه بیشتر" : "🛒 Buy More Coins",
+        "buy_coins"
+      );
+
       await ctx.reply(
         lang === "fa"
-          ? "✅ <b>پرداخت با موفقیت انجام شد!</b>\n\n" +
-            "سکه‌های خریداری‌شده به حسابتان اضافه شدند.\n" +
-            "می‌توانید موجودی خود را از منوی اصلی مشاهده کنید."
-          : "✅ <b>Payment successful!</b>\n\n" +
-            "Your purchased coins have been added to your account.\n" +
-            "You can check your balance from the main menu.",
-        { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
+          ? `✅ <b>پرداخت با موفقیت انجام شد!</b>\n\n` +
+            `🪙 سکه خریداری‌شده: <b>${recentTx.coins} سکه</b>\n` +
+            `💰 موجودی فعلی: <b>${balance} سکه</b>`
+          : `✅ <b>Payment successful!</b>\n\n` +
+            `🪙 Coins purchased: <b>${recentTx.coins} coins</b>\n` +
+            `💰 Current balance: <b>${balance} coins</b>`,
+        { parse_mode: "HTML", reply_markup: okKb }
       );
       return;
     }
@@ -322,15 +355,49 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     if (arg.startsWith("plisio_exp")) {
       const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
       const lang = (user.language as "fa" | "en") ?? "fa";
+
+      const { db, plisioTransactionsTable } = await import("@workspace/db");
+      const { desc, gte, and: andDb, eq: eqDb, or: orDb } = await import("drizzle-orm");
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+      const [recentTx] = await db
+        .select({ status: plisioTransactionsTable.status })
+        .from(plisioTransactionsTable)
+        .where(
+          andDb(
+            eqDb(plisioTransactionsTable.userId, tgId),
+            orDb(
+              eqDb(plisioTransactionsTable.status, "expired"),
+              eqDb(plisioTransactionsTable.status, "pending"),
+              eqDb(plisioTransactionsTable.status, "cancelled")
+            ),
+            gte(plisioTransactionsTable.createdAt, twoHoursAgo)
+          )
+        )
+        .orderBy(desc(plisioTransactionsTable.createdAt))
+        .limit(1);
+
+      if (!recentTx) {
+        // Random link clicker — no recent transaction, show main menu silently
+        await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+        return;
+      }
+
+      const { InlineKeyboard } = await import("grammy");
+      const expKb = new InlineKeyboard().text(
+        lang === "fa" ? "🛒 خرید سکه" : "🛒 Buy Coins",
+        "buy_coins"
+      );
+
       await ctx.reply(
         lang === "fa"
-          ? "⏰ <b>مهلت پرداخت منقضی شد</b>\n\n" +
-            "لینک پرداخت Plisio پس از ۳۰ دقیقه منقضی می‌شود.\n" +
-            "برای خرید مجدد سکه از منوی 🪙 <b>خرید سکه</b> اقدام کنید."
-          : "⏰ <b>Payment link expired</b>\n\n" +
-            "Plisio payment links expire after 30 minutes.\n" +
-            "To buy coins again, use the 🪙 <b>Buy Coins</b> menu.",
-        { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
+          ? `⏰ <b>مهلت پرداخت منقضی شد</b>\n\n` +
+            `لینک پرداخت Plisio پس از ۳۰ دقیقه منقضی می‌شود.\n` +
+            `برای خرید مجدد سکه از دکمه زیر اقدام کنید.`
+          : `⏰ <b>Payment link expired</b>\n\n` +
+            `Plisio payment links expire after 30 minutes.\n` +
+            `Use the button below to buy coins again.`,
+        { parse_mode: "HTML", reply_markup: expKb }
       );
       return;
     }
@@ -338,17 +405,52 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     if (arg.startsWith("plisio_fail") || arg.startsWith("plisio_cancel")) {
       const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
       const lang = (user.language as "fa" | "en") ?? "fa";
+
+      const { db, plisioTransactionsTable } = await import("@workspace/db");
+      const { desc, gte, and: andDb, eq: eqDb, or: orDb } = await import("drizzle-orm");
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+
+      const [recentTx] = await db
+        .select({ status: plisioTransactionsTable.status })
+        .from(plisioTransactionsTable)
+        .where(
+          andDb(
+            eqDb(plisioTransactionsTable.userId, tgId),
+            orDb(
+              eqDb(plisioTransactionsTable.status, "failed"),
+              eqDb(plisioTransactionsTable.status, "cancelled"),
+              eqDb(plisioTransactionsTable.status, "mismatch"),
+              eqDb(plisioTransactionsTable.status, "error"),
+              eqDb(plisioTransactionsTable.status, "pending")
+            ),
+            gte(plisioTransactionsTable.createdAt, twoHoursAgo)
+          )
+        )
+        .orderBy(desc(plisioTransactionsTable.createdAt))
+        .limit(1);
+
+      if (!recentTx) {
+        await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+        return;
+      }
+
+      const { InlineKeyboard } = await import("grammy");
+      const failKb = new InlineKeyboard().text(
+        lang === "fa" ? "🛒 تلاش مجدد" : "🛒 Try Again",
+        "buy_coins"
+      );
+
       await ctx.reply(
         lang === "fa"
-          ? "❌ <b>پرداخت انجام نشد</b>\n\n" +
-            "تراکنش شما لغو یا ناموفق بود.\n" +
-            "اگر مبلغی از کیف پول کسر شده، با پشتیبانی تماس بگیرید.\n" +
-            "در غیر این صورت می‌توانید مجدداً از منوی 🪙 <b>خرید سکه</b> اقدام کنید."
-          : "❌ <b>Payment not completed</b>\n\n" +
-            "Your transaction was cancelled or failed.\n" +
-            "If funds were deducted from your wallet, please contact support.\n" +
-            "Otherwise, you can try again from the 🪙 <b>Buy Coins</b> menu.",
-        { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
+          ? `❌ <b>پرداخت انجام نشد</b>\n\n` +
+            `تراکنش شما لغو یا ناموفق بود.\n` +
+            `اگر مبلغی از کیف پول کسر شده، با پشتیبانی تماس بگیرید.\n` +
+            `در غیر این صورت از دکمه زیر مجدداً اقدام کنید.`
+          : `❌ <b>Payment not completed</b>\n\n` +
+            `Your transaction was cancelled or failed.\n` +
+            `If funds were deducted, please contact support.\n` +
+            `Otherwise, use the button below to try again.`,
+        { parse_mode: "HTML", reply_markup: failKb }
       );
       return;
     }

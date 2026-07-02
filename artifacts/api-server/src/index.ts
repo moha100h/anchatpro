@@ -32,6 +32,19 @@ server.listen(port, async () => {
     try {
       const bot = await createBot();
       setBotInstance(bot);
+
+      // Auto-configure BotFather menu button (Mini App)
+      try {
+        const { getSetting } = await import("./bot/services/payment.service.js");
+        const miniAppUrl = (await getSetting("call_mini_app_url")) ?? "https://tisabuy.com/call/";
+        await bot.api.setChatMenuButton({
+          menu_button: { type: "web_app", text: "📞 تماس ناشناس", web_app: { url: miniAppUrl } },
+        });
+        logger.info({ url: miniAppUrl }, "BotFather menu button set to Mini App");
+      } catch (e) {
+        logger.warn({ e }, "Could not set menu button — will retry on next restart");
+      }
+
       await bot.start({
         onStart: (info) => {
           setBotUsername(info.username);

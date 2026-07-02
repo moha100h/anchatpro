@@ -554,76 +554,93 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   // ── 📞 تماس ناشناس — هزینه‌ها و تنظیمات ──────────────────────────────────────
-  bot.hears(ADMIN_BTN.COST_CALL, async (ctx, next) => {
-    if (!isAdmin(ctx.from!.id)) return next();
-    ctx.session.adminMode = "costs_call";
-    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
-    const keys = [
+  // ── 📞 تماس ناشناس — هزینه‌ها و تنظیمات ──────────────────────────────────────
+  async function showCallAdminPanel(ctx: BotContext): Promise<void> {
+    const settingKeys = [
       "call_enabled", "call_video_enabled",
       "call_cost_voice_random", "call_cost_voice_gender",
       "call_cost_video_random", "call_cost_video_gender",
       "call_min_balance", "call_max_duration_minutes",
       "call_turn_host", "call_turn_port", "call_turn_username", "call_turn_credential",
+      "call_mini_app_url",
     ];
-    const vals = await Promise.all(keys.map(k => getSetting(k)));
+    const vals = await Promise.all(settingKeys.map(k => getSetting(k)));
     const [
       callEnabled, videoEnabled,
       voiceRandom, voiceGender, videoRandom, videoGender,
       minBalance, maxMinutes,
       turnHost, turnPort, turnUser, turnCred,
+      miniAppUrl,
     ] = vals;
+
+    const callOn  = (callEnabled  ?? "1") !== "0";
+    const videoOn = (videoEnabled ?? "1") !== "0";
+    const urlVal  = miniAppUrl ?? "https://tisabuy.com/call/";
 
     await ctx.reply(
       `📞 *تماس ناشناس — تنظیمات*\n\n` +
-      `🔘 وضعیت تماس: \`${(callEnabled ?? "1") === "0" ? "❌ غیرفعال" : "✅ فعال"}\`\n` +
-      `🎥 تماس تصویری: \`${(videoEnabled ?? "1") === "0" ? "❌ غیرفعال" : "✅ فعال"}\`\n\n` +
-      `🎤 *تماس صوتی:*\n` +
-      `• شانسی: \`${voiceRandom ?? "3"}\` سکه\n` +
-      `• با جنسیت: \`${voiceGender ?? "5"}\` سکه\n\n` +
-      `📹 *تماس تصویری:*\n` +
-      `• شانسی: \`${videoRandom ?? "6"}\` سکه\n` +
-      `• با جنسیت: \`${videoGender ?? "10"}\` سکه\n\n` +
-      `⚙️ *عمومی:*\n` +
-      `• حداقل موجودی: \`${minBalance ?? "3"}\` سکه\n` +
-      `• حداکثر مدت: \`${maxMinutes ?? "30"}\` دقیقه\n\n` +
-      `🌐 *TURN Server:*\n` +
-      `• Host: \`${turnHost ?? "tisabuy.com"}\`\n` +
-      `• Port: \`${turnPort ?? "3478"}\`\n` +
-      `• User: \`${turnUser ?? "-"}\`\n` +
-      `• Credential: \`${turnCred ? "***" : "-"}\`\n\n` +
-      `_روی دکمه مورد نظر برای تغییر کلیک کنید._`,
+      `🔘 تماس: \`${callOn  ? "✅ فعال" : "❌ غیرفعال"}\`   🎥 ویدیو: \`${videoOn ? "✅ فعال" : "❌ غیرفعال"}\`\n\n` +
+      `🎤 صوتی — شانسی: \`${voiceRandom ?? "3"}\` • جنسیت: \`${voiceGender ?? "5"}\` سکه\n` +
+      `📹 تصویری — شانسی: \`${videoRandom ?? "6"}\` • جنسیت: \`${videoGender ?? "10"}\` سکه\n\n` +
+      `💰 حداقل موجودی: \`${minBalance ?? "3"}\` سکه  |  ⏱ مدت: \`${maxMinutes ?? "30"}\` دقیقه\n\n` +
+      `🌐 TURN: \`${turnHost ?? "tisabuy.com"}:${turnPort ?? "3478"}\`\n` +
+      `👤 User: \`${turnUser ?? "—"}\`  🔑 Cred: \`${turnCred ? "***" : "—"}\`\n\n` +
+      `🔗 *URL Mini App:*\n\`${urlVal}\`\n\n` +
+      `_روی دکمه مورد نظر کلیک کنید._`,
       {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
             [
-              { text: `${(callEnabled ?? "1") === "0" ? "✅ فعال‌سازی تماس" : "❌ غیرفعال تماس"}`, callback_data: "pay_set:call_enabled" },
-              { text: `${(videoEnabled ?? "1") === "0" ? "✅ فعال‌سازی ویدیو" : "❌ غیرفعال ویدیو"}`, callback_data: "pay_set:call_video_enabled" },
+              { text: callOn  ? "❌ غیرفعال تماس"  : "✅ فعال تماس",  callback_data: "call_bool:call_enabled"       },
+              { text: videoOn ? "❌ غیرفعال ویدیو" : "✅ فعال ویدیو", callback_data: "call_bool:call_video_enabled" },
             ],
             [
-              { text: `🎤 شانسی: ${voiceRandom ?? "3"}`, callback_data: "pay_set:call_cost_voice_random" },
-              { text: `🎤 جنسیت: ${voiceGender ?? "5"}`, callback_data: "pay_set:call_cost_voice_gender" },
+              { text: `🎤 شانسی: ${voiceRandom ?? "3"}`,  callback_data: "pay_set:call_cost_voice_random" },
+              { text: `🎤 جنسیت: ${voiceGender ?? "5"}`,  callback_data: "pay_set:call_cost_voice_gender" },
             ],
             [
-              { text: `📹 شانسی: ${videoRandom ?? "6"}`, callback_data: "pay_set:call_cost_video_random" },
+              { text: `📹 شانسی: ${videoRandom ?? "6"}`,  callback_data: "pay_set:call_cost_video_random" },
               { text: `📹 جنسیت: ${videoGender ?? "10"}`, callback_data: "pay_set:call_cost_video_gender" },
             ],
             [
-              { text: `💰 حداقل موجودی: ${minBalance ?? "3"}`, callback_data: "pay_set:call_min_balance" },
-              { text: `⏱ حداکثر مدت: ${maxMinutes ?? "30"}`, callback_data: "pay_set:call_max_duration_minutes" },
+              { text: `💰 موجودی min: ${minBalance ?? "3"} سکه`, callback_data: "pay_set:call_min_balance"          },
+              { text: `⏱ مدت: ${maxMinutes ?? "30"} دقیقه`,      callback_data: "pay_set:call_max_duration_minutes" },
             ],
             [
-              { text: `🌐 TURN Host`, callback_data: "pay_set:call_turn_host" },
-              { text: `🔌 TURN Port`, callback_data: "pay_set:call_turn_port" },
+              { text: `🌐 TURN Host: ${(turnHost ?? "tisabuy.com").slice(0, 14)}`, callback_data: "pay_set:call_turn_host" },
+              { text: `🔌 TURN Port: ${turnPort ?? "3478"}`,                       callback_data: "pay_set:call_turn_port" },
             ],
             [
-              { text: `👤 TURN User`, callback_data: "pay_set:call_turn_username" },
-              { text: `🔑 TURN Credential`, callback_data: "pay_set:call_turn_credential" },
+              { text: "👤 TURN User",       callback_data: "pay_set:call_turn_username"   },
+              { text: "🔑 TURN Credential", callback_data: "pay_set:call_turn_credential" },
+            ],
+            [
+              { text: `🔗 URL Mini App`, callback_data: "pay_set:call_mini_app_url" },
             ],
           ],
         },
       }
     );
+  }
+
+  bot.hears(ADMIN_BTN.COST_CALL, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs_call";
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    await showCallAdminPanel(ctx);
+  });
+
+  // ── call_bool: toggle on/off ──────────────────────────────────────────────────
+  bot.callbackQuery(/^call_bool:(.+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    const key     = ctx.match![1]!;
+    const current = await getSetting(key);
+    const newVal  = (current ?? "1") === "0" ? "1" : "0";
+    await setSetting(key, newVal);
+    await ctx.answerCallbackQuery(newVal === "1" ? "✅ فعال شد" : "❌ غیرفعال شد");
+    ctx.session.adminMode = "costs_call";
+    await showCallAdminPanel(ctx);
   });
 
   // ── ⚙️ تنظیمات سیستم ─────────────────────────────────────────────────────────
@@ -1208,6 +1225,17 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       restriction_duration_hours:   "مدت محدودیت (ساعت، پیش‌فرض ۳)",
       spin_min_coins:               "حداقل سکه گردونه شانس",
       spin_max_coins:               "حداکثر سکه گردونه شانس",
+      call_cost_voice_random:       "هزینه تماس صوتی شانسی (سکه)",
+      call_cost_voice_gender:       "هزینه تماس صوتی با جنسیت (سکه)",
+      call_cost_video_random:       "هزینه تماس تصویری شانسی (سکه)",
+      call_cost_video_gender:       "هزینه تماس تصویری با جنسیت (سکه)",
+      call_min_balance:             "حداقل موجودی برای تماس (سکه)",
+      call_max_duration_minutes:    "حداکثر مدت تماس (دقیقه)",
+      call_turn_host:               "آدرس TURN Server (مثال: tisabuy.com)",
+      call_turn_port:               "پورت TURN Server (پیش‌فرض: 3478)",
+      call_turn_username:           "نام کاربری TURN Server",
+      call_turn_credential:         "رمز عبور TURN Server",
+      call_mini_app_url:            "لینک Mini App تماس ناشناس (URL کامل)",
       support_link:             "لینک پشتیبانی (@username یا t.me/...)",
       tetrapay_api_key:         "کلید API تتراپی",
       tetrapay_callback_url:    "آدرس Callback تتراپی",

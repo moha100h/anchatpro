@@ -1,17 +1,6 @@
 import { Keyboard } from "grammy";
 import { t, type Lang } from "../i18n/index.js";
 import type { PaymentPackage } from "@workspace/db";
-export type { Lang };
-
-// Auto-resolve call mini-app URL from environment (same priority as index.ts)
-function _resolveCallAppUrl(): string {
-  if (process.env["REPLIT_DEV_DOMAIN"])
-    return `https://${process.env["REPLIT_DEV_DOMAIN"]}:8080/call/`;
-  if (process.env["PUBLIC_DOMAIN"])
-    return `https://${process.env["PUBLIC_DOMAIN"]}/call/`;
-  return "https://tisabuy.com/call/";
-}
-export const CALL_APP_URL = process.env["CALL_MINI_APP_URL"] ?? _resolveCallAppUrl();
 
 export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);

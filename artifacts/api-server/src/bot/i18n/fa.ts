@@ -26,7 +26,6 @@ export const fa = {
   menuSettings: "⚙️ تنظیمات",
   menuReferral: "🎁 دعوت دوستان و سکه رایگان",
   menuMagic: "🔮 ناشناس از ما بهترون",
-  menuCall: "📞 تماس ناشناس",
 
   // ─── Magic sub-menu button labels ────────────────────────────────────────────
   magicBtnBottle:  "🍾 پیام در بطری",

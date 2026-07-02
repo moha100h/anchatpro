@@ -26,7 +26,6 @@ export const en = {
   menuSettings: "⚙️ Settings",
   menuReferral: "🎁 Invite Friends & Earn Coins",
   menuMagic: "🔮 Strangers Like Us",
-  menuCall: "📞 Anonymous Call",
 
   // ─── Magic sub-menu button labels ────────────────────────────────────────────
   magicBtnBottle:  "🍾 Message in a Bottle",

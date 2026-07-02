@@ -50,7 +50,7 @@ export interface SessionData {
   // 🎁 Admin gift code creation temp
   adminGiftCoins?: number;
   // 🛡️ Admin panel navigation mode
-  adminMode?: "main" | "system" | "payment" | "costs" | "costs_call";
+  adminMode?: "main" | "system" | "payment" | "costs";
   // 📣 Broadcast filter state
   broadcastGender?: "male" | "female" | "any";
   broadcastAgeRange?: string;   // e.g. "15-25", "25-35", "any"

@@ -13,7 +13,6 @@ export const txTypeEnum = pgEnum("tx_type", [
   "magic_spend",
   "unlock_restriction",
   "daily_spin",
-  "call_cost",
 ]);
 
 export const coinTransactionsTable = pgTable("coin_transactions", {

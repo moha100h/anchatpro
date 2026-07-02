@@ -104,8 +104,8 @@ export function CallScreen(props: Props) {
       <div style={sv.wrap}>
         <video ref={remoteRef as any} autoPlay playsInline style={sv.remote} />
         <video ref={localRef  as any} autoPlay playsInline muted style={sv.local} />
-        {/* Hidden audio element also needed for audio track */}
-        <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
+        {/* Audio element — off-screen (not display:none which blocks iOS autoplay) */}
+        <audio ref={audioRef} autoPlay playsInline style={{ position: "absolute", width: 1, height: 1, opacity: 0, left: -9999 }} />
 
         <div style={sv.overlay}>
           <div style={sv.topBar}>
@@ -129,8 +129,8 @@ export function CallScreen(props: Props) {
   // ── Voice call ──────────────────────────────────────────────────────────
   return (
     <div style={voiceS.page}>
-      {/* Hidden audio element — plays remote audio stream */}
-      <audio ref={audioRef} autoPlay playsInline style={{ display: "none" }} />
+      {/* Audio element — off-screen, NOT display:none (blocks iOS autoplay in WKWebView) */}
+      <audio ref={audioRef} autoPlay playsInline style={{ position: "absolute", width: 1, height: 1, opacity: 0, left: -9999 }} />
 
       <div style={voiceS.topBar}>
         {connected

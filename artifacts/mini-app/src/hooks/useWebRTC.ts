@@ -19,11 +19,12 @@ interface Opts {
 export function useWebRTC(opts: Opts) {
   const pcRef            = useRef<RTCPeerConnection | null>(null);
   const streamRef        = useRef<MediaStream | null>(null);
+  // Dedicated stream for collecting ALL remote tracks (handles iOS bug where ev.streams is empty)
+  const remoteStreamRef  = useRef<MediaStream | null>(null);
   const iceCandQueueRef  = useRef<RTCIceCandidateInit[]>([]);
   const pendingOfferRef  = useRef<string | null>(null);
   const remoteDescSetRef = useRef(false);
   const readyFiredRef    = useRef(false);
-  // Prevent false onEnded when PC is closed intentionally (cleanup/unmount)
   const isClosingRef     = useRef(false);
   const optsRef          = useRef(opts);
   optsRef.current = opts;
@@ -33,6 +34,16 @@ export function useWebRTC(opts: Opts) {
       readyFiredRef.current = true;
       optsRef.current.onReady();
     }
+  }, []);
+
+  /** Attach a MediaStream to a media element and force play (required on iOS WKWebView) */
+  const attachStream = useCallback((el: HTMLVideoElement | HTMLAudioElement | null, stream: MediaStream) => {
+    if (!el) return;
+    if (el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+    // Explicit play() is required on iOS — autoPlay alone does not work in WKWebView
+    el.play().catch(() => { /* ignore NotAllowedError / NotSupportedError */ });
   }, []);
 
   const drainIceCandidates = useCallback(async () => {
@@ -47,15 +58,28 @@ export function useWebRTC(opts: Opts) {
 
   const setupPC = useCallback((pc: RTCPeerConnection) => {
     pc.ontrack = (ev) => {
-      const stream = ev.streams[0] ?? new MediaStream(ev.track ? [ev.track] : []);
-      // Video element (video calls)
-      if (optsRef.current.remoteRef.current && stream) {
-        optsRef.current.remoteRef.current.srcObject = stream;
+      // ── Collect remote tracks into a persistent stream ──────────────────
+      // On iOS Safari / WKWebView, ev.streams can be empty — so we collect
+      // tracks manually into our own MediaStream to be safe.
+      if (!remoteStreamRef.current) {
+        remoteStreamRef.current = new MediaStream();
       }
-      // Audio element (voice calls — hidden <audio> element)
-      if (optsRef.current.remoteAudioRef?.current && stream) {
-        optsRef.current.remoteAudioRef.current.srcObject = stream;
+      const rs = remoteStreamRef.current;
+
+      // Add the incoming track (guard against duplicates)
+      if (ev.track && !rs.getTracks().includes(ev.track)) {
+        rs.addTrack(ev.track);
       }
+      // Also pull in any tracks from ev.streams (standard browsers)
+      ev.streams?.[0]?.getTracks().forEach(t => {
+        if (!rs.getTracks().includes(t)) rs.addTrack(t);
+      });
+
+      // Attach to video element (video calls) and audio element (voice calls)
+      attachStream(optsRef.current.remoteRef.current, rs);
+      const audioEl = optsRef.current.remoteAudioRef?.current ?? null;
+      attachStream(audioEl, rs);
+
       fireReady();
     };
 
@@ -66,28 +90,28 @@ export function useWebRTC(opts: Opts) {
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
       if (state === "connected") fireReady();
-      // Only end on "failed" — NOT on "closed" (that fires during intentional cleanup)
       if (state === "failed" && !isClosingRef.current) {
         optsRef.current.onEnded("connection_failed");
       }
+      // "closed" is intentional (cleanup) — do NOT fire onEnded
     };
 
     pc.oniceconnectionstatechange = () => {
       const s = pc.iceConnectionState;
       if (s === "connected" || s === "completed") fireReady();
-      // "disconnected" is transient; "failed" is permanent
       if (s === "failed" && !isClosingRef.current) {
         optsRef.current.onEnded("connection_failed");
       }
     };
-  }, [fireReady]);
+  }, [fireReady, attachStream]);
 
   const cleanup = useCallback(() => {
-    isClosingRef.current = true;   // mark intentional close before closing PC
+    isClosingRef.current = true;
     pcRef.current?.close();
     pcRef.current = null;
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
+    remoteStreamRef.current = null;
     iceCandQueueRef.current = [];
     pendingOfferRef.current = null;
     remoteDescSetRef.current = false;
@@ -95,7 +119,7 @@ export function useWebRTC(opts: Opts) {
   }, []);
 
   const start = useCallback(async () => {
-    isClosingRef.current = false;  // reset for new call
+    isClosingRef.current = false;
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
@@ -103,7 +127,6 @@ export function useWebRTC(opts: Opts) {
         video: optsRef.current.callType === "video",
       });
     } catch {
-      // Permission denied or device unavailable
       optsRef.current.onEnded("connection_failed");
       return;
     }
@@ -111,8 +134,10 @@ export function useWebRTC(opts: Opts) {
     streamRef.current = stream;
     optsRef.current.onStream?.(stream);
 
-    if (optsRef.current.localRef.current) {
-      optsRef.current.localRef.current.srcObject = stream;
+    const localEl = optsRef.current.localRef.current;
+    if (localEl) {
+      localEl.srcObject = stream;
+      localEl.play().catch(() => {});
     }
 
     const pc = new RTCPeerConnection({
@@ -124,14 +149,14 @@ export function useWebRTC(opts: Opts) {
     setupPC(pc);
 
     if (!optsRef.current.isReceiver) {
-      // Caller: create and send offer immediately
+      // Caller: create offer — no legacy offerToReceive* flags (addTrack implies sendrecv)
       try {
-        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: optsRef.current.callType === "video" });
+        const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         optsRef.current.onOffer(offer.sdp!);
       } catch { optsRef.current.onEnded("connection_failed"); }
     } else if (pendingOfferRef.current) {
-      // Receiver: offer arrived before PC was ready — process it now
+      // Receiver: offer arrived before PC was ready
       const sdp = pendingOfferRef.current;
       pendingOfferRef.current = null;
       try {
@@ -158,7 +183,7 @@ export function useWebRTC(opts: Opts) {
       await pc.setLocalDescription(answer);
       optsRef.current.onAnswer(answer.sdp!);
       await drainIceCandidates();
-    } catch { /* ignore stale / invalid offer */ }
+    } catch { /* ignore */ }
   }, [drainIceCandidates]);
 
   const handleAnswer = useCallback(async (sdp: string) => {

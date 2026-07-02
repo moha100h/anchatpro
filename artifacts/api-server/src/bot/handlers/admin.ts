@@ -554,39 +554,26 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   });
 
   // ── 📞 تماس ناشناس — هزینه‌ها و تنظیمات ──────────────────────────────────────
-  // ── 📞 تماس ناشناس — هزینه‌ها و تنظیمات ──────────────────────────────────────
   async function showCallAdminPanel(ctx: BotContext): Promise<void> {
-    const settingKeys = [
+    const keys = [
       "call_enabled", "call_video_enabled",
       "call_cost_voice_random", "call_cost_voice_gender",
       "call_cost_video_random", "call_cost_video_gender",
       "call_min_balance", "call_max_duration_minutes",
-      "call_turn_host", "call_turn_port", "call_turn_username", "call_turn_credential",
       "call_mini_app_url",
     ];
-    const vals = await Promise.all(settingKeys.map(k => getSetting(k)));
-    const [
-      callEnabled, videoEnabled,
-      voiceRandom, voiceGender, videoRandom, videoGender,
-      minBalance, maxMinutes,
-      turnHost, turnPort, turnUser, turnCred,
-      miniAppUrl,
-    ] = vals;
-
+    const vals = await Promise.all(keys.map(k => getSetting(k)));
+    const [callEnabled, videoEnabled, vR, vG, viR, viG, minBal, maxMin, miniUrl] = vals;
     const callOn  = (callEnabled  ?? "1") !== "0";
     const videoOn = (videoEnabled ?? "1") !== "0";
-    const urlVal  = miniAppUrl ?? "https://tisabuy.com/call/";
 
     await ctx.reply(
-      `📞 *تماس ناشناس — تنظیمات*\n\n` +
-      `🔘 تماس: \`${callOn  ? "✅ فعال" : "❌ غیرفعال"}\`   🎥 ویدیو: \`${videoOn ? "✅ فعال" : "❌ غیرفعال"}\`\n\n` +
-      `🎤 صوتی — شانسی: \`${voiceRandom ?? "3"}\` • جنسیت: \`${voiceGender ?? "5"}\` سکه\n` +
-      `📹 تصویری — شانسی: \`${videoRandom ?? "6"}\` • جنسیت: \`${videoGender ?? "10"}\` سکه\n\n` +
-      `💰 حداقل موجودی: \`${minBalance ?? "3"}\` سکه  |  ⏱ مدت: \`${maxMinutes ?? "30"}\` دقیقه\n\n` +
-      `🌐 TURN: \`${turnHost ?? "tisabuy.com"}:${turnPort ?? "3478"}\`\n` +
-      `👤 User: \`${turnUser ?? "—"}\`  🔑 Cred: \`${turnCred ? "***" : "—"}\`\n\n` +
-      `🔗 *URL Mini App:*\n\`${urlVal}\`\n\n` +
-      `_روی دکمه مورد نظر کلیک کنید._`,
+      `📞 *تماس ناشناس — تنظیمات*\n` +
+      `تماس: \`${callOn ? "✅" : "❌"}\`  ویدیو: \`${videoOn ? "✅" : "❌"}\`\n` +
+      `🎤 شانسی: \`${vR ?? "3"}\` • جنسیت: \`${vG ?? "5"}\` سکه\n` +
+      `📹 شانسی: \`${viR ?? "6"}\` • جنسیت: \`${viG ?? "10"}\` سکه\n` +
+      `💰 min: \`${minBal ?? "3"}\` سکه  ⏱ \`${maxMin ?? "30"}\` دقیقه\n` +
+      `🔗 \`${(miniUrl ?? "https://tisabuy.com/call/").slice(0, 40)}\``,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -596,27 +583,56 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
               { text: videoOn ? "❌ غیرفعال ویدیو" : "✅ فعال ویدیو", callback_data: "call_bool:call_video_enabled" },
             ],
             [
-              { text: `🎤 شانسی: ${voiceRandom ?? "3"}`,  callback_data: "pay_set:call_cost_voice_random" },
-              { text: `🎤 جنسیت: ${voiceGender ?? "5"}`,  callback_data: "pay_set:call_cost_voice_gender" },
+              { text: `🎤 شانسی: ${vR ?? "3"}`,  callback_data: "pay_set:call_cost_voice_random" },
+              { text: `🎤 جنسیت: ${vG ?? "5"}`,  callback_data: "pay_set:call_cost_voice_gender" },
             ],
             [
-              { text: `📹 شانسی: ${videoRandom ?? "6"}`,  callback_data: "pay_set:call_cost_video_random" },
-              { text: `📹 جنسیت: ${videoGender ?? "10"}`, callback_data: "pay_set:call_cost_video_gender" },
+              { text: `📹 شانسی: ${viR ?? "6"}`,  callback_data: "pay_set:call_cost_video_random" },
+              { text: `📹 جنسیت: ${viG ?? "10"}`, callback_data: "pay_set:call_cost_video_gender" },
             ],
             [
-              { text: `💰 موجودی min: ${minBalance ?? "3"} سکه`, callback_data: "pay_set:call_min_balance"          },
-              { text: `⏱ مدت: ${maxMinutes ?? "30"} دقیقه`,      callback_data: "pay_set:call_max_duration_minutes" },
+              { text: `💰 min: ${minBal ?? "3"} سکه`, callback_data: "pay_set:call_min_balance"          },
+              { text: `⏱ ${maxMin ?? "30"} دقیقه`,    callback_data: "pay_set:call_max_duration_minutes" },
             ],
             [
-              { text: `🌐 TURN Host: ${(turnHost ?? "tisabuy.com").slice(0, 14)}`, callback_data: "pay_set:call_turn_host" },
-              { text: `🔌 TURN Port: ${turnPort ?? "3478"}`,                       callback_data: "pay_set:call_turn_port" },
+              { text: "⚙️ تنظیمات TURN Server", callback_data: "call_panel:turn" },
+              { text: "🔗 URL App",              callback_data: "pay_set:call_mini_app_url" },
+            ],
+          ],
+        },
+      }
+    );
+  }
+
+  async function showCallTurnPanel(ctx: BotContext): Promise<void> {
+    const [turnHost, turnPort, turnUser, turnCred] = await Promise.all([
+      getSetting("call_turn_host"),
+      getSetting("call_turn_port"),
+      getSetting("call_turn_username"),
+      getSetting("call_turn_credential"),
+    ]);
+    const domain = process.env["PUBLIC_DOMAIN"] ?? "tisabuy.com";
+    await ctx.reply(
+      `⚙️ *تنظیمات TURN Server*\n\n` +
+      `🌐 Host: \`${turnHost ?? domain}\`\n` +
+      `🔌 Port: \`${turnPort ?? "3478"}\`\n` +
+      `👤 User: \`${turnUser ?? "—"}\`\n` +
+      `🔑 Credential: \`${turnCred ? "***" : "—"}\`\n\n` +
+      `_TURN Server برای اتصال WebRTC در شبکه‌های محدود استفاده می‌شود._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: `🌐 Host: ${(turnHost ?? domain).slice(0, 16)}`, callback_data: "pay_set:call_turn_host" },
+              { text: `🔌 Port: ${turnPort ?? "3478"}`,                callback_data: "pay_set:call_turn_port" },
             ],
             [
               { text: "👤 TURN User",       callback_data: "pay_set:call_turn_username"   },
               { text: "🔑 TURN Credential", callback_data: "pay_set:call_turn_credential" },
             ],
             [
-              { text: `🔗 URL Mini App`, callback_data: "pay_set:call_mini_app_url" },
+              { text: "🔙 بازگشت", callback_data: "call_panel:main" },
             ],
           ],
         },
@@ -629,6 +645,18 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     ctx.session.adminMode = "costs_call";
     if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
     await showCallAdminPanel(ctx);
+  });
+
+  // ── call_panel: switch between main / TURN sub-panel ─────────────────────────
+  bot.callbackQuery(/^call_panel:(.+)$/, async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    await ctx.answerCallbackQuery();
+    ctx.session.adminMode = "costs_call";
+    if (ctx.match![1] === "turn") {
+      await showCallTurnPanel(ctx);
+    } else {
+      await showCallAdminPanel(ctx);
+    }
   });
 
   // ── call_bool: toggle on/off ──────────────────────────────────────────────────

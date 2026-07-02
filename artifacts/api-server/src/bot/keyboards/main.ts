@@ -2,6 +2,11 @@ import { Keyboard } from "grammy";
 import { t, type Lang } from "../i18n/index.js";
 import type { PaymentPackage } from "@workspace/db";
 
+// Auto-resolve call mini-app URL from environment
+const _domain = process.env["PUBLIC_DOMAIN"] ?? "tisabuy.com";
+export const CALL_APP_URL =
+  process.env["CALL_MINI_APP_URL"] ?? `https://${_domain}/call/`;
+
 export function mainMenuKeyboard(lang: Lang) {
   const i = t(lang);
   return new Keyboard()
@@ -9,7 +14,8 @@ export function mainMenuKeyboard(lang: Lang) {
     .text(i.menuAnonProLink).text(i.menuMyLink).row()
     .text(i.menuMagic).row()
     .text(i.menuCoins).text(i.menuReferral).row()
-    .text(i.menuHelp).text(i.menuSettings)
+    .text(i.menuHelp).text(i.menuSettings).row()
+    .webApp(i.menuCall, CALL_APP_URL)
     .resized()
     .persistent();
 }

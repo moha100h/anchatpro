@@ -33,13 +33,43 @@ server.listen(port, async () => {
       const bot = await createBot();
       setBotInstance(bot);
 
-      // Auto-seed call settings defaults + configure BotFather menu button
+      // Auto-detect server URL and configure call settings
       try {
         const { getSetting, setSetting } = await import("./bot/services/payment.service.js");
-        const domain = process.env["PUBLIC_DOMAIN"] ?? "tisabuy.com";
 
-        // Seed call settings only when not already stored in DB
-        const callDefaults: Record<string, string> = {
+        // Detect the publicly accessible base URL for this server.
+        // Priority: REPLIT_DEV_DOMAIN (Replit dev) → PUBLIC_DOMAIN (VPS) → auto-detect IP
+        let miniAppBaseUrl: string;
+        let turnHost: string;
+
+        if (process.env["REPLIT_DEV_DOMAIN"]) {
+          // On Replit dev: API server is on port 8080 (externalPort=8080)
+          miniAppBaseUrl = `https://${process.env["REPLIT_DEV_DOMAIN"]}:8080`;
+          turnHost       = process.env["REPLIT_DEV_DOMAIN"];
+        } else if (process.env["PUBLIC_DOMAIN"]) {
+          miniAppBaseUrl = `https://${process.env["PUBLIC_DOMAIN"]}`;
+          turnHost       = process.env["PUBLIC_DOMAIN"];
+        } else {
+          // Auto-detect public IP as last resort
+          try {
+            const ipResp = await fetch("https://ifconfig.me/ip", { signal: AbortSignal.timeout(3000) });
+            const ip     = (await ipResp.text()).trim();
+            miniAppBaseUrl = `https://${ip}:8080`;
+            turnHost       = ip;
+          } catch {
+            miniAppBaseUrl = "https://tisabuy.com";
+            turnHost       = "tisabuy.com";
+          }
+        }
+
+        const miniAppUrl = `${miniAppBaseUrl}/call/`;
+
+        // Always force-update environment-derived settings on startup
+        await setSetting("call_mini_app_url", miniAppUrl);
+        await setSetting("call_turn_host",    turnHost);
+
+        // Seed other settings only if not already stored
+        const otherDefaults: Record<string, string> = {
           call_enabled:              "1",
           call_video_enabled:        "1",
           call_cost_voice_random:    "3",
@@ -48,20 +78,17 @@ server.listen(port, async () => {
           call_cost_video_gender:    "10",
           call_min_balance:          "3",
           call_max_duration_minutes: "30",
-          call_turn_host:            domain,
           call_turn_port:            "3478",
-          call_mini_app_url:         `https://${domain}/call/`,
         };
-        for (const [key, val] of Object.entries(callDefaults)) {
+        for (const [key, val] of Object.entries(otherDefaults)) {
           const existing = await getSetting(key);
           if (existing === null || existing === undefined) {
             await setSetting(key, val);
           }
         }
-        logger.info({ domain }, "Call settings defaults seeded");
+        logger.info({ miniAppUrl, turnHost }, "Call settings auto-configured");
 
-        // Set BotFather menu button to the stored (or just-seeded) mini-app URL
-        const miniAppUrl = (await getSetting("call_mini_app_url")) ?? `https://${domain}/call/`;
+        // Set BotFather menu button to the auto-detected mini-app URL
         await bot.api.setChatMenuButton({
           menu_button: { type: "web_app", text: "📞 تماس ناشناس", web_app: { url: miniAppUrl } },
         });

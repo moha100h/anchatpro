@@ -556,20 +556,21 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
   // ── 📞 تماس ناشناس — هزینه‌ها و تنظیمات ──────────────────────────────────────
   async function showCallAdminPanel(ctx: BotContext): Promise<void> {
     const keys = [
-      "call_enabled", "call_video_enabled",
+      "call_enabled", "call_video_enabled", "call_mini_app_enabled",
       "call_cost_voice_random", "call_cost_voice_gender",
       "call_cost_video_random", "call_cost_video_gender",
       "call_min_balance", "call_max_duration_minutes",
       "call_mini_app_url",
     ];
     const vals = await Promise.all(keys.map(k => getSetting(k)));
-    const [callEnabled, videoEnabled, vR, vG, viR, viG, minBal, maxMin, miniUrl] = vals;
-    const callOn  = (callEnabled  ?? "1") !== "0";
-    const videoOn = (videoEnabled ?? "1") !== "0";
+    const [callEnabled, videoEnabled, miniAppEnabled, vR, vG, viR, viG, minBal, maxMin, miniUrl] = vals;
+    const callOn    = (callEnabled    ?? "1") !== "0";
+    const videoOn   = (videoEnabled   ?? "1") !== "0";
+    const miniAppOn = (miniAppEnabled ?? "1") !== "0";
 
     await ctx.reply(
       `📞 *تماس ناشناس — تنظیمات*\n` +
-      `تماس: \`${callOn ? "✅" : "❌"}\`  ویدیو: \`${videoOn ? "✅" : "❌"}\`\n` +
+      `تماس: \`${callOn ? "✅" : "❌"}\`  ویدیو: \`${videoOn ? "✅" : "❌"}\`  MiniApp: \`${miniAppOn ? "✅" : "❌"}\`\n` +
       `🎤 شانسی: \`${vR ?? "3"}\` • جنسیت: \`${vG ?? "5"}\` سکه\n` +
       `📹 شانسی: \`${viR ?? "6"}\` • جنسیت: \`${viG ?? "10"}\` سکه\n` +
       `💰 min: \`${minBal ?? "3"}\` سکه  ⏱ \`${maxMin ?? "30"}\` دقیقه\n` +
@@ -578,6 +579,9 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
+            [
+              { text: miniAppOn ? "📱 غیرفعال MiniApp" : "📱 فعال MiniApp", callback_data: "call_bool:call_mini_app_enabled" },
+            ],
             [
               { text: callOn  ? "❌ غیرفعال تماس"  : "✅ فعال تماس",  callback_data: "call_bool:call_enabled"       },
               { text: videoOn ? "❌ غیرفعال ویدیو" : "✅ فعال ویدیو", callback_data: "call_bool:call_video_enabled" },
@@ -667,6 +671,21 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const newVal  = (current ?? "1") === "0" ? "1" : "0";
     await setSetting(key, newVal);
     await ctx.answerCallbackQuery(newVal === "1" ? "✅ فعال شد" : "❌ غیرفعال شد");
+
+    // When mini-app visibility changes → update BotFather menu button live
+    if (key === "call_mini_app_enabled") {
+      try {
+        if (newVal === "1") {
+          const miniAppUrl = (await getSetting("call_mini_app_url")) ?? "https://tisabuy.com/call/";
+          await ctx.api.setChatMenuButton({
+            menu_button: { type: "web_app", text: "📞 تماس ناشناس", web_app: { url: miniAppUrl } },
+          });
+        } else {
+          await ctx.api.setChatMenuButton({ menu_button: { type: "commands" } });
+        }
+      } catch { /* non-fatal */ }
+    }
+
     ctx.session.adminMode = "costs_call";
     await showCallAdminPanel(ctx);
   });

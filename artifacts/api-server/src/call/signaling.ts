@@ -219,15 +219,19 @@ async function handleMessage(client: CallClient, raw: string): Promise<void> {
     const turnCred   = (await getSetting("call_turn_credential")) ?? "";
 
     const iceServers = [
-      // STUN: public Google servers always included as base fallback
+      // STUN: public Google servers as base fallback
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
-      // STUN on configured TURN host
-      { urls: `stun:${turnHost}:${turnPort}` },
-      // TURN: only if credentials are configured
+      // TURN: multiple ports for maximum firewall bypass (80, 443, TLS)
       ...(turnUser && turnCred
         ? [{
-            urls: [`turn:${turnHost}:${turnPort}`, `turns:${turnHost}:5349`],
+            urls: [
+              `turn:${turnHost}:80`,         // works through most corporate firewalls
+              `turn:${turnHost}:443`,        // works through HTTPS-only firewalls
+              `turn:${turnHost}:${turnPort}`,// configured port (3478 default)
+              `turns:${turnHost}:443`,       // TURN over TLS — most reliable
+              `turns:${turnHost}:5349`,      // TURN over TLS alt port
+            ],
             username:   turnUser,
             credential: turnCred,
           }]

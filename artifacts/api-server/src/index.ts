@@ -64,9 +64,15 @@ server.listen(port, async () => {
 
         const miniAppUrl = `${miniAppBaseUrl}/call/`;
 
-        // Always force-update environment-derived settings on startup
+        // Always update the mini-app URL (needed for the BotFather button)
         await setSetting("call_mini_app_url", miniAppUrl);
-        await setSetting("call_turn_host",    turnHost);
+
+        // Only auto-set TURN host if no external TURN credentials are configured.
+        // If the admin has set real TURN credentials (username non-empty), keep them.
+        const existingTurnUser = await getSetting("call_turn_username");
+        if (!existingTurnUser) {
+          await setSetting("call_turn_host", turnHost);
+        }
 
         // Seed other settings only if not already stored
         const otherDefaults: Record<string, string> = {

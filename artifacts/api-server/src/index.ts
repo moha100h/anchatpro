@@ -1,8 +1,10 @@
 process.env["TZ"] = "Asia/Tehran";
+import http from "node:http";
 import app from "./app.js";
 import { logger } from "./lib/logger.js";
 import { createBot } from "./bot/index.js";
 import { setBotInstance, setBotUsername } from "./bot/bot-instance.js";
+import { mountCallSignaling } from "./call/signaling.js";
 
 const rawPort = process.env["PORT"];
 
@@ -17,11 +19,12 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 // Start Express server
-app.listen(port, async (err?: Error) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+const server = http.createServer(app);
+
+// Mount WebSocket signaling for Mini App calls
+mountCallSignaling(server);
+
+server.listen(port, async () => {
   logger.info({ port }, "Server listening");
 
   // Start Telegram Bot
@@ -42,4 +45,9 @@ app.listen(port, async (err?: Error) => {
   } else {
     logger.warn("TELEGRAM_BOT_TOKEN not set — bot not started");
   }
+});
+
+server.on("error", (err) => {
+  logger.error({ err }, "Server error");
+  process.exit(1);
 });

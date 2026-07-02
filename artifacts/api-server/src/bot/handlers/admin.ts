@@ -162,6 +162,7 @@ export const ADMIN_BTN = {
   COST_MAGIC:     "🔮 اقیانوس",
   COST_RESTRICTION_UNLOCK: "🔓 رفع محدودیت سریع",
   COST_SPIN_WHEEL:         "🎰 گردونه شانس روزانه",
+  COST_CALL:               "📞 تماس ناشناس",
   // System sub-menu
   WELCOME:     "📝 خوش‌آمدگویی",
   BROADCAST:   "📣 پیام همگانی",
@@ -233,6 +234,7 @@ function adminCostsKeyboard(): Keyboard {
     .text(ADMIN_BTN.COST_MAGIC).row()
     .text(ADMIN_BTN.COST_RESTRICTION_UNLOCK).row()
     .text(ADMIN_BTN.COST_SPIN_WHEEL).row()
+    .text(ADMIN_BTN.COST_CALL).row()
     .text(ADMIN_BTN.BACK_PANEL)
     .resized().persistent();
 }
@@ -545,6 +547,79 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
           inline_keyboard: [
             [{ text: `📉 حداقل سکه: ${minV}`, callback_data: "pay_set:spin_min_coins" }],
             [{ text: `📈 حداکثر سکه: ${maxV}`, callback_data: "pay_set:spin_max_coins" }],
+          ],
+        },
+      }
+    );
+  });
+
+  // ── 📞 تماس ناشناس — هزینه‌ها و تنظیمات ──────────────────────────────────────
+  bot.hears(ADMIN_BTN.COST_CALL, async (ctx, next) => {
+    if (!isAdmin(ctx.from!.id)) return next();
+    ctx.session.adminMode = "costs_call";
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.reply("❌ دسترسی ندارید."); return; }
+    const keys = [
+      "call_enabled", "call_video_enabled",
+      "call_cost_voice_random", "call_cost_voice_gender",
+      "call_cost_video_random", "call_cost_video_gender",
+      "call_min_balance", "call_max_duration_minutes",
+      "call_turn_host", "call_turn_port", "call_turn_username", "call_turn_credential",
+    ];
+    const vals = await Promise.all(keys.map(k => getSetting(k)));
+    const [
+      callEnabled, videoEnabled,
+      voiceRandom, voiceGender, videoRandom, videoGender,
+      minBalance, maxMinutes,
+      turnHost, turnPort, turnUser, turnCred,
+    ] = vals;
+
+    await ctx.reply(
+      `📞 *تماس ناشناس — تنظیمات*\n\n` +
+      `🔘 وضعیت تماس: \`${(callEnabled ?? "1") === "0" ? "❌ غیرفعال" : "✅ فعال"}\`\n` +
+      `🎥 تماس تصویری: \`${(videoEnabled ?? "1") === "0" ? "❌ غیرفعال" : "✅ فعال"}\`\n\n` +
+      `🎤 *تماس صوتی:*\n` +
+      `• شانسی: \`${voiceRandom ?? "3"}\` سکه\n` +
+      `• با جنسیت: \`${voiceGender ?? "5"}\` سکه\n\n` +
+      `📹 *تماس تصویری:*\n` +
+      `• شانسی: \`${videoRandom ?? "6"}\` سکه\n` +
+      `• با جنسیت: \`${videoGender ?? "10"}\` سکه\n\n` +
+      `⚙️ *عمومی:*\n` +
+      `• حداقل موجودی: \`${minBalance ?? "3"}\` سکه\n` +
+      `• حداکثر مدت: \`${maxMinutes ?? "30"}\` دقیقه\n\n` +
+      `🌐 *TURN Server:*\n` +
+      `• Host: \`${turnHost ?? "tisabuy.com"}\`\n` +
+      `• Port: \`${turnPort ?? "3478"}\`\n` +
+      `• User: \`${turnUser ?? "-"}\`\n` +
+      `• Credential: \`${turnCred ? "***" : "-"}\`\n\n` +
+      `_روی دکمه مورد نظر برای تغییر کلیک کنید._`,
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: `${(callEnabled ?? "1") === "0" ? "✅ فعال‌سازی تماس" : "❌ غیرفعال تماس"}`, callback_data: "pay_set:call_enabled" },
+              { text: `${(videoEnabled ?? "1") === "0" ? "✅ فعال‌سازی ویدیو" : "❌ غیرفعال ویدیو"}`, callback_data: "pay_set:call_video_enabled" },
+            ],
+            [
+              { text: `🎤 شانسی: ${voiceRandom ?? "3"}`, callback_data: "pay_set:call_cost_voice_random" },
+              { text: `🎤 جنسیت: ${voiceGender ?? "5"}`, callback_data: "pay_set:call_cost_voice_gender" },
+            ],
+            [
+              { text: `📹 شانسی: ${videoRandom ?? "6"}`, callback_data: "pay_set:call_cost_video_random" },
+              { text: `📹 جنسیت: ${videoGender ?? "10"}`, callback_data: "pay_set:call_cost_video_gender" },
+            ],
+            [
+              { text: `💰 حداقل موجودی: ${minBalance ?? "3"}`, callback_data: "pay_set:call_min_balance" },
+              { text: `⏱ حداکثر مدت: ${maxMinutes ?? "30"}`, callback_data: "pay_set:call_max_duration_minutes" },
+            ],
+            [
+              { text: `🌐 TURN Host`, callback_data: "pay_set:call_turn_host" },
+              { text: `🔌 TURN Port`, callback_data: "pay_set:call_turn_port" },
+            ],
+            [
+              { text: `👤 TURN User`, callback_data: "pay_set:call_turn_username" },
+              { text: `🔑 TURN Credential`, callback_data: "pay_set:call_turn_credential" },
+            ],
           ],
         },
       }

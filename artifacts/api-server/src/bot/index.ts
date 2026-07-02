@@ -12,6 +12,7 @@ import { registerHelpHandlers } from "./handlers/help.js";
 import { registerSettingsHandlers } from "./handlers/settings.js";
 import { registerAdminHandlers, setAdminIds } from "./handlers/admin.js";
 import { registerMagicHandlers } from "./handlers/magic.js";
+import { registerCallHandlers } from "./handlers/call.js";
 import { getDueLetters, markLetterDelivered, expireOldBottles, expireDeliveredBottles, cleanStaleFrequency } from "./services/magic.service.js";
 import { ensureDefaultPackages, setSetting, getSetting } from "./services/payment.service.js";
 import { initDefaultBadWords, setOwnerIds } from "./services/safety.service.js";
@@ -65,6 +66,7 @@ export async function createBot(): Promise<Bot<BotContext>> {
   registerAdminHandlers(bot);     // /admin, persistent reply keyboard, section handlers (BEFORE settings to intercept admin button texts)
   registerSettingsHandlers(bot);  // settings menu, change gender/age/language (registered AFTER start.ts!)
   registerMagicHandlers(bot);     // 🌊 اقیانوس احساس: bottle, chain, letter, frequency
+  registerCallHandlers(bot);      // 📞 تماس ناشناس Mini App button
   // MUST be last: group message forwarder runs only if no preceding handler consumed the message.
   // This ensures keyboard buttons (inbox, help, etc.) fire before group forwarding.
   registerGroupMessageForwarder(bot);

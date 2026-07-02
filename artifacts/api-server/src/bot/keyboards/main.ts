@@ -8,6 +8,7 @@ export function mainMenuKeyboard(lang: Lang) {
     .text(i.menuConnect).text(i.menuGroup).row()
     .text(i.menuAnonProLink).text(i.menuMyLink).row()
     .text(i.menuMagic).row()
+    .text(i.menuCall).row()
     .text(i.menuCoins).text(i.menuReferral).row()
     .text(i.menuHelp).text(i.menuSettings)
     .resized()

@@ -13,10 +13,12 @@ import { Router } from "express";
 import { handlePlisioCallback } from "../bot/services/plisio.service.js";
 import { getBotInstance, getBotUsername } from "../bot/bot-instance.js";
 import { getUserByTelegramId } from "../bot/services/user.service.js";
+import { getSetting } from "../bot/services/payment.service.js";
 import { t } from "../bot/i18n/index.js";
 import { logger } from "../lib/logger.js";
 import { db, plisioTransactionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import type { User } from "@workspace/db";
 
 const router = Router();
 
@@ -113,6 +115,11 @@ router.post("/", async (req, res) => {
       await bot.api
         .sendMessage(result.userId, t(uLang).paymentApproved(result.coins), { parse_mode: "Markdown" })
         .catch((e) => logger.warn({ err: e }, "plisio: failed to send success notification"));
+
+      // ── Archive a summary in the Plisio review group (successful payments only) ──
+      await notifyPlisioReviewGroup(result, userRecord).catch((e) =>
+        logger.warn({ err: e }, "plisio: failed to send review-group archive message")
+      );
       return;
     }
 
@@ -129,6 +136,37 @@ router.post("/", async (req, res) => {
     logger.error({ err }, "plisio webhook: unhandled error");
   }
 });
+
+// ─── Review-group archive notification (successful payments only) ─────────────
+
+async function notifyPlisioReviewGroup(
+  result: Awaited<ReturnType<typeof handlePlisioCallback>>,
+  userRecord: User | null
+): Promise<void> {
+  const bot = getBotInstance();
+  if (!bot) return;
+
+  const rawGroupId = (await getSetting("plisio_review_group")) ?? (await getSetting("payment_review_group"));
+  if (!rawGroupId) return;
+  const groupId = parseInt(rawGroupId, 10);
+  if (!Number.isFinite(groupId)) return;
+
+  const fullName = [userRecord?.firstName, userRecord?.lastName].filter(Boolean).join(" ") || "—";
+  const username = userRecord?.username ? `@${userRecord.username}` : "—";
+
+  const text =
+    `💫 <b>پرداخت موفق — Plisio</b>\n\n` +
+    `👤 کاربر: ${fullName} (${username})\n` +
+    `🆔 آیدی عددی: <code>${result.userId}</code>\n\n` +
+    `🪙 سکه شارژ شده: <b>${result.coins}</b>\n` +
+    `💵 مبلغ: <b>${result.amountUsd ?? "-"}</b> ${result.cryptoCurrency ?? "USD"}\n` +
+    `📄 شماره سفارش: <code>${result.orderNumber ?? "-"}</code>\n` +
+    `🔖 شناسه تراکنش: <code>${result.txnId ?? "-"}</code>\n\n` +
+    `🕒 ${new Date().toLocaleString("fa-IR")}\n` +
+    `✅ وضعیت: تکمیل و بایگانی شد`;
+
+  await bot.api.sendMessage(groupId, text, { parse_mode: "HTML" });
+}
 
 // ─── Status messages ──────────────────────────────────────────────────────────
 

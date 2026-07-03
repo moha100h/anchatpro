@@ -161,6 +161,11 @@ export interface PlisioVerifyResult {
   /** Actual Plisio status string, available even on failure */
   paymentStatus?: string;
   error?: string;
+  /** Extra context for the review-group notification on success */
+  orderNumber?: string;
+  txnId?: string;
+  amountUsd?: string;
+  cryptoCurrency?: string;
 }
 
 export async function handlePlisioCallback(
@@ -275,7 +280,15 @@ export async function handlePlisioCallback(
 
   if (claimedPayment) {
     await addCoins(tx.userId, claimedPayment.coins, "payment", `Plisio crypto purchase — txn: ${txnId}`);
-    return { success: true, coins: claimedPayment.coins, userId: tx.userId };
+    return {
+      success: true,
+      coins: claimedPayment.coins,
+      userId: tx.userId,
+      orderNumber: tx.orderNumber,
+      txnId: txnId || tx.txnId || undefined,
+      amountUsd: tx.amountUsd,
+      cryptoCurrency: tx.currency ?? undefined,
+    };
   }
 
   logger.warn(

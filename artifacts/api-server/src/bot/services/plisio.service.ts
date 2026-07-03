@@ -224,28 +224,63 @@ export async function handlePlisioCallback(
     };
   }
 
-  // Payment completed — credit coins
-  await db.update(plisioTransactionsTable).set({
-    status: "completed",
-    callbackVerified: true,
-    txnId: txnId || undefined,
-    verifiedAt: new Date(),
-  }).where(eq(plisioTransactionsTable.id, tx.id));
+  // Payment completed — credit coins.
+  //
+  // IMPORTANT (idempotency/anti-fraud): Plisio can deliver the same webhook
+  // more than once (retries, network duplicates), and two deliveries could
+  // arrive close enough together to both pass the `tx.callbackVerified`
+  // check above before either one's UPDATE commits (classic check-then-act
+  // race). To make this airtight, the UPDATE below is itself the guard: it
+  // only flips the row from "not yet verified" to "completed" when it is
+  // still "not yet verified" at the moment the UPDATE executes (atomic,
+  // single statement, enforced by Postgres row locking). If two requests
+  // race, only one UPDATE can match+return a row; the other gets nothing
+  // back and safely no-ops. Coins are only ever credited by the branch that
+  // won this update.
+  const [claimedTx] = await db
+    .update(plisioTransactionsTable)
+    .set({
+      status: "completed",
+      callbackVerified: true,
+      txnId: txnId || undefined,
+      verifiedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(plisioTransactionsTable.id, tx.id),
+        eq(plisioTransactionsTable.callbackVerified, false)
+      )
+    )
+    .returning();
 
-  const [payment] = await db
-    .select()
-    .from(paymentsTable)
-    .where(and(eq(paymentsTable.id, tx.paymentId), eq(paymentsTable.status, "pending")))
-    .limit(1);
-
-  if (payment) {
-    await db.update(paymentsTable).set({
-      status: "approved",
-      processedAt: new Date(),
-    }).where(eq(paymentsTable.id, payment.id));
-    await addCoins(tx.userId, payment.coins, "payment", `Plisio crypto purchase — txn: ${txnId}`);
-    return { success: true, coins: payment.coins, userId: tx.userId };
+  if (!claimedTx) {
+    // Another concurrent webhook delivery already claimed this transaction.
+    logger.warn({ orderNumber, txnId }, "plisio webhook: duplicate completed callback ignored (already claimed)");
+    return { success: true, alreadyVerified: true };
   }
 
+  // Same atomic pattern for the payment row: only the request that flips
+  // status "pending" → "approved" is allowed to call addCoins(). A second
+  // concurrent attempt (e.g. a retried webhook that somehow got this far)
+  // finds status already "approved" and the conditional UPDATE matches
+  // nothing, so no double crediting can occur.
+  const [claimedPayment] = await db
+    .update(paymentsTable)
+    .set({
+      status: "approved",
+      processedAt: new Date(),
+    })
+    .where(and(eq(paymentsTable.id, tx.paymentId), eq(paymentsTable.status, "pending")))
+    .returning();
+
+  if (claimedPayment) {
+    await addCoins(tx.userId, claimedPayment.coins, "payment", `Plisio crypto purchase — txn: ${txnId}`);
+    return { success: true, coins: claimedPayment.coins, userId: tx.userId };
+  }
+
+  logger.warn(
+    { orderNumber, paymentId: tx.paymentId },
+    "plisio webhook: transaction claimed but payment row was not in pending state — coins not re-credited"
+  );
   return { success: true, userId: tx.userId };
 }

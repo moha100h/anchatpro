@@ -9,7 +9,7 @@
  *  4. handlePlisioCallback() → verify hash → credit coins
  */
 
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 import { db } from "@workspace/db";
 import { plisioTransactionsTable, paymentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
@@ -17,67 +17,30 @@ import { addCoins } from "./coin.service.js";
 import { getSetting } from "./payment.service.js";
 import { getBotUsername } from "../bot-instance.js";
 import { nanoid } from "nanoid";
+import { logger } from "../../lib/logger.js";
 
 const PLISIO_BASE_URL = "https://api.plisio.net/api/v1";
 
-// ─── PHP serialize (for webhook signature verification) ────────────────────────
-// Plisio uses hash_hmac('sha1', serialize(ksorted_params), secret_key)
-
-function phpSerializeValue(value: unknown): string {
-  if (value === null || value === undefined) return "N;";
-  if (typeof value === "boolean") return `b:${value ? 1 : 0};`;
-  if (typeof value === "number") {
-    if (Number.isInteger(value)) return `i:${value};`;
-    return `d:${value};`;
-  }
-  if (typeof value === "string") {
-    const len = Buffer.byteLength(value, "utf8");
-    return `s:${len}:"${value}";`;
-  }
-  if (Array.isArray(value)) {
-    let inner = "";
-    value.forEach((v, i) => { inner += `i:${i};${phpSerializeValue(v)}`; });
-    return `a:${value.length}:{${inner}}`;
-  }
-  if (typeof value === "object" && value !== null) {
-    const obj = value as Record<string, unknown>;
-    const keys = Object.keys(obj).sort();
-    let inner = "";
-    keys.forEach(k => {
-      inner += `s:${Buffer.byteLength(k, "utf8")}:"${k}";${phpSerializeValue(obj[k])}`;
-    });
-    return `a:${keys.length}:{${inner}}`;
-  }
-  return "N;";
-}
-
-function phpSerializeObject(obj: Record<string, unknown>): string {
-  const keys = Object.keys(obj).sort();
-  let inner = "";
-  keys.forEach(k => {
-    inner += `s:${Buffer.byteLength(k, "utf8")}:"${k}";${phpSerializeValue(obj[k])}`;
-  });
-  return `a:${keys.length}:{${inner}}`;
-}
+// ─── Webhook signature verification (JSON mode, since we send ?json=true) ──────
+// Per Plisio docs: when callback_url has `json=true`, the hash is
+// HMAC-SHA1( JSON.stringify(payload minus verify_hash) , SECRET_KEY ) — NOT PHP serialize.
+// https://plisio.net/documentation/endpoints/create-an-invoice#verification-example
 
 function verifyPlisioHash(payload: Record<string, unknown>, secretKey: string): boolean {
   const verifyHash = payload["verify_hash"] as string | undefined;
   if (!verifyHash || !secretKey) return false;
 
-  const data: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(payload)) {
-    if (k === "verify_hash") continue;
-    // Plisio docs: expire_utc must be cast to string
-    if (k === "expire_utc" && typeof v === "number") {
-      data[k] = String(v);
-    } else {
-      data[k] = v;
-    }
-  }
+  const ordered = { ...payload };
+  delete ordered["verify_hash"];
 
-  const serialized = phpSerializeObject(data);
+  const serialized = JSON.stringify(ordered);
   const computed = createHmac("sha1", secretKey).update(serialized).digest("hex");
-  return computed === verifyHash;
+
+  try {
+    return timingSafeEqual(Buffer.from(computed, "utf8"), Buffer.from(verifyHash, "utf8"));
+  } catch {
+    return false;
+  }
 }
 
 // ─── Create Invoice ────────────────────────────────────────────────────────────
@@ -99,8 +62,11 @@ export async function createPlisioOrder(
   const apiKey = await getSetting("plisio_api_key");
   if (!apiKey) return { success: false, error: "Plisio API key not configured" };
 
-  const callbackUrl = await getSetting("plisio_callback_url");
-  if (!callbackUrl) return { success: false, error: "Plisio callback URL not configured" };
+  const rawCallbackUrl = await getSetting("plisio_callback_url");
+  if (!rawCallbackUrl) return { success: false, error: "Plisio callback URL not configured" };
+  // Strip any accidentally-included query string (e.g. admin pasted "...?json=true")
+  // to avoid a malformed double "?json=true?json=true" URL.
+  const callbackUrl = rawCallbackUrl.split("?")[0].trim();
 
   const allowedCurrencies = (await getSetting("plisio_currencies")) ?? "ETH,LTC,BNB,USDT_TRX,TRX";
   const orderNumber = `inv_${paymentId}_${nanoid(8)}`;
@@ -200,7 +166,13 @@ export async function handlePlisioCallback(
   if (!apiKey) return { success: false, error: "Plisio API key not configured" };
 
   const isValid = verifyPlisioHash(payload, apiKey);
-  if (!isValid) return { success: false, error: "Invalid signature" };
+  if (!isValid) {
+    logger.warn(
+      { orderNumber: payload["order_number"], status: payload["status"] },
+      "plisio webhook: signature verification failed"
+    );
+    return { success: false, error: "Invalid signature" };
+  }
 
   const status      = String(payload["status"]       ?? "");
   const orderNumber = String(payload["order_number"] ?? "");
@@ -212,17 +184,32 @@ export async function handlePlisioCallback(
     .where(eq(plisioTransactionsTable.orderNumber, orderNumber))
     .limit(1);
 
-  if (!tx) return { success: false, error: "Transaction not found" };
+  if (!tx) {
+    logger.warn({ orderNumber, status }, "plisio webhook: transaction not found for order");
+    return { success: false, error: "Transaction not found" };
+  }
 
+  // Already fully processed — never re-credit (fraud/replay protection).
   if (tx.callbackVerified || tx.status === "completed") {
     return { success: true, alreadyVerified: true };
   }
 
   if (status !== "completed") {
-    const validStatuses = ["expired", "failed", "cancelled", "mismatch", "error", "pending"];
-    const mapped = validStatuses.includes(status) ? status : "pending";
+    // Plisio non-final/duplicate statuses map onto our narrower enum.
+    const statusMap: Record<string, "expired" | "failed" | "cancelled" | "mismatch" | "error" | "pending"> = {
+      expired:               "expired",
+      failed:                "failed",
+      cancelled:             "cancelled",
+      "cancelled duplicate": "cancelled",
+      mismatch:              "mismatch",
+      error:                 "error",
+      pending:               "pending",
+      new:                   "pending",
+      "pending internal":    "pending",
+    };
+    const mapped = statusMap[status] ?? "pending";
     await db.update(plisioTransactionsTable)
-      .set({ status: mapped as any, txnId: txnId || undefined })
+      .set({ status: mapped, txnId: txnId || undefined })
       .where(eq(plisioTransactionsTable.id, tx.id));
     // Always return userId so the webhook route can notify the user
     return {

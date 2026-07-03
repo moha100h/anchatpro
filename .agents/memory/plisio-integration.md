@@ -7,7 +7,7 @@ description: Full Plisio crypto gateway integration alongside TetraPay; key desi
 
 - **Webhook URL**: `/webhook/plisio?json=true` — the `?json=true` suffix is required by Plisio (Status URL field in their panel).
 - **Amount currency**: `source_currency=USD`, `source_amount` from `pkg.plisioPrice ?? pkg.cryptoPrice ?? 5`.
-- **Webhook verification**: PHP serialize sorted params (excluding `verify_hash`) + HMAC-SHA1 with secret key. `expire_utc` cast to string before serialization.
+- **Webhook verification**: since callback URL includes `?json=true`, Plisio signs with `HMAC-SHA1(JSON.stringify(payload minus verify_hash))` — plain JSON stringify, NOT PHP `serialize()`/sorted-keys. Using the PHP-serialize method makes verification always fail silently and coins never get credited (see plisio-verify-bug.md).
 - **DB schema**: `plisioTransactionsTable`, `plisioStatusEnum`, `plisioPrice` column on `paymentPackagesTable`, `payment_method` enum extended with `'plisio'`.
 - **Admin settings keys**: `plisio_api_key`, `plisio_callback_url`, `plisio_currencies` (default `ETH,LTC,BNB,USDT_TRX,TRX`), `plisio_review_group`.
 - **Toggle key**: `payment_method_plisio` (same pattern as card/crypto/gateway).

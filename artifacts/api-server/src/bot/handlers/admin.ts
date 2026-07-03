@@ -2041,8 +2041,13 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
     if (action.startsWith("set_setting:")) {
       const key = action.replace("set_setting:", "");
-      await setSetting(key, text);
-      await ctx.reply(`✅ تنظیم شد: \`${key}\` = \`${text}\``, { parse_mode: "Markdown" });
+      // Callback URLs: strip any pasted query string to avoid a malformed
+      // double "?json=true?json=true" when Plisio appends its own suffix.
+      const value = key === "plisio_callback_url" || key === "tetrapay_callback_url"
+        ? text.split("?")[0]!.trim()
+        : text;
+      await setSetting(key, value);
+      await ctx.reply(`✅ تنظیم شد: \`${key}\` = \`${value}\``, { parse_mode: "Markdown" });
       return;
     }
 

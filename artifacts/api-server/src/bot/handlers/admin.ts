@@ -51,7 +51,7 @@ import {
   getStarsPaymentStats,
   saveCryptoCurrencies,
 } from "../services/payment.service.js";
-import { getTetraPayCallbackUrl, getPlisioCallbackUrl } from "../../lib/base-url.js";
+import { getTetraPayCallbackUrl, getPlisioCallbackUrl, getPlisioSuccessUrlExample, getPlisioFailUrlExample } from "../../lib/base-url.js";
 import { getTotalChats } from "../services/matching.service.js";
 import { db } from "@workspace/db";
 import { adminPermissionsTable, usersTable } from "@workspace/db";
@@ -791,6 +791,8 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     ]);
     const enabled = (methodVal ?? "enabled") !== "disabled";
     const webhookUrl = getPlisioCallbackUrl();
+    const successUrl = getPlisioSuccessUrlExample();
+    const failUrl = getPlisioFailUrlExample();
     await ctx.reply(
       `💫 *Plisio — درگاه کریپتو جهانی*\n\n` +
       `وضعیت: ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
@@ -803,7 +805,12 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       `2️⃣ *کلید مخفی* (Secret Key) را کپی کنید\n` +
       `3️⃣ در فیلد *Status URL* این آدرس را ثبت کنید:\n` +
       `\`${webhookUrl}?json=true\`\n` +
-      `4️⃣ *کلید API* رو از دکمه زیر وارد کنید`,
+      `4️⃣ *کلید API* رو از دکمه زیر وارد کنید\n\n` +
+      `🔗 *لینک‌های موفقیت/شکست (Success/Fail):*\n` +
+      `این دو لینک نیازی به تنظیم دستی در پنل Plisio ندارند — Plisio برای این‌ها فیلدی در پنل ندارد. ربات به‌صورت خودکار برای هر تراکنش این آدرس‌ها رو همراه درخواست ساخت فاکتور ارسال می‌کنه:\n` +
+      `✅ Success:\n\`${successUrl}\`\n` +
+      `❌ Fail:\n\`${failUrl}\`\n` +
+      `(به‌جای \`<order_number>\` شماره سفارش واقعی هر تراکنش قرار می‌گیره)`,
       {
         parse_mode: "Markdown",
         reply_markup: {
@@ -811,6 +818,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
             [{ text: "🔑 ثبت/تغییر کلید API",          callback_data: "pay_set:plisio_api_key" }],
             [{ text: "🔗 تشخیص خودکار Callback URL",  callback_data: "plisio:auto_url" }],
             [{ text: "✏️ ویرایش Callback URL",          callback_data: "pay_set:plisio_callback_url" }],
+            [{ text: "🔗 نمایش لینک‌های Success/Fail",  callback_data: "plisio:show_return_urls" }],
             [{ text: "💱 ارزهای مجاز (ETH,LTC,...)",   callback_data: "pay_set:plisio_currencies" }],
             [{ text: "👥 گروه بررسی Plisio",            callback_data: "pay_set:plisio_review_group" }],
             [{ text: "📝 نام نمایشی درگاه",             callback_data: "gw_name:plisio" }],
@@ -1241,6 +1249,21 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       `<code>${url}</code>\n\n` +
       `در پنل Plisio، این آدرس را در فیلد <b>Status URL</b> وارد کنید:\n` +
       `<code>${url}?json=true</code>`,
+      { parse_mode: "HTML" }
+    );
+  });
+
+  bot.callbackQuery("plisio:show_return_urls", async (ctx) => {
+    if (!canDo(ctx.from!.id, "payment")) { await ctx.answerCallbackQuery("❌"); return; }
+    await ctx.answerCallbackQuery();
+    const successUrl = getPlisioSuccessUrlExample();
+    const failUrl = getPlisioFailUrlExample();
+    await ctx.reply(
+      `🔗 <b>لینک‌های Success و Fail پلیزیو</b>\n\n` +
+      `⚠️ <b>توجه:</b> پنل Plisio هیچ فیلدی برای ثبت دستی این دو لینک ندارد (بر خلاف Status URL). این لینک‌ها فقط جهت اطلاع/مرجع نمایش داده می‌شن؛ ربات به‌صورت خودکار و برای هر تراکنش، این آدرس‌ها رو همراه با شماره سفارش واقعی در لحظه‌ی ساخت فاکتور به Plisio ارسال می‌کنه. نیازی به کپی یا ثبت دستی این دو در جایی نیست.\n\n` +
+      `✅ <b>Success URL (الگو):</b>\n<code>${successUrl}</code>\n\n` +
+      `❌ <b>Fail URL (الگو):</b>\n<code>${failUrl}</code>\n\n` +
+      `به‌جای <code>&lt;order_number&gt;</code> شماره سفارش واقعی هر تراکنش قرار می‌گیره.`,
       { parse_mode: "HTML" }
     );
   });

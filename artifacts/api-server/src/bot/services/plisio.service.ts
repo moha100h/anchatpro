@@ -15,7 +15,7 @@ import { plisioTransactionsTable, paymentsTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { addCoins } from "./coin.service.js";
 import { getSetting } from "./payment.service.js";
-import { getBotUsername } from "../bot-instance.js";
+import { getBaseUrl } from "../../lib/base-url.js";
 import { nanoid } from "nanoid";
 import { logger } from "../../lib/logger.js";
 
@@ -83,11 +83,15 @@ export async function createPlisioOrder(
     expire_min:        "30",
   });
 
-  const botUsername = getBotUsername();
-  if (botUsername) {
-    params.set("success_callback_url", `https://t.me/${botUsername}?start=plisio_ok`);
-    params.set("fail_callback_url",    `https://t.me/${botUsername}?start=plisio_exp`);
-  }
+  // Success/fail redirects go through our own server first (not straight to
+  // the bot). That landing page looks up this exact order_number, confirms
+  // the *real* status recorded from the signed webhook, and only then
+  // forwards the user into the bot with an order-bound token. This closes
+  // the fraud hole where anyone who found a generic "?start=plisio_ok" link
+  // could trigger a fake success screen without ever paying.
+  const returnBaseUrl = getBaseUrl();
+  params.set("success_callback_url", `${returnBaseUrl}/webhook/plisio/return?r=ok&order=${orderNumber}`);
+  params.set("fail_callback_url",    `${returnBaseUrl}/webhook/plisio/return?r=fail&order=${orderNumber}`);
 
   try {
     const res = await fetch(`${PLISIO_BASE_URL}/invoices/new?${params}`, {

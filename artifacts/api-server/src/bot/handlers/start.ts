@@ -438,6 +438,100 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       return;
     }
 
+    // ── 1g. Plisio return via server landing page — order-bound, fraud-proof ─
+    // The success/fail redirect URLs now point at our own server first
+    // (see plisio.service.ts / routes/plisio.ts), which forwards here with
+    // the exact order_number. We look up that specific order, confirm the
+    // clicking Telegram user actually owns it, and only then reveal the
+    // *real* status recorded by the signed webhook — never what the link
+    // itself claims. A stranger who finds/guesses this link with no matching
+    // paid order (or someone else's order) never sees a success screen.
+    if (arg.startsWith("plisio_r_")) {
+      const orderNumber = arg.slice("plisio_r_".length);
+      const user = await getOrCreateUser(tgId, ctx.from!.first_name, ctx.from!.username);
+      const lang = (user.language as "fa" | "en") ?? "fa";
+
+      const { db, plisioTransactionsTable, paymentsTable } = await import("@workspace/db");
+      const { eq: eqDb } = await import("drizzle-orm");
+
+      const [tx] = await db
+        .select()
+        .from(plisioTransactionsTable)
+        .where(eqDb(plisioTransactionsTable.orderNumber, orderNumber))
+        .limit(1);
+
+      // No matching order, or it belongs to a different user — reveal nothing.
+      if (!tx || tx.userId !== tgId) {
+        await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
+        return;
+      }
+
+      if (tx.status === "completed") {
+        const [payment] = await db
+          .select({ coins: paymentsTable.coins })
+          .from(paymentsTable)
+          .where(eqDb(paymentsTable.id, tx.paymentId))
+          .limit(1);
+        const coins = payment?.coins ?? 0;
+        const balance = await getBalance(tgId);
+        await ctx.reply(
+          lang === "fa"
+            ? `✅ <b>پرداخت با موفقیت انجام شد!</b>\n\n` +
+              `🪙 سکه خریداری‌شده: <b>${coins} سکه</b>\n` +
+              `💰 موجودی فعلی: <b>${balance} سکه</b>`
+            : `✅ <b>Payment successful!</b>\n\n` +
+              `🪙 Coins purchased: <b>${coins} coins</b>\n` +
+              `💰 Current balance: <b>${balance} coins</b>`,
+          { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
+        );
+        return;
+      }
+
+      if (tx.status === "pending") {
+        // Browser redirected before our webhook finished processing.
+        await ctx.reply(
+          lang === "fa"
+            ? `⏳ <b>در حال تأیید پرداخت...</b>\n\n` +
+              `پرداخت شما در حال بررسی است. معمولاً چند ثانیه تا چند دقیقه طول می‌کشد.\n` +
+              `به محض تأیید، سکه‌ها به‌صورت خودکار به حساب شما اضافه می‌شود.`
+            : `⏳ <b>Confirming your payment...</b>\n\n` +
+              `Your payment is being verified. This usually takes a few seconds to a few minutes.\n` +
+              `Coins will be credited automatically once confirmed.`,
+          { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
+        );
+        return;
+      }
+
+      if (tx.status === "expired") {
+        await ctx.reply(
+          lang === "fa"
+            ? `⏰ <b>مهلت پرداخت منقضی شد</b>\n\n` +
+              `لینک پرداخت Plisio پس از ۳۰ دقیقه منقضی می‌شود.\n` +
+              `برای خرید مجدد سکه از دکمه 🛒 خرید سکه استفاده کنید.`
+            : `⏰ <b>Payment link expired</b>\n\n` +
+              `Plisio payment links expire after 30 minutes.\n` +
+              `Use the 🛒 Buy Coins button to try again.`,
+          { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
+        );
+        return;
+      }
+
+      // failed / cancelled / mismatch / error — generic terminal-failure message
+      await ctx.reply(
+        lang === "fa"
+          ? `❌ <b>پرداخت انجام نشد</b>\n\n` +
+            `تراکنش شما لغو یا ناموفق بود.\n` +
+            `اگر مبلغی از کیف پول کسر شده، با پشتیبانی تماس بگیرید.\n` +
+            `در غیر این صورت از دکمه 🛒 خرید سکه مجدداً اقدام کنید.`
+          : `❌ <b>Payment not completed</b>\n\n` +
+            `Your transaction was cancelled or failed.\n` +
+            `If funds were deducted, please contact support.\n` +
+            `Otherwise, use the 🛒 Buy Coins button to try again.`,
+        { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
+      );
+      return;
+    }
+
     // ── 2. Extract referral code (supports inv / ref_ / r_ formats) ─────────
     let referralCode: string | undefined;
     if (arg.startsWith("inv"))      referralCode = arg.slice(3);

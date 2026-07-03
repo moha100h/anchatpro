@@ -11,15 +11,87 @@
 
 import { Router } from "express";
 import { handlePlisioCallback } from "../bot/services/plisio.service.js";
-import { getBotInstance } from "../bot/bot-instance.js";
+import { getBotInstance, getBotUsername } from "../bot/bot-instance.js";
 import { getUserByTelegramId } from "../bot/services/user.service.js";
 import { t } from "../bot/i18n/index.js";
 import { logger } from "../lib/logger.js";
+import { db, plisioTransactionsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router = Router();
 
 /** Statuses that warrant a user notification (terminal, non-success states). */
 const NOTIFY_STATUSES = new Set(["expired", "cancelled", "failed", "mismatch", "error"]);
+
+/**
+ * GET /webhook/plisio/return — browser lands here after leaving Plisio's
+ * checkout page (before ever reaching the bot).
+ *
+ * This is intentionally NOT a straight redirect into the bot: the query
+ * string is just the order_number Plisio was told to bounce back with. We
+ * do not trust it as proof of anything — we only use it to look the order
+ * up. The bot itself re-verifies the real DB status (set only by the signed
+ * webhook) and confirms the clicking user owns the order before showing
+ * anything. This route exists purely to present a professional "returning
+ * to bot" screen and to carry the order reference across.
+ */
+router.get("/return", async (req, res) => {
+  const orderNumberRaw = String(req.query["order"] ?? "");
+  const orderNumber = /^[A-Za-z0-9_-]{1,64}$/.test(orderNumberRaw) ? orderNumberRaw : "";
+
+  const botUsername = getBotUsername() ?? "anymschat_bot";
+  const deepLink = orderNumber
+    ? `https://t.me/${botUsername}?start=plisio_r_${orderNumber}`
+    : `https://t.me/${botUsername}`;
+
+  // Best-effort existence check purely for the loading copy shown; the bot
+  // side remains the sole source of truth for what the user is told.
+  let exists = false;
+  if (orderNumber) {
+    const [tx] = await db
+      .select({ id: plisioTransactionsTable.id })
+      .from(plisioTransactionsTable)
+      .where(eq(plisioTransactionsTable.orderNumber, orderNumber))
+      .limit(1);
+    exists = !!tx;
+  }
+
+  res.status(200).send(renderReturnPage(deepLink, exists));
+});
+
+function renderReturnPage(deepLink: string, exists: boolean): string {
+  const escapedLink = deepLink.replace(/"/g, "&quot;");
+  return `<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="refresh" content="1;url=${escapedLink}">
+<title>در حال بازگشت به ربات...</title>
+<style>
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
+         background:#0f1720; font-family: Tahoma, sans-serif; color:#e5e7eb; }
+  .card { text-align:center; padding:32px; max-width:360px; }
+  .spinner { width:44px; height:44px; margin:0 auto 20px; border-radius:50%;
+             border:4px solid rgba(255,255,255,0.15); border-top-color:#22c55e; animation:spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 { font-size:18px; margin:0 0 8px; }
+  p { font-size:14px; color:#9ca3af; margin:0 0 20px; }
+  a.btn { display:inline-block; padding:10px 22px; border-radius:10px; background:#22c55e;
+          color:#0f1720; text-decoration:none; font-weight:bold; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h1>${exists ? "در حال بررسی نتیجه پرداخت..." : "در حال بازگشت به ربات..."}</h1>
+    <p>اگر به‌طور خودکار منتقل نشدید، روی دکمه زیر بزنید.</p>
+    <a class="btn" href="${escapedLink}">بازگشت به ربات</a>
+  </div>
+  <script>setTimeout(function(){ window.location.href = "${escapedLink}"; }, 400);</script>
+</body>
+</html>`;
+}
 
 router.post("/", async (req, res) => {
   // Always 200 — Plisio retries on any non-2xx response.

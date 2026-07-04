@@ -10,3 +10,6 @@ Rules learned building the fully-automatic `install.sh` (Node 22 + pnpm monorepo
 - **DB connectivity is a hard gate.** After provisioning, a failed `SELECT 1` must `die` with diagnostics — don't `warn` and continue, or schema-push/build/runtime fail later with confusing errors.
 
 **Why:** These are the failure modes that break a hands-off install on fresh minimal images even when the happy path works on a full/preconfigured server.
+
+## pnpm version must be pinned in the installer
+`install.sh` must install the EXACT pnpm version the repo is locked against (match `pnpm -v` in dev; currently 10.26.1), not `npm install -g pnpm` (latest). Since pnpm 10.16, `pnpm install` HARD-FAILS with `ERR_PNPM_IGNORED_BUILDS` when a package with a build script (e.g. esbuild) isn't honored from `onlyBuiltDependencies` — and an arbitrary/stale pnpm on the VPS may not read `onlyBuiltDependencies` from pnpm-workspace.yaml the same way. Pinning makes the VPS install behave identically to dev. Also skip reinstall only when `pnpm -v` already equals the pinned version.

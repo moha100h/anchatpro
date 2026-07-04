@@ -245,9 +245,15 @@ ok "Node.js $NODE_VER ready"
 
 # ─── Step 4: pnpm ────────────────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 3 — pnpm${NC}"
-if ! command -v pnpm >/dev/null 2>&1; then
-    info "Installing pnpm..."
-    npm install -g pnpm --silent
+# Pin the EXACT pnpm version the project was developed/locked against. An
+# arbitrary "latest" pnpm (or a stale one left by a previous run) can differ in
+# how it reads `onlyBuiltDependencies` from pnpm-workspace.yaml and, since pnpm
+# 10.16, will HARD-FAIL the install with ERR_PNPM_IGNORED_BUILDS on packages
+# like esbuild. Matching the dev version makes the install deterministic.
+PNPM_VERSION="10.26.1"
+if [ "$(pnpm -v 2>/dev/null)" != "$PNPM_VERSION" ]; then
+    info "Installing pnpm@${PNPM_VERSION}..."
+    npm install -g "pnpm@${PNPM_VERSION}" --silent || die "Failed to install pnpm@${PNPM_VERSION}"
 fi
 ok "pnpm $(pnpm -v) ready"
 

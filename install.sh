@@ -256,13 +256,32 @@ echo -e "\n${BOLD}Step 8 — Database schema${NC}"
 info "Pushing schema (drizzle-kit)..."
 cd "$INSTALL_DIR"
 
-if pnpm --filter @workspace/db run push-force 2>&1 | tail -5; then
+
+# NOTE: `cmd | tail -5` reports the exit status of `tail` (always 0), not of
+# the actual push command — that previously made this step always print
+# "✅ Database schema applied" even when the push genuinely failed, hiding
+# real errors (e.g. incompatible column/type changes). Capture full output to
+# a temp log and check the real exit code via PIPESTATUS instead.
+PUSH_LOG="$(mktemp)"
+pnpm --filter @workspace/db run push-force > "$PUSH_LOG" 2>&1
+PUSH_EXIT=$?
+
+if [ "$PUSH_EXIT" -eq 0 ]; then
+    tail -5 "$PUSH_LOG"
     ok "Database schema applied"
 else
-    warn "Retrying with prompt bypass..."
-    yes 2>/dev/null | pnpm --filter @workspace/db run push 2>&1 | tail -5 \
-        || die "Database schema push failed. Check DATABASE_URL and PostgreSQL logs."
+    warn "push-force failed (exit $PUSH_EXIT) — retrying with prompt bypass..."
+    tail -15 "$PUSH_LOG"
+    yes 2>/dev/null | pnpm --filter @workspace/db run push > "$PUSH_LOG" 2>&1
+    PUSH_EXIT=$?
+    tail -15 "$PUSH_LOG"
+    if [ "$PUSH_EXIT" -ne 0 ]; then
+        rm -f "$PUSH_LOG"
+        die "Database schema push failed. Full log above. Check DATABASE_URL and PostgreSQL logs."
+    fi
+    ok "Database schema applied (via prompt-bypass retry)"
 fi
+rm -f "$PUSH_LOG"
 
 # ─── Column migrations (safe — no-op if already applied) ─────────────────────
 info "Applying column migrations..."

@@ -1,0 +1,65 @@
+at async Object.query (/root/anchatpro/node_modules/.pnpm/drizzle-kit@0.31.10/node_modules/drizzle-kit/bin.cjs:78906:26)
+    at async pgPush (/root/anchatpro/node_modules/.pnpm/drizzle-kit@0.31.10/node_modules/drizzle-kit/bin.cjs:82768:13)
+    at async Object.handler (/root/anchatpro/node_modules/.pnpm/drizzle-kit@0.31.10/node_modules/drizzle-kit/bin.cjs:92226:9)
+    at async run (/root/anchatpro/node_modules/.pnpm/drizzle-kit@0.31.10/node_modules/drizzle-kit/bin.cjs:91472:7) {
+  length: 95,
+  severity: 'ERROR',
+  code: '42501',
+  detail: undefined,
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: undefined,
+  table: undefined,
+  column: undefined,
+  dataType: undefined,
+  constraint: undefined,
+  file: 'aclchk.c',
+  line: '2812',
+  routine: 'aclcheck_error'
+}
+$ node ./build.mjs
+
+  dist/index.mjs                       3.0mb ⚠️
+  dist/pino-worker.mjs               153.4kb
+  dist/pino-file.mjs                 142.0kb
+  dist/pino-pretty.mjs               114.6kb
+  dist/thread-stream-worker.mjs        7.3kb
+  dist/index.mjs.map                   5.1mb
+  dist/pino-worker.mjs.map           256.9kb
+  dist/pino-file.mjs.map             229.0kb
+  dist/pino-pretty.mjs.map           204.0kb
+  dist/thread-stream-worker.mjs.map   12.0kb
+
+⚡ Done in 1242ms
+Use --update-env to update environment variables
+[PM2] Applying action restartProcessId on app [anchatbot]…
+[PM2] [anchatbot](0) ✓
+┌────┬──────────────┬───────────┬────────┬──────────┐
+│ id │ name         │ status    │ cpu    │ mem      │
+├────┼──────────────┼───────────┼────────┼──────────┤
+│ 0  │ anchatbot    │ online    │ 0%     │ 4.5mb    │
+└────┴──────────────┴───────────┴────────┴──────────┘
+host metrics | cpu: 0.4% | ram usage: 31.9% | eth0: ⇓ 0.001mb/s ⇑ 0mb/s drop 14/min |
+[TAILING] Tailing last 20 lines for [anchatbot] process (…
+/root/.pm2/logs/anchatbot-error.log last 20 lines:
+0|anchatbo | $ node --enable-source-maps ./dist/index.mjs
+0|anchatbo | $ node --enable-source-maps ./dist/index.mjs
+0|anchatbo | $ node --enable-source-maps ./dist/index.mjs
+
+/root/.pm2/logs/anchatbot-out.log last 20 lines:
+0|anchatbo | er.js:62:13\n    at async /root/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:578:13\n    at async /root/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:62:13\n    at async /root/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:578:13\ncaused by: error: duplicate key value violates unique constraint \"coin_transactions_pkey\"\n    at <anonymous> (/root/anchatpro/node_modules/.pnpm/pg@8.22.0/node_modules/pg/lib/client.js:652:17)\n    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)\n    at async <anonymous> (/root/anchatpro/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.22.0/node_modules/src/node-postgres/session.ts:149:14)\n    at async NodePgPreparedQuery.queryWithCache (/root/anchatpro/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.22.0/node_modules/src/pg-core/session.ts:71:12)\n    at async <anonymous> (/root/anchatpro/artifacts/api-server/src/bot/services/spin.service.ts:82:5)\n    at async _NodePgSession.transaction (/root/anchatpro/node_modules/.pnpm/drizzle-orm@0.45.2_@types+pg@8.20.0_pg@8.22.0/node_modules/src/node-postgres/session.ts:259:19)\n    at async <anonymous> (/root/anchatpro/artifacts/api-server/src/bot/handlers/coins.ts:1337:20)\n    at async /root/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:578:13\n    at async /root/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:62:13\n    at async /root/anchatpro/node_modules/.pnpm/grammy@1.44.0/node_modules/grammy/out/composer.js:578:13","query":"insert into \"coin_transactions\" (\"id\", \"user_id\", \"amount\", \"type\", \"description\", \"balance_before\", \"balance_after\", \"created_at\") values (default, $1, $2, $3, $4, $5, $6, default)","params":[277236314,5,"daily_spin","Daily spin wheel reward",11775,11780]},"update":{"update_id":118060545,"callback_query":{"id":"1190720906019498505","from":{"id":277236314,"is_bot":false,"first_name":"Mohammad","username":"bayat","language_code":"en","is_premium":true},"message":{"message_id":4171,"from":{"id":8593161968,"is_bot":true,"first_name":"چت ناشناس | Anonymous chat","username":"anoymchat_bot"},"chat":{"id":277236314,"first_name":"Mohammad","username":"bayat","type":"private"},"date":1783198480,"text":"🎰 گردونه شانس\n\n✨ هر روز یک‌بار می‌تونی گردونه رو بچرخونی و سکه رایگان بگیری!\n\n🎲 شانس بیار، سکه بگیر!\n\n👇 دکمه زیر رو بزن تا بچرخه:","reply_markup":{"inline_keyboard":[[{"text":"🎡 بچرخون!","callback_data":"spin:do"}]]}},"chat_instance":"8028993190609494965","data":"spin:do"}},"msg":"Unhandled bot error"}
+0|anchatbo | {"level":30,"time":1783199065820,"pid":12604,"hostname":"fastcreate-018519","req":{"id":19,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783199096402,"pid":12604,"hostname":"fastcreate-018519","req":{"id":20,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783199100492,"pid":12604,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+0|anchatbo | {"level":30,"time":1783200060389,"pid":12604,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+0|anchatbo | {"level":30,"time":1783201020475,"pid":12604,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+0|anchatbo | {"level":30,"time":1783201980456,"pid":12604,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+0|anchatbo | {"level":30,"time":1783202940428,"pid":12604,"hostname":"fastcreate-018519","intervalMinutes":15,"msg":"Scheduled backup sent"}
+0|anchatbo | /root/anchatpro/artifacts/api-server:
+0|anchatbo | [ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @workspace/api-server@0.0.0 start: `node --enable-source-maps ./dist/index.mjs`
+0|anchatbo | Command failed with signal "SIGINT"
+
+root@fastcreate-018519:~/a

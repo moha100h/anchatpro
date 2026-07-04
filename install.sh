@@ -266,8 +266,17 @@ fi
 
 # ─── Column migrations (safe — no-op if already applied) ─────────────────────
 info "Applying column migrations..."
+# Rename schedule_hours -> schedule_minutes (old installs)
 PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
     -c "ALTER TABLE backup_config RENAME COLUMN schedule_hours TO schedule_minutes;" \
+    >/dev/null 2>&1 || true
+# Add schedule_minutes if missing entirely (fresh schema gap)
+PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+    -c "ALTER TABLE backup_config ADD COLUMN IF NOT EXISTS schedule_minutes integer NOT NULL DEFAULT 60;" \
+    >/dev/null 2>&1 || true
+# Add last_spin_date to users if missing
+PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" \
+    -c "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_spin_date varchar(10);" \
     >/dev/null 2>&1 || true
 ok "Column migrations done"
 

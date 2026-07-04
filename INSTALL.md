@@ -21,8 +21,14 @@
 ## 🚀 نصب سریع (یک دستور)
 
 ```bash
+git clone https://github.com/moha100h/anchatpro.git ~/anchatpro && cd ~/anchatpro && sudo bash install.sh
+```
+
+یا به‌صورت مرحله‌ای:
+
+```bash
 # ۱. کلون ریپو
-git clone <YOUR_REPO_URL> ~/anchatpro
+git clone https://github.com/moha100h/anchatpro.git ~/anchatpro
 cd ~/anchatpro
 
 # ۲. اجرای نصب خودکار

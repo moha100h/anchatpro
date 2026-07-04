@@ -301,14 +301,28 @@ ok "PM2 auto-start on reboot configured"
 
 # ─── Step 11: Health check ───────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 10 — Health check${NC}"
-sleep 6
+sleep 8
 
-BOT_STATUS=$(pm2 show anchatbot 2>/dev/null | grep -E "status\s*│" | awk '{print $NF}' | tr -d '│ ')
+# Use `pm2 jlist` (stable JSON output) instead of screen-scraping the `pm2 show`
+# table — the table's box-drawing characters vary by pm2 version/locale/terminal
+# and made the previous grep/awk parser unreliable (always showed 'unknown').
+BOT_STATUS=$(pm2 jlist 2>/dev/null | node -e "
+  try {
+    const list = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+    const p = list.find(x => x.name === 'anchatbot');
+    process.stdout.write(p ? (p.pm2_env && p.pm2_env.status || 'unknown') : 'not_found');
+  } catch (e) { process.stdout.write('unknown'); }
+" 2>/dev/null)
+
 if [[ "$BOT_STATUS" == "online" ]]; then
     ok "Bot process is ONLINE ✔"
 else
     warn "Bot process status: '${BOT_STATUS:-unknown}'"
-    warn "Check logs with: pm2 logs anchatbot"
+    warn "Last 40 log lines (pm2 logs anchatbot --lines 40 --nostream):"
+    echo "──────────────────────────────────────────────────────────"
+    pm2 logs anchatbot --lines 40 --nostream 2>/dev/null || true
+    echo "──────────────────────────────────────────────────────────"
+    warn "If this doesn't explain it, run: pm2 logs anchatbot"
 fi
 
 # ─── Done ────────────────────────────────────────────────────────────────────

@@ -37,8 +37,18 @@ while true; do
     # Validate against Telegram's API right away — catches typos/expired
     # tokens immediately instead of after a full install+build cycle, when
     # the bot silently fails to start and the only symptom is "won't respond".
-    info "Validating token with Telegram..."
-    TG_CHECK=$(curl -fsS --max-time 10 "https://api.telegram.org/bot${BOT_TOKEN}/getMe" 2>/dev/null || true)
+    #
+    # NOTE: api.telegram.org is blocked/filtered at the ISP level in some
+    # countries (e.g. Iran) unless the server has a proxy configured. On
+    # those hosts, a plain TCP SYN gets silently dropped (black-holed) —
+    # some curl builds don't reliably honor --max-time against a hung DNS
+    # lookup or a black-holed connect in that case, so this can hang far
+    # longer than 10s. Wrap the whole thing in an external `timeout` as a
+    # hard kill switch, and use --connect-timeout in addition to --max-time,
+    # and --ipv4 to skip a slow/broken IPv6 path.
+    info "Validating token with Telegram (max 12s)..."
+    TG_CHECK=$(timeout 12 curl -fsS --ipv4 --connect-timeout 6 --max-time 10 \
+        "https://api.telegram.org/bot${BOT_TOKEN}/getMe" 2>/dev/null || true)
     if echo "$TG_CHECK" | grep -q '"ok":true'; then
         BOT_USERNAME=$(echo "$TG_CHECK" | node -e "
           try { const d = JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(d.result.username || ''); } catch(e) {}
@@ -46,7 +56,7 @@ while true; do
         ok "Token valid — bot: @${BOT_USERNAME:-unknown}"
         break
     else
-        warn "Could not verify token with Telegram (invalid token, or no internet access from this server)."
+        warn "Could not verify token with Telegram (invalid token, or Telegram API is blocked/filtered from this server — common on Iranian VPS providers without a proxy)."
         read -rp "   ادامه بدون تایید؟ (y/N): " SKIP_VERIFY
         if [[ "$SKIP_VERIFY" =~ ^[Yy]$ ]]; then
             break

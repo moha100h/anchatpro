@@ -43,39 +43,86 @@ info "OS detected: $OS"
 # up-to-date package index and has the tools it depends on. This is also where
 # we honour the "update Linux if needed" requirement.
 echo -e "\n${BOLD}Step 0 — System update & prerequisites${NC}"
+APT_LOG="$(mktemp)"
 case "$OS" in
     ubuntu|debian|raspbian)
         export DEBIAN_FRONTEND=noninteractive
         info "Updating apt package index..."
-        apt-get update -qq >/dev/null 2>&1 || warn "apt-get update reported warnings — continuing"
+        if ! apt-get update -y > "$APT_LOG" 2>&1; then
+            warn "apt-get update reported errors — retrying with --fix-missing:"
+            tail -12 "$APT_LOG"
+            apt-get update -y --fix-missing > "$APT_LOG" 2>&1 || true
+        fi
         info "Upgrading installed packages (may take a few minutes)..."
         apt-get -y \
             -o Dpkg::Options::="--force-confdef" \
             -o Dpkg::Options::="--force-confold" \
-            upgrade >/dev/null 2>&1 || warn "apt-get upgrade reported warnings — continuing"
+            upgrade > "$APT_LOG" 2>&1 || warn "apt-get upgrade reported warnings — continuing"
+        # Repair any half-configured dpkg state left by an interrupted previous
+        # run or the upgrade above — otherwise the next `apt-get install` aborts
+        # with "dpkg was interrupted, you must manually run dpkg --configure -a".
+        dpkg --configure -a > /dev/null 2>&1 || true
         info "Installing base tools (curl, git, openssl, ca-certificates, gnupg)..."
-        apt-get install -y curl git openssl ca-certificates gnupg lsb-release \
-            >/dev/null 2>&1 || die "Failed to install base prerequisites (curl/git/openssl)."
+        # Bulk install first; if it fails (e.g. one package can't be located
+        # because of a broken/stale third-party repo), show the real error and
+        # fall back to installing each package individually so one bad package
+        # doesn't block the essentials. Whether curl/git/openssl actually made
+        # it in is verified after the case block.
+        if ! apt-get install -y curl git openssl ca-certificates gnupg lsb-release > "$APT_LOG" 2>&1; then
+            warn "Bulk install failed — apt errors below, retrying packages one by one:"
+            tail -20 "$APT_LOG"
+            apt-get update -y --fix-missing > /dev/null 2>&1 || true
+            for pkg in curl git openssl ca-certificates gnupg lsb-release; do
+                apt-get install -y "$pkg" > /dev/null 2>&1 || warn "  could not install: $pkg"
+            done
+        fi
         ;;
     centos|rhel|rocky|almalinux)
         info "Updating system packages (yum)..."
-        yum -y update >/dev/null 2>&1 || warn "yum update reported warnings — continuing"
+        yum -y update > "$APT_LOG" 2>&1 || warn "yum update reported warnings — continuing"
         info "Installing base tools (curl, git, openssl, ca-certificates)..."
-        yum install -y curl git openssl ca-certificates \
-            >/dev/null 2>&1 || die "Failed to install base prerequisites (curl/git/openssl)."
+        if ! yum install -y curl git openssl ca-certificates > "$APT_LOG" 2>&1; then
+            warn "Bulk install failed — errors below, retrying packages one by one:"
+            tail -20 "$APT_LOG"
+            for pkg in curl git openssl ca-certificates; do
+                yum install -y "$pkg" > /dev/null 2>&1 || warn "  could not install: $pkg"
+            done
+        fi
         ;;
     fedora)
         info "Updating system packages (dnf)..."
-        dnf -y update >/dev/null 2>&1 || warn "dnf update reported warnings — continuing"
+        dnf -y update > "$APT_LOG" 2>&1 || warn "dnf update reported warnings — continuing"
         info "Installing base tools (curl, git, openssl, ca-certificates)..."
-        dnf install -y curl git openssl ca-certificates \
-            >/dev/null 2>&1 || die "Failed to install base prerequisites (curl/git/openssl)."
+        if ! dnf install -y curl git openssl ca-certificates > "$APT_LOG" 2>&1; then
+            warn "Bulk install failed — errors below, retrying packages one by one:"
+            tail -20 "$APT_LOG"
+            for pkg in curl git openssl ca-certificates; do
+                dnf install -y "$pkg" > /dev/null 2>&1 || warn "  could not install: $pkg"
+            done
+        fi
         ;;
     *)
         warn "Unknown OS '$OS' — skipping system update."
         warn "Make sure curl, git and openssl are installed before continuing."
         ;;
 esac
+rm -f "$APT_LOG"
+
+# Only curl, git and openssl are hard requirements for the rest of the install.
+# Verify they are actually present now — anything else (ca-certificates, gnupg,
+# lsb-release) is nice-to-have and must not abort a working system.
+MISSING_TOOLS=""
+for t in curl git openssl; do
+    command -v "$t" >/dev/null 2>&1 || MISSING_TOOLS="${MISSING_TOOLS} $t"
+done
+if [ -n "$MISSING_TOOLS" ]; then
+    warn "These essential tools could not be installed:${MISSING_TOOLS}"
+    warn "This almost always means apt/yum has a broken source. Try:"
+    warn "   apt-get update --fix-missing      (Debian/Ubuntu)"
+    warn "   and check /etc/apt/sources.list(.d) for an unreachable repo,"
+    warn "   then re-run this installer."
+    die "Cannot continue without:${MISSING_TOOLS}"
+fi
 ok "System updated & prerequisites installed"
 
 # ─── Step 1: Credentials ─────────────────────────────────────────────────────

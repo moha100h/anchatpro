@@ -15,6 +15,7 @@
 - [Pro Anon Link system](pro-anon-link.md) — Two tiers (ap_/ai_ prefixes); proAnonLinksTable; linkType column on anonymousMessages; drizzle-kit push needs SQL fallback in non-TTY env.
 - [Payment system v2](payment-v2.md) — Persistent package keyboard; discount codes; per-gateway review groups; multi-currency crypto via CoinGecko; professional card display.
 - [Matching queue filter rule](matching-queue-filter.md) — findMatch must NOT filter on isInQueue=true; only isInChat=false is safe. isInQueue can drift; matchingQueueTable presence is authoritative.
+- [VPS installer hardening](vps-installer-hardening.md) — install.sh on fresh minimal VPS: prereqs+system-update FIRST, no `node` before Node install, use `runuser` not `sudo` for postgres, DB connect is a hard gate.
 - [Plisio integration](plisio-integration.md) — global crypto gateway; webhook at /webhook/plisio?json=true; HMAC-SHA1 verify; USD amount; per-package plisioPrice override; always return HTTP 200 to Plisio or it retries forever.
 - [Plisio webhook verify bug](plisio-verify-bug.md) — JSON callbacks sign with HMAC-SHA1(JSON.stringify(payload)), NOT PHP-serialize/sorted-keys; wrong algorithm silently fails verification and coins never credit.
 - [Plisio webhook patterns](plisio-webhook-patterns.md) — handlePlisioCallback must return userId+paymentStatus on ALL paths (including failures) so route can notify user on expire/cancel/fail; plisio:auto_url must guard against localhost URLs on VPS.

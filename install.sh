@@ -25,8 +25,61 @@ if [ "$EUID" -ne 0 ]; then
     die "Please run as root:  sudo bash install.sh"
 fi
 
+# ─── Detect OS (needed by every later step) ──────────────────────────────────
+detect_os() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release; echo "${ID:-unknown}"
+    elif command -v apt-get >/dev/null 2>&1; then echo "debian"
+    elif command -v yum    >/dev/null 2>&1; then echo "centos"
+    else echo "unknown"; fi
+}
+OS=$(detect_os)
+info "OS detected: $OS"
+
+# ─── Step 0: System update + base prerequisites ──────────────────────────────
+# A fresh/minimal VPS often lacks curl, git, openssl and CA certificates — and
+# the very next step (Telegram token validation) already needs curl. Update the
+# system and install the essentials FIRST, so every later step runs against an
+# up-to-date package index and has the tools it depends on. This is also where
+# we honour the "update Linux if needed" requirement.
+echo -e "\n${BOLD}Step 0 — System update & prerequisites${NC}"
+case "$OS" in
+    ubuntu|debian|raspbian)
+        export DEBIAN_FRONTEND=noninteractive
+        info "Updating apt package index..."
+        apt-get update -qq >/dev/null 2>&1 || warn "apt-get update reported warnings — continuing"
+        info "Upgrading installed packages (may take a few minutes)..."
+        apt-get -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" \
+            upgrade >/dev/null 2>&1 || warn "apt-get upgrade reported warnings — continuing"
+        info "Installing base tools (curl, git, openssl, ca-certificates, gnupg)..."
+        apt-get install -y curl git openssl ca-certificates gnupg lsb-release \
+            >/dev/null 2>&1 || die "Failed to install base prerequisites (curl/git/openssl)."
+        ;;
+    centos|rhel|rocky|almalinux)
+        info "Updating system packages (yum)..."
+        yum -y update >/dev/null 2>&1 || warn "yum update reported warnings — continuing"
+        info "Installing base tools (curl, git, openssl, ca-certificates)..."
+        yum install -y curl git openssl ca-certificates \
+            >/dev/null 2>&1 || die "Failed to install base prerequisites (curl/git/openssl)."
+        ;;
+    fedora)
+        info "Updating system packages (dnf)..."
+        dnf -y update >/dev/null 2>&1 || warn "dnf update reported warnings — continuing"
+        info "Installing base tools (curl, git, openssl, ca-certificates)..."
+        dnf install -y curl git openssl ca-certificates \
+            >/dev/null 2>&1 || die "Failed to install base prerequisites (curl/git/openssl)."
+        ;;
+    *)
+        warn "Unknown OS '$OS' — skipping system update."
+        warn "Make sure curl, git and openssl are installed before continuing."
+        ;;
+esac
+ok "System updated & prerequisites installed"
+
 # ─── Step 1: Credentials ─────────────────────────────────────────────────────
-echo -e "${BOLD}Step 1 — Credentials${NC}\n"
+echo -e "\n${BOLD}Step 1 — Credentials${NC}\n"
 
 while true; do
     read -rp "🤖 Telegram Bot Token (from @BotFather): " BOT_TOKEN
@@ -50,9 +103,9 @@ while true; do
     TG_CHECK=$(timeout 12 curl -fsS --ipv4 --connect-timeout 6 --max-time 10 \
         "https://api.telegram.org/bot${BOT_TOKEN}/getMe" 2>/dev/null || true)
     if echo "$TG_CHECK" | grep -q '"ok":true'; then
-        BOT_USERNAME=$(echo "$TG_CHECK" | node -e "
-          try { const d = JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(d.result.username || ''); } catch(e) {}
-        " 2>/dev/null)
+        # Parse the username with grep/sed only — Node.js isn't installed yet
+        # at this point (that's Step 2), so we must NOT depend on `node` here.
+        BOT_USERNAME=$(echo "$TG_CHECK" | grep -o '"username":"[^"]*"' | head -1 | sed 's/.*":"//; s/"$//')
         ok "Token valid — bot: @${BOT_USERNAME:-unknown}"
         break
     else
@@ -108,18 +161,7 @@ else
 fi
 echo ""
 
-# ─── Step 2: Detect OS ───────────────────────────────────────────────────────
-detect_os() {
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release; echo "${ID:-unknown}"
-    elif command -v apt-get >/dev/null 2>&1; then echo "debian"
-    elif command -v yum    >/dev/null 2>&1; then echo "centos"
-    else echo "unknown"; fi
-}
-OS=$(detect_os)
-info "OS detected: $OS"
-
-# ─── Step 3: Node.js 22 ──────────────────────────────────────────────────────
+# ─── Step 2: Node.js 22 ──────────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 2 — Node.js 22 (LTS)${NC}"
 NEED_NODE=false
 if ! command -v node >/dev/null 2>&1; then
@@ -204,18 +246,33 @@ DB_PORT="5432"
 
 info "Creating database '$DB_NAME' and user '$DB_USER'..."
 
-sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null \
-    || sudo -u postgres psql -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null \
+# Run psql as the 'postgres' OS superuser. We already run as root, so prefer
+# `runuser` (from util-linux — present on essentially every systemd distro and
+# needs no sudo). Minimal Debian/Ubuntu images frequently DON'T ship `sudo`,
+# so relying on `sudo -u postgres` there silently fails and the whole DB setup
+# degrades. Fall back to `su` (quoting args safely) if runuser is missing.
+run_psql_super() {
+    if command -v runuser >/dev/null 2>&1; then
+        runuser -u postgres -- psql "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo -u postgres psql "$@"
+    else
+        su postgres -s /bin/sh -c "psql $(printf '%q ' "$@")"
+    fi
+}
+
+run_psql_super -c "CREATE USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null \
+    || run_psql_super -c "ALTER USER ${DB_USER} WITH PASSWORD '${DB_PASS}';" 2>/dev/null \
     || true
 
-sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};" 2>/dev/null \
-    || sudo -u postgres psql -c "ALTER DATABASE ${DB_NAME} OWNER TO ${DB_USER};" 2>/dev/null \
+run_psql_super -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};" 2>/dev/null \
+    || run_psql_super -c "ALTER DATABASE ${DB_NAME} OWNER TO ${DB_USER};" 2>/dev/null \
     || true
 
-sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};" 2>/dev/null || true
+run_psql_super -c "GRANT ALL PRIVILEGES ON DATABASE ${DB_NAME} TO ${DB_USER};" 2>/dev/null || true
 
 # Allow password-based auth in pg_hba.conf
-PG_HBA=$(sudo -u postgres psql -t -c "SHOW hba_file;" 2>/dev/null | tr -d ' \n')
+PG_HBA=$(run_psql_super -t -c "SHOW hba_file;" 2>/dev/null | tr -d ' \n')
 if [ -n "$PG_HBA" ] && [ -f "$PG_HBA" ]; then
     if ! grep -qE "^host.*${DB_NAME}.*${DB_USER}.*(md5|scram)" "$PG_HBA" 2>/dev/null; then
         printf "host    %-20s %-20s 127.0.0.1/32    md5\n" "${DB_NAME}" "${DB_USER}" >> "$PG_HBA"
@@ -229,12 +286,21 @@ fi
 
 DATABASE_URL="postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}"
 
-# Verify connection
+# Verify connection — this is a HARD gate. If the app can't reach the DB now,
+# every later step (schema push, build, runtime) is doomed, so fail fast with
+# actionable diagnostics instead of limping onward to a confusing later error.
 if PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
        -d "$DB_NAME" -c "SELECT 1;" >/dev/null 2>&1; then
     ok "Database connection verified"
 else
-    warn "Could not verify DB connection — continuing. Check logs if the bot fails to start."
+    warn "Could not connect to the database as '${DB_USER}'. Diagnostics:"
+    echo "──────────────────────────────────────────────────────────"
+    PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+        -d "$DB_NAME" -c "SELECT 1;" 2>&1 | head -10 || true
+    echo "──────────────────────────────────────────────────────────"
+    warn "Check that PostgreSQL is running (systemctl status postgresql) and that"
+    warn "pg_hba.conf allows md5/scram auth on 127.0.0.1 for user '${DB_USER}'."
+    die "Database connection failed — aborting before schema/build steps."
 fi
 
 # ─── Step 6: Write .env ──────────────────────────────────────────────────────

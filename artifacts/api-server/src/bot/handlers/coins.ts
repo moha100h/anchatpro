@@ -1327,19 +1327,38 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
     const lang = (user?.language as "fa" | "en") ?? "fa";
 
-    // Show spinning animation immediately
-    await ctx.editMessageText(t(lang).spinSpinning, { parse_mode: "Markdown" });
+    // Show spinning animation immediately, then answer callback
+    try {
+      await ctx.editMessageText(t(lang).spinSpinning, { parse_mode: "Markdown" });
+    } catch { /* message may already be in this state */ }
     await ctx.answerCallbackQuery();
 
     // Short delay for suspense (1.5s)
     await new Promise<void>((resolve) => setTimeout(resolve, 1500));
 
-    const result = await spinWheel(tgId);
+    let result;
+    try {
+      result = await spinWheel(tgId);
+    } catch (err) {
+      // DB or unexpected error — show error message and stop
+      try {
+        await ctx.editMessageText(
+          lang === "fa"
+            ? "❌ خطایی رخ داد. لطفاً دوباره امتحان کنید."
+            : "❌ An error occurred. Please try again.",
+          { parse_mode: "Markdown" }
+        );
+      } catch { /* ignore edit errors */ }
+      return;
+    }
 
     if (!result.success) {
-      if (result.reason === "already_spun") {
-        await ctx.editMessageText(t(lang).spinAlreadySpun, { parse_mode: "Markdown" });
-      }
+      const failMsg = result.reason === "already_spun"
+        ? t(lang).spinAlreadySpun
+        : (lang === "fa" ? "❌ کاربر یافت نشد." : "❌ User not found.");
+      try {
+        await ctx.editMessageText(failMsg, { parse_mode: "Markdown" });
+      } catch { /* ignore edit errors */ }
       return;
     }
 
@@ -1347,7 +1366,14 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
       ? t(lang).spinResultHigh(result.coins, result.newBalance)
       : t(lang).spinResultLow(result.coins, result.newBalance);
 
-    await ctx.editMessageText(msg, { parse_mode: "Markdown" });
+    try {
+      await ctx.editMessageText(msg, { parse_mode: "Markdown" });
+    } catch {
+      // If inline edit fails, send as a new message
+      try {
+        await ctx.reply(msg, { parse_mode: "Markdown" });
+      } catch { /* ignore */ }
+    }
   });
 
   // ─── Telegram Stars: pre-checkout validation ─────────────────────────────

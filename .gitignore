@@ -47,3 +47,8 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Environment secrets (written by install.sh on the VPS — never commit)
+.env
+.env.local
+.env.*.local

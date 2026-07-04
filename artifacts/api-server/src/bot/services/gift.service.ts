@@ -152,7 +152,7 @@ export async function getReferralRank(
     LIMIT 1
   `);
 
-  const row = (result as { rows?: { count: string | number; rank: string | number }[] }).rows?.[0];
+  const row = (result as unknown as { rows?: { count: string | number; rank: string | number }[] }).rows?.[0];
   if (!row) return null;
   const count = parseInt(String(row.count), 10);
   if (!count || count === 0) return null;

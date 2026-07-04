@@ -30,8 +30,28 @@ echo -e "${BOLD}Step 1 — Credentials${NC}\n"
 
 while true; do
     read -rp "🤖 Telegram Bot Token (from @BotFather): " BOT_TOKEN
-    [[ -n "$BOT_TOKEN" ]] && break
-    warn "Token cannot be empty."
+    if [[ -z "$BOT_TOKEN" ]]; then
+        warn "Token cannot be empty."
+        continue
+    fi
+    # Validate against Telegram's API right away — catches typos/expired
+    # tokens immediately instead of after a full install+build cycle, when
+    # the bot silently fails to start and the only symptom is "won't respond".
+    info "Validating token with Telegram..."
+    TG_CHECK=$(curl -fsS --max-time 10 "https://api.telegram.org/bot${BOT_TOKEN}/getMe" 2>/dev/null || true)
+    if echo "$TG_CHECK" | grep -q '"ok":true'; then
+        BOT_USERNAME=$(echo "$TG_CHECK" | node -e "
+          try { const d = JSON.parse(require('fs').readFileSync(0,'utf8')); process.stdout.write(d.result.username || ''); } catch(e) {}
+        " 2>/dev/null)
+        ok "Token valid — bot: @${BOT_USERNAME:-unknown}"
+        break
+    else
+        warn "Could not verify token with Telegram (invalid token, or no internet access from this server)."
+        read -rp "   ادامه بدون تایید؟ (y/N): " SKIP_VERIFY
+        if [[ "$SKIP_VERIFY" =~ ^[Yy]$ ]]; then
+            break
+        fi
+    fi
 done
 
 while true; do
@@ -240,8 +260,21 @@ export PORT="5000"
 echo -e "\n${BOLD}Step 6 — Node.js dependencies${NC}"
 info "Running pnpm install..."
 cd "$INSTALL_DIR"
-pnpm install --frozen-lockfile 2>&1 | grep -E "ERR|error|added|Done" | tail -5 || true
-ok "Dependencies installed"
+
+# NOTE: piping through `grep | tail` (as before) reports the exit status of
+# `tail`/`grep`, not of `pnpm install` — so a genuinely failed install would
+# still print "Dependencies installed" and the script would carry on to
+# build/DB steps against a broken node_modules. Capture the real exit code.
+INSTALL_LOG="$(mktemp)"
+if pnpm install --frozen-lockfile > "$INSTALL_LOG" 2>&1; then
+    grep -E "ERR|error|added|Done" "$INSTALL_LOG" | tail -5 || true
+    ok "Dependencies installed"
+else
+    tail -30 "$INSTALL_LOG"
+    rm -f "$INSTALL_LOG"
+    die "pnpm install failed. Full log above."
+fi
+rm -f "$INSTALL_LOG"
 
 # ─── Step 8: Build ───────────────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 7 — Build${NC}"
@@ -290,8 +323,33 @@ PGPASSWORD="$DB_PASS" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAM
     >/dev/null 2>&1 || true
 ok "Column migrations done"
 
+# ─── Step 9: Firewall ─────────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 9 — Firewall${NC}"
+if command -v ufw >/dev/null 2>&1; then
+    if ufw status 2>/dev/null | grep -q "Status: active"; then
+        ufw allow 5000/tcp >/dev/null 2>&1 || true
+        ufw allow 80/tcp   >/dev/null 2>&1 || true
+        ufw allow 443/tcp  >/dev/null 2>&1 || true
+        ok "ufw: opened 5000, 80, 443"
+    else
+        info "ufw installed but inactive — skipping (no ports blocked by default)"
+    fi
+elif command -v firewall-cmd >/dev/null 2>&1; then
+    if systemctl is-active --quiet firewalld 2>/dev/null; then
+        firewall-cmd --permanent --add-port=5000/tcp >/dev/null 2>&1 || true
+        firewall-cmd --permanent --add-port=80/tcp   >/dev/null 2>&1 || true
+        firewall-cmd --permanent --add-port=443/tcp  >/dev/null 2>&1 || true
+        firewall-cmd --reload >/dev/null 2>&1 || true
+        ok "firewalld: opened 5000, 80, 443"
+    else
+        info "firewalld installed but inactive — skipping"
+    fi
+else
+    info "No firewall manager detected — skipping"
+fi
+
 # ─── Step 10: PM2 process manager ────────────────────────────────────────────
-echo -e "\n${BOLD}Step 9 — Process manager (PM2)${NC}"
+echo -e "\n${BOLD}Step 10 — Process manager (PM2)${NC}"
 
 if ! command -v pm2 >/dev/null 2>&1; then
     info "Installing PM2..."
@@ -319,7 +377,7 @@ fi
 ok "PM2 auto-start on reboot configured"
 
 # ─── Step 11: Health check ───────────────────────────────────────────────────
-echo -e "\n${BOLD}Step 10 — Health check${NC}"
+echo -e "\n${BOLD}Step 11 — Health check${NC}"
 sleep 8
 
 # Use `pm2 jlist` (stable JSON output) instead of screen-scraping the `pm2 show`

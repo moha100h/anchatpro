@@ -74,6 +74,13 @@ onlyBuiltDependencies:
   - msw
   - unrs-resolver
 
+# pnpm 11.x requires explicit approval for build scripts in addition to onlyBuiltDependencies
+approvedBuilds:
+  - '@swc/core'
+  - esbuild
+  - msw
+  - unrs-resolver
+
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
   "esbuild>@esbuild/darwin-arm64": "-"

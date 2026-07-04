@@ -47,26 +47,44 @@ ok "Code updated"
 
 # ─── Step 2: Install dependencies ─────────────────────────────────────────────
 echo -e "\n${BOLD}Step 2 — Dependencies${NC}"
-pnpm install 2>&1 | grep -E "ERR_|error:|Done in|packages are looking" | tail -8 || true
+pnpm install 2>&1 | grep -vE "^\s*$" | tail -10 || true
+# pnpm 11.x: ensure esbuild native binary is built
+pnpm rebuild esbuild 2>&1 | tail -3 || true
 ok "Dependencies up to date"
 
 # ─── Step 3: Build ────────────────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 3 — Build${NC}"
-pnpm --filter @workspace/api-server run build
+# Run build.mjs directly — avoids pnpm 11.x ERR_PNPM_IGNORED_BUILDS during filter run
+cd "${SCRIPT_DIR}/artifacts/api-server"
+node build.mjs
+cd "$SCRIPT_DIR"
 ok "Build complete"
 
 # ─── Step 4: DB schema push ───────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 4 — Database schema${NC}"
-info "Pushing schema (drizzle-kit auto-loads .env)..."
+info "Pushing schema (drizzle-kit direct call)..."
 
-if pnpm --filter @workspace/db run push-force 2>&1 | tail -6; then
+DRIZZLE_BIN="${SCRIPT_DIR}/lib/db/node_modules/.bin/drizzle-kit"
+
+run_drizzle_push() {
+    cd "${SCRIPT_DIR}/lib/db"
+    if [ -x "$DRIZZLE_BIN" ]; then
+        "$DRIZZLE_BIN" push --force --config ./drizzle.config.ts 2>&1 | tail -6
+    else
+        cd "$SCRIPT_DIR"
+        pnpm --filter @workspace/db run push-force 2>&1 | tail -6
+    fi
+    cd "$SCRIPT_DIR"
+}
+
+if run_drizzle_push; then
     ok "Schema pushed"
 else
     warn "push-force failed — trying postgres superuser fallback..."
     sudo -u postgres \
         env DATABASE_URL="postgresql://postgres@/${DB_NAME}" \
-        pnpm --filter @workspace/db run push-force 2>&1 | tail -6 \
-        || warn "Schema push failed — manual SQL migrations below will handle missing columns."
+        "${DRIZZLE_BIN}" push --force --config "${SCRIPT_DIR}/lib/db/drizzle.config.ts" 2>&1 | tail -6 \
+        || warn "Schema push failed — SQL migrations will handle missing columns."
 fi
 
 # ─── Step 5: SQL Migrations (idempotent) ──────────────────────────────────────

@@ -269,10 +269,14 @@ echo -e "\n${BOLD}Step 6 — Node.js dependencies${NC}"
 info "Running pnpm install..."
 cd "$INSTALL_DIR"
 # Do NOT use --frozen-lockfile: fresh servers may have slightly different resolution
-pnpm install 2>&1 | grep -E "ERR_|error:|Done in|packages are looking" | tail -8 || true
+pnpm install 2>&1 | grep -vE "^\s*$" | tail -10 || true
+
+# pnpm 11.x: force-rebuild esbuild's native binary (even if build script was "ignored")
+info "Rebuilding esbuild native binary..."
+pnpm rebuild esbuild 2>&1 | tail -3 || true
 ok "Dependencies installed"
 
-# Restore workspace yaml if patched
+# Restore workspace yaml if patched (ARM patch)
 if $WORKSPACE_PATCHED; then
     git checkout -- "$WORKSPACE_YAML" 2>/dev/null || true
     info "pnpm-workspace.yaml restored to original"
@@ -281,7 +285,10 @@ fi
 # ─── Step 9: Build ────────────────────────────────────────────────────────────
 echo -e "\n${BOLD}Step 7 — Build${NC}"
 info "Building with esbuild..."
-pnpm --filter @workspace/api-server run build
+# Run build.mjs directly with node — avoids pnpm 11.x re-install check that triggers ERR_PNPM_IGNORED_BUILDS
+cd "${INSTALL_DIR}/artifacts/api-server"
+node build.mjs
+cd "$INSTALL_DIR"
 ok "Build complete"
 
 # ─── Step 10: Database schema ─────────────────────────────────────────────────
@@ -289,14 +296,29 @@ echo -e "\n${BOLD}Step 8 — Database schema${NC}"
 info "Pushing schema via drizzle-kit (auto-loads .env)..."
 cd "$INSTALL_DIR"
 
+# Run drizzle-kit directly — avoids pnpm 11.x re-install check
 # drizzle.config.ts auto-loads .env; DB user has SUPERUSER → no permission errors
-if pnpm --filter @workspace/db run push-force 2>&1 | tail -6; then
+DRIZZLE_BIN="${INSTALL_DIR}/lib/db/node_modules/.bin/drizzle-kit"
+
+run_drizzle_push() {
+    cd "${INSTALL_DIR}/lib/db"
+    if [ -x "$DRIZZLE_BIN" ]; then
+        "$DRIZZLE_BIN" push --force --config ./drizzle.config.ts 2>&1 | tail -6
+    else
+        # fallback: use pnpm filter (might warn but usually works if deps already installed)
+        cd "$INSTALL_DIR"
+        pnpm --filter @workspace/db run push-force 2>&1 | tail -6
+    fi
+    cd "$INSTALL_DIR"
+}
+
+if run_drizzle_push; then
     ok "Database schema applied"
 else
     warn "push-force failed — trying postgres superuser fallback..."
     sudo -u postgres \
         env DATABASE_URL="postgresql://postgres@/${DB_NAME}" \
-        pnpm --filter @workspace/db run push-force 2>&1 | tail -6 \
+        "${DRIZZLE_BIN}" push --force --config "${INSTALL_DIR}/lib/db/drizzle.config.ts" 2>&1 | tail -6 \
         || warn "Schema push failed — SQL migrations below will handle missing tables."
 fi
 

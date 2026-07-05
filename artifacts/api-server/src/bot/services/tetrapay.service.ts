@@ -198,18 +198,31 @@ export async function verifyTetraPayment(authority: string): Promise<TetraPayVer
 
 /** Called from the Express webhook route */
 export async function handleTetraPayCallback(payload: {
-  status: number | string;
+  status: number | string | unknown;
   hash_id?: string;
   authority?: string;
-}): Promise<TetraPayVerifyResult> {
+}): Promise<TetraPayVerifyResult & { userId?: number }> {
   const statusCode = Number(payload.status);
 
+  // TetraPay sends status=100 on success. Any other value means failure/cancel.
   if (statusCode !== 100) {
-    return { success: false, error: `Payment cancelled by user (status: ${statusCode})` };
+    // Try to look up the userId via hash_id so the webhook route can notify the user.
+    let userId: number | undefined;
+    if (payload.hash_id) {
+      try {
+        const [tx] = await db
+          .select({ userId: tetraPayTransactionsTable.userId })
+          .from(tetraPayTransactionsTable)
+          .where(eq(tetraPayTransactionsTable.hashId, payload.hash_id))
+          .limit(1);
+        userId = tx?.userId;
+      } catch { /* ignore */ }
+    }
+    return { success: false, userId, error: `Payment failed or cancelled (status: ${statusCode})` };
   }
 
   if (!payload.authority) {
-    return { success: false, error: "Missing authority in callback" };
+    return { success: false, error: "Missing authority in callback — check TetraPay API field casing" };
   }
 
   return verifyTetraPayment(payload.authority);

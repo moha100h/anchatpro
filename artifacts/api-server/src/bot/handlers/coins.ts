@@ -1090,19 +1090,19 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
 
     const payment = await approvePayment(paymentId, adminId);
     if (!payment) {
-      await ctx.editMessageCaption({ caption: t("fa").paymentAlreadyProcessed });
+      await ctx.editMessageCaption({ caption: t("fa").paymentAlreadyProcessed }).catch(() => {});
       await ctx.answerCallbackQuery();
       return;
     }
 
-    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
     await ctx.editMessageCaption({
       caption: `✅ تأیید شد — ${payment.coins} سکه — کاربر ${payment.userId}`,
-    });
+    }).catch(() => {});
 
     const userRecord = await getUserByTelegramId(payment.userId);
     const uLang = (userRecord?.language as "fa" | "en") ?? "fa";
-    await bot.api.sendMessage(payment.userId, t(uLang).paymentApproved(payment.coins)).catch(() => {});
+    await bot.api.sendMessage(payment.userId, t(uLang).paymentApproved(payment.coins), { parse_mode: "Markdown" }).catch(() => {});
     await ctx.answerCallbackQuery("✅");
   });
 
@@ -1114,17 +1114,17 @@ export function registerCoinHandlers(bot: Bot<BotContext>) {
 
     const payment = await rejectPayment(paymentId, adminId);
     if (!payment) {
-      await ctx.editMessageCaption({ caption: t("fa").paymentAlreadyProcessed });
+      await ctx.editMessageCaption({ caption: t("fa").paymentAlreadyProcessed }).catch(() => {});
       await ctx.answerCallbackQuery();
       return;
     }
 
-    await ctx.editMessageReplyMarkup({ reply_markup: undefined });
-    await ctx.editMessageCaption({ caption: `❌ رد شد — کاربر ${payment.userId}` });
+    await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => {});
+    await ctx.editMessageCaption({ caption: `❌ رد شد — کاربر ${payment.userId}` }).catch(() => {});
 
     const userRecord = await getUserByTelegramId(payment.userId);
     const uLang = (userRecord?.language as "fa" | "en") ?? "fa";
-    await bot.api.sendMessage(payment.userId, t(uLang).paymentRejected).catch(() => {});
+    await bot.api.sendMessage(payment.userId, t(uLang).paymentRejected, { parse_mode: "Markdown" }).catch(() => {});
     await ctx.answerCallbackQuery("❌");
   });
 

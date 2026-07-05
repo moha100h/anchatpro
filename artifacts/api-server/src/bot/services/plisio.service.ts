@@ -21,24 +21,63 @@ import { logger } from "../../lib/logger.js";
 
 const PLISIO_BASE_URL = "https://api.plisio.net/api/v1";
 
-// ─── Webhook signature verification (JSON mode, since we send ?json=true) ──────
-// Per Plisio docs: when callback_url has `json=true`, the hash is
-// HMAC-SHA1( JSON.stringify(payload minus verify_hash) , SECRET_KEY ) — NOT PHP serialize.
-// https://plisio.net/documentation/endpoints/create-an-invoice#verification-example
+// ─── Webhook signature verification (JSON mode) ────────────────────────────────
+//
+// Plisio docs (json=true mode):
+//   hash = HMAC-SHA1( json_encode(payload_without_verify_hash), api_key )
+//   where json_encode preserves the insertion order of keys as received.
+//
+// IMPORTANT: We MUST verify against the RAW body string, not a re-serialised
+// JavaScript object. JSON.stringify() on a re-parsed object is NOT guaranteed
+// to reproduce the exact same byte sequence as the original (e.g. numbers like
+// 1e-8 vs 0.00000001, or if a future Node version changes key-ordering
+// semantics). We parse the raw body ourselves, strip verify_hash while keeping
+// all other keys in their original order, then re-serialise — giving us the
+// same byte sequence Plisio signed.
+//
+// Returns the verify_hash extracted from the payload (so the caller doesn't
+// need to parse the raw body again), or null if the signature is invalid.
+function verifyPlisioHash(rawBody: string, secretKey: string): boolean {
+  if (!rawBody || !secretKey) return false;
 
-function verifyPlisioHash(payload: Record<string, unknown>, secretKey: string): boolean {
-  const verifyHash = payload["verify_hash"] as string | undefined;
-  if (!verifyHash || !secretKey) return false;
-
-  const ordered = { ...payload };
-  delete ordered["verify_hash"];
-
-  const serialized = JSON.stringify(ordered);
-  const computed = createHmac("sha1", secretKey).update(serialized).digest("hex");
-
+  let parsed: Record<string, unknown>;
   try {
-    return timingSafeEqual(Buffer.from(computed, "utf8"), Buffer.from(verifyHash, "utf8"));
+    parsed = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
+    logger.warn("plisio: failed to JSON.parse raw webhook body during hash verification");
+    return false;
+  }
+
+  const verifyHash = parsed["verify_hash"];
+  if (typeof verifyHash !== "string" || !verifyHash) {
+    logger.warn("plisio: verify_hash missing or not a string in webhook payload");
+    return false;
+  }
+
+  // Build the to-sign object: all keys except verify_hash, preserving insertion order.
+  const toSign: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (k !== "verify_hash") toSign[k] = v;
+  }
+
+  const serialized = JSON.stringify(toSign);
+  const computed   = createHmac("sha1", secretKey).update(serialized).digest("hex");
+
+  // timingSafeEqual requires equal-length Buffers. Both are lowercase hex strings
+  // of the same length (40 chars for SHA-1), but guard defensively.
+  try {
+    const a = Buffer.from(computed,    "utf8");
+    const b = Buffer.from(verifyHash,  "utf8");
+    if (a.length !== b.length) {
+      logger.warn(
+        { computedLen: a.length, receivedLen: b.length },
+        "plisio: verify_hash length mismatch — possible algorithm mismatch"
+      );
+      return false;
+    }
+    return timingSafeEqual(a, b);
+  } catch (err) {
+    logger.warn({ err }, "plisio: timingSafeEqual threw during hash comparison");
     return false;
   }
 }
@@ -103,12 +142,10 @@ export async function createPlisioOrder(
 
     if (json["status"] !== "success") {
       const errData = json["data"] as Record<string, unknown> | string | undefined;
-      // Plisio can return errors as: data.message (string), data (flat {field:msg}), or message (string/object)
       let errMsg: string;
       if (typeof errData === "object" && errData !== null && "message" in errData) {
         errMsg = String(errData["message"]);
       } else if (typeof errData === "object" && errData !== null) {
-        // flat field-error object e.g. {"amount":"Invalid minimal amount..."}
         errMsg = JSON.stringify(errData);
       } else if (json["message"]) {
         const m = json["message"];
@@ -169,16 +206,35 @@ export interface PlisioVerifyResult {
 }
 
 export async function handlePlisioCallback(
+  rawBody: string,
   payload: Record<string, unknown>
 ): Promise<PlisioVerifyResult> {
   const apiKey = await getSetting("plisio_api_key");
-  if (!apiKey) return { success: false, error: "Plisio API key not configured" };
+  if (!apiKey) {
+    logger.error("plisio webhook: API key not configured in settings");
+    return { success: false, error: "Plisio API key not configured" };
+  }
 
-  const isValid = verifyPlisioHash(payload, apiKey);
+  // Log incoming callback for debugging (redact verify_hash value)
+  const debugPayload = { ...payload };
+  if (debugPayload["verify_hash"]) debugPayload["verify_hash"] = "[redacted]";
+  logger.info(
+    { payload: debugPayload, rawBodyLen: rawBody.length },
+    "plisio webhook: incoming callback"
+  );
+
+  // Verify using the RAW body — not a re-serialised object.
+  // Empty rawBody means the body parser failed (wrong Content-Type etc.).
+  if (!rawBody) {
+    logger.error("plisio webhook: rawBody is empty — body parser may have failed. Check Content-Type header from Plisio.");
+    return { success: false, error: "Empty raw body — cannot verify signature" };
+  }
+
+  const isValid = verifyPlisioHash(rawBody, apiKey);
   if (!isValid) {
     logger.warn(
-      { orderNumber: payload["order_number"], status: payload["status"] },
-      "plisio webhook: signature verification failed"
+      { orderNumber: payload["order_number"], status: payload["status"], rawBodyLen: rawBody.length },
+      "plisio webhook: HMAC-SHA1 signature verification FAILED — possible causes: wrong API key in settings, callback URL missing ?json=true, or Plisio sent non-JSON body"
     );
     return { success: false, error: "Invalid signature" };
   }
@@ -186,6 +242,8 @@ export async function handlePlisioCallback(
   const status      = String(payload["status"]       ?? "");
   const orderNumber = String(payload["order_number"] ?? "");
   const txnId       = String(payload["txn_id"]       ?? "");
+
+  logger.info({ orderNumber, status, txnId }, "plisio webhook: signature OK — processing");
 
   const [tx] = await db
     .select()
@@ -200,6 +258,7 @@ export async function handlePlisioCallback(
 
   // Already fully processed — never re-credit (fraud/replay protection).
   if (tx.callbackVerified || tx.status === "completed") {
+    logger.info({ orderNumber, txnId }, "plisio webhook: already verified — skipping (idempotency)");
     return { success: true, alreadyVerified: true };
   }
 
@@ -217,10 +276,23 @@ export async function handlePlisioCallback(
       "pending internal":    "pending",
     };
     const mapped = statusMap[status] ?? "pending";
-    await db.update(plisioTransactionsTable)
-      .set({ status: mapped, txnId: txnId || undefined })
-      .where(eq(plisioTransactionsTable.id, tx.id));
-    // Always return userId so the webhook route can notify the user
+
+    // Only update if the status actually changed — avoids unnecessary DB writes
+    // for repeated "pending"/"new" callbacks on the same order.
+    if (tx.status !== mapped) {
+      await db.update(plisioTransactionsTable)
+        .set({
+          status: mapped,
+          // null clears the column; undefined skips it (drizzle semantics).
+          // Keep existing txnId if the new payload doesn't have one yet.
+          txnId: txnId || null,
+        })
+        .where(eq(plisioTransactionsTable.id, tx.id));
+    }
+
+    logger.info({ orderNumber, status, mapped, userId: tx.userId }, "plisio webhook: non-completed status recorded");
+
+    // Always return userId so the webhook route can notify the user on terminal statuses.
     return {
       success: false,
       userId: tx.userId,
@@ -229,30 +301,31 @@ export async function handlePlisioCallback(
     };
   }
 
-  // Payment completed — credit coins.
+  // ── Payment completed — credit coins ──────────────────────────────────────
   //
-  // IMPORTANT (idempotency/anti-fraud): Plisio can deliver the same webhook
-  // more than once (retries, network duplicates), and two deliveries could
-  // arrive close enough together to both pass the `tx.callbackVerified`
-  // check above before either one's UPDATE commits (classic check-then-act
-  // race). To make this airtight, the UPDATE below is itself the guard: it
-  // only flips the row from "not yet verified" to "completed" when it is
-  // still "not yet verified" at the moment the UPDATE executes (atomic,
-  // single statement, enforced by Postgres row locking). If two requests
-  // race, only one UPDATE can match+return a row; the other gets nothing
-  // back and safely no-ops. Coins are only ever credited by the branch that
-  // won this update.
+  // ANTI-FRAUD / IDEMPOTENCY (two-phase atomic guard):
+  //
+  // Phase 1: Atomically flip plisioTransactionsTable.callbackVerified false→true.
+  //   UPDATE ... WHERE id=? AND callbackVerified=false RETURNING *
+  //   If two concurrent webhook deliveries race here, only ONE UPDATE can match
+  //   the row while callbackVerified is still false. The other gets no rows back
+  //   and exits early. This is enforced by Postgres row-level locking.
+  //
+  // Phase 2: Atomically flip paymentsTable.status pending→approved.
+  //   Same pattern — only the request that won Phase 1 reaches here, but we
+  //   add a second guard to protect against any future code path reaching
+  //   addCoins() without going through Phase 1.
   const [claimedTx] = await db
     .update(plisioTransactionsTable)
     .set({
-      status: "completed",
+      status:           "completed",
       callbackVerified: true,
-      txnId: txnId || undefined,
-      verifiedAt: new Date(),
+      txnId:            txnId || null,
+      verifiedAt:       new Date(),
     })
     .where(
       and(
-        eq(plisioTransactionsTable.id, tx.id),
+        eq(plisioTransactionsTable.id,              tx.id),
         eq(plisioTransactionsTable.callbackVerified, false)
       )
     )
@@ -260,19 +333,15 @@ export async function handlePlisioCallback(
 
   if (!claimedTx) {
     // Another concurrent webhook delivery already claimed this transaction.
-    logger.warn({ orderNumber, txnId }, "plisio webhook: duplicate completed callback ignored (already claimed)");
+    logger.warn({ orderNumber, txnId }, "plisio webhook: duplicate completed callback ignored (already claimed by concurrent request)");
     return { success: true, alreadyVerified: true };
   }
 
-  // Same atomic pattern for the payment row: only the request that flips
-  // status "pending" → "approved" is allowed to call addCoins(). A second
-  // concurrent attempt (e.g. a retried webhook that somehow got this far)
-  // finds status already "approved" and the conditional UPDATE matches
-  // nothing, so no double crediting can occur.
+  // Phase 2: claim the payment row atomically.
   const [claimedPayment] = await db
     .update(paymentsTable)
     .set({
-      status: "approved",
+      status:      "approved",
       processedAt: new Date(),
     })
     .where(and(eq(paymentsTable.id, tx.paymentId), eq(paymentsTable.status, "pending")))
@@ -280,17 +349,24 @@ export async function handlePlisioCallback(
 
   if (claimedPayment) {
     await addCoins(tx.userId, claimedPayment.coins, "payment", `Plisio crypto purchase — txn: ${txnId}`);
+    logger.info(
+      { orderNumber, txnId, userId: tx.userId, coins: claimedPayment.coins },
+      "plisio webhook: coins credited successfully"
+    );
     return {
-      success: true,
-      coins: claimedPayment.coins,
-      userId: tx.userId,
-      orderNumber: tx.orderNumber,
-      txnId: txnId || tx.txnId || undefined,
-      amountUsd: tx.amountUsd,
+      success:        true,
+      coins:          claimedPayment.coins,
+      userId:         tx.userId,
+      orderNumber:    tx.orderNumber,
+      txnId:          txnId || tx.txnId || undefined,
+      amountUsd:      tx.amountUsd,
       cryptoCurrency: tx.currency ?? undefined,
     };
   }
 
+  // Transaction was claimed but payment was already in a non-pending state.
+  // This can happen if the payment row was manually updated by an admin.
+  // Coins should NOT be re-credited.
   logger.warn(
     { orderNumber, paymentId: tx.paymentId },
     "plisio webhook: transaction claimed but payment row was not in pending state — coins not re-credited"

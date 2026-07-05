@@ -7,9 +7,12 @@
  * The callback_url must include ?json=true so Plisio sends JSON (not form-encoded).
  *
  * IMPORTANT: Always respond HTTP 200. Non-200 causes Plisio to retry indefinitely.
+ *
+ * Raw body capture is handled in app.ts (before express.json) and attached to
+ * req.rawBody — this is critical for correct HMAC-SHA1 verification.
  */
 
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { handlePlisioCallback } from "../bot/services/plisio.service.js";
 import { getBotInstance, getBotUsername } from "../bot/bot-instance.js";
 import { getUserByTelegramId } from "../bot/services/user.service.js";
@@ -95,13 +98,26 @@ function renderReturnPage(deepLink: string, exists: boolean): string {
 </html>`;
 }
 
-router.post("/", async (req, res) => {
+type PlisioRequest = Request & { rawBody?: string };
+
+router.post("/", async (req: PlisioRequest, res) => {
   // Always 200 — Plisio retries on any non-2xx response.
   res.status(200).json({ ok: true });
 
   try {
-    const payload = req.body as Record<string, unknown>;
-    const result  = await handlePlisioCallback(payload);
+    const rawBody = req.rawBody ?? "";
+    const payload = (req.body ?? {}) as Record<string, unknown>;
+
+    // Sanity check: if both are empty the body parser failed completely.
+    if (!rawBody && Object.keys(payload).length === 0) {
+      logger.error(
+        { contentType: req.headers["content-type"] },
+        "plisio webhook: received empty body — Content-Type may be unsupported or body was not captured"
+      );
+      return;
+    }
+
+    const result = await handlePlisioCallback(rawBody, payload);
 
     if (result.alreadyVerified) return;
 

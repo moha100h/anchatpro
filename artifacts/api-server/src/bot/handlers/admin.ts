@@ -1825,38 +1825,86 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       return;
     }
 
-    const progressMsg = await ctx.reply("⏳ *در حال بازیابی اطلاعات...*\nاین فرایند ممکن است چند دقیقه طول بکشد.", { parse_mode: "Markdown" });
+    const progressMsg = await ctx.reply(
+      "⏳ *در حال بازیابی اطلاعات...*\n\nلطفاً صبر کنید — این پیام با پیشرفت کار به‌روز می‌شود.",
+      { parse_mode: "Markdown" }
+    );
 
     try {
+      // ── Download backup file ───────────────────────────────────────────────
+      await bot.api.editMessageText(
+        ctx.chat!.id, progressMsg.message_id,
+        "⏳ *در حال دریافت فایل بکاپ...*", { parse_mode: "Markdown" }
+      ).catch(() => {});
+
       const fileInfo = await bot.api.getFile(fileId);
       const fileUrl  = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${fileInfo.file_path}`;
-      const resp     = await fetch(fileUrl);
-      const buf      = Buffer.from(await resp.arrayBuffer());
-      const data     = parseBackupBuffer(buf);
+      const resp     = await fetch(fileUrl, { signal: AbortSignal.timeout(60_000) });
+      if (!resp.ok) throw new Error(`دریافت فایل ناموفق: HTTP ${resp.status}`);
+      const buf  = Buffer.from(await resp.arrayBuffer());
+      const data = parseBackupBuffer(buf);
 
-      const result = await restoreFromBackup(data);
+      // ── Progress tracking ─────────────────────────────────────────────────
+      // Throttle Telegram edits to max 1 per 3 seconds (avoid flood-wait).
+      const completedTables: string[] = [];
+      let lastEdit = 0;
+
+      const buildProgressText = () => {
+        const lines = completedTables.slice(-12).join("\n");
+        return (
+          `⏳ *در حال بازیابی...*\n\n` +
+          `${lines}\n\n` +
+          `_${completedTables.length} جدول کامل شد..._`
+        );
+      };
+
+      const onProgress = async (line: string) => {
+        completedTables.push(line);
+        const now = Date.now();
+        if (now - lastEdit >= 3000) {
+          lastEdit = now;
+          await bot.api.editMessageText(
+            ctx.chat!.id, progressMsg.message_id,
+            buildProgressText(), { parse_mode: "Markdown" }
+          ).catch(() => {});
+        }
+      };
+
+      // ── Run restore ───────────────────────────────────────────────────────
+      const result = await restoreFromBackup(data, onProgress);
+
+      // ── Final summary ─────────────────────────────────────────────────────
+      const restoredTotal = Object.values(result.restored).reduce((a, b) => a + b, 0);
+      const skippedTotal  = Object.values(result.skipped).reduce((a, b) => a + b, 0);
 
       const restoredLines = Object.entries(result.restored)
         .filter(([, n]) => n > 0)
         .map(([k, n]) => `• ${k}: *${n.toLocaleString()}*`)
         .join("\n");
 
-      const skippedTotal = Object.values(result.skipped).reduce((a, b) => a + b, 0);
-
       await bot.api.editMessageText(
         ctx.chat!.id,
         progressMsg.message_id,
         `✅ *بازیابی کامل شد!*\n\n` +
-        `📊 *بازیابی شده:*\n${restoredLines || "—"}\n\n` +
-        (skippedTotal > 0 ? `⚠️ نادیده گرفته شده: ${skippedTotal}\n\n` : "") +
-        (result.errors.length > 0 ? `❌ خطاهای جزئی (${result.errors.length}):\n${result.errors.slice(0, 5).join("\n")}\n\n` : "") +
+        `📊 *مجموع بازیابی‌شده:* ${restoredTotal.toLocaleString()} رکورد\n\n` +
+        `${restoredLines || "—"}\n\n` +
+        (skippedTotal > 0 ? `⚠️ *رد شده (تکراری/خطا):* ${skippedTotal}\n\n` : "") +
+        (result.errors.length > 0
+          ? `❌ *خطاهای نمونه (${result.errors.length}):*\n` +
+            result.errors.slice(0, 5).map(e => `\`${e}\``).join("\n") + "\n\n"
+          : "") +
         `_سیستم آماده استفاده است._`,
         { parse_mode: "Markdown" }
       ).catch(() => {});
 
     } catch (err: any) {
       console.error("Restore error:", err);
-      await ctx.reply(`❌ خطا در بازیابی: ${err?.message ?? "خطای نامشخص"}`);
+      const msg = err?.message ?? "خطای نامشخص";
+      await bot.api.editMessageText(
+        ctx.chat!.id, progressMsg.message_id,
+        `❌ *خطا در بازیابی:*\n\`${msg}\``,
+        { parse_mode: "Markdown" }
+      ).catch(() => ctx.reply(`❌ خطا در بازیابی: ${msg}`).catch(() => {}));
     }
   });
 

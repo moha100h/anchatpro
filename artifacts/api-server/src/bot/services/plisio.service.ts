@@ -416,3 +416,120 @@ export async function handlePlisioCallback(
   );
   return { success: true, userId: tx.userId };
 }
+
+// ─── Plisio API: Check transaction status by txnId ────────────────────────────
+//
+// Used by /start plisio_r_ handler to verify payment directly via Plisio API
+// when the automatic webhook was delayed, lost, or failed HMAC verification.
+//
+export interface PlisioTxnApiStatus {
+  status: "completed" | "pending" | "expired" | "failed" | "cancelled" | "mismatch" | "unknown";
+  sourceAmount?: string;
+  sourceCurrency?: string;
+  currency?: string;
+  orderNumber?: string;
+}
+
+export async function checkPlisioTxnStatus(txnId: string): Promise<PlisioTxnApiStatus | null> {
+  if (!txnId) return null;
+  const apiKey = await getSetting("plisio_api_key");
+  if (!apiKey) return null;
+
+  try {
+    const res = await fetch(
+      `${PLISIO_BASE_URL}/operations/${encodeURIComponent(txnId)}?api_key=${encodeURIComponent(apiKey)}`,
+      { signal: AbortSignal.timeout(10000) }
+    );
+    if (!res.ok) return null;
+    const json = await res.json() as Record<string, unknown>;
+    if (json["status"] !== "success") return null;
+
+    const data = json["data"] as Record<string, unknown>;
+    const raw  = String(data["status"] ?? "unknown");
+
+    const statusMap: Record<string, PlisioTxnApiStatus["status"]> = {
+      completed:             "completed",
+      pending:               "pending",
+      "pending internal":    "pending",
+      new:                   "pending",
+      expired:               "expired",
+      failed:                "failed",
+      cancelled:             "cancelled",
+      "cancelled duplicate": "cancelled",
+      mismatch:              "mismatch",
+    };
+
+    return {
+      status:         statusMap[raw] ?? "unknown",
+      sourceAmount:   data["source_amount"]  ? String(data["source_amount"])  : undefined,
+      sourceCurrency: data["source_currency"] ? String(data["source_currency"]) : undefined,
+      currency:       data["currency"]        ? String(data["currency"])        : undefined,
+      orderNumber:    data["order_number"]    ? String(data["order_number"])    : undefined,
+    };
+  } catch (err) {
+    logger.warn({ err, txnId }, "plisio: checkPlisioTxnStatus API call failed");
+    return null;
+  }
+}
+
+// ─── Recover a pending Plisio transaction after API confirms completion ────────
+//
+// Called by /start plisio_r_ when:
+//   • tx.status === "pending" in our DB
+//   • Plisio API confirms status === "completed"
+//   • Webhook was delayed, URL changed, or HMAC failed on first delivery
+//
+// Uses the same two-phase atomic claim as the webhook handler — safe against
+// a concurrent webhook delivery arriving at the same time.
+//
+export async function recoverCompletedPlisioTx(
+  tx: typeof plisioTransactionsTable.$inferSelect
+): Promise<{ success: boolean; coins?: number; alreadyDone?: boolean }> {
+  if (tx.callbackVerified || tx.status === "completed") {
+    return { success: true, alreadyDone: true };
+  }
+
+  logger.info(
+    { orderNumber: tx.orderNumber, txnId: tx.txnId, userId: tx.userId },
+    "plisio recovery: recovering completed payment via /start deep-link"
+  );
+
+  const [claimedTx] = await db
+    .update(plisioTransactionsTable)
+    .set({ status: "completed", callbackVerified: true, verifiedAt: new Date() })
+    .where(and(
+      eq(plisioTransactionsTable.id, tx.id),
+      eq(plisioTransactionsTable.callbackVerified, false)
+    ))
+    .returning();
+
+  if (!claimedTx) {
+    return { success: true, alreadyDone: true };
+  }
+
+  const [claimedPayment] = await db
+    .update(paymentsTable)
+    .set({ status: "approved", processedAt: new Date() })
+    .where(and(eq(paymentsTable.id, tx.paymentId), eq(paymentsTable.status, "pending")))
+    .returning();
+
+  if (claimedPayment) {
+    await addCoins(
+      tx.userId,
+      claimedPayment.coins,
+      "payment",
+      `Plisio recovered via /start deep-link — txn: ${tx.txnId ?? "unknown"}`
+    );
+    logger.info(
+      { orderNumber: tx.orderNumber, userId: tx.userId, coins: claimedPayment.coins },
+      "plisio recovery: coins credited successfully"
+    );
+    return { success: true, coins: claimedPayment.coins };
+  }
+
+  logger.warn(
+    { orderNumber: tx.orderNumber, paymentId: tx.paymentId },
+    "plisio recovery: transaction claimed but payment row not in pending state"
+  );
+  return { success: true };
+}

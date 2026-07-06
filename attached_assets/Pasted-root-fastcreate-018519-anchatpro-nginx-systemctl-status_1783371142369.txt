@@ -1,0 +1,82 @@
+root@fastcreate-018519:~/anchatpro# # ۱. وضعیت nginx
+systemctl status nginx
+
+# ۲. وضعیت سرور شما الان
+pm2 status
+
+# ۳. آیا روی port 5000 چیزی listen هست؟
+ss -tlnp | grep 5000
+
+# ۴. لاگ‌های بعد از آخرین restart
+pm2 logs anchatbot --lines 50 --nostream 2>&1 | tail -60
+Unit nginx.service could not be found.
+┌────┬──────────────┬───────────┬────────┬──────────┐
+│ id │ name         │ status    │ cpu    │ mem      │
+├────┼──────────────┼───────────┼────────┼──────────┤
+│ 0  │ anchatbot    │ online    │ 0%     │ 126.9mb  │
+└────┴──────────────┴───────────┴────────┴──────────┘
+host metrics | cpu: 0.4% | ram usage: 22.4% | eth0: ⇓ 0.001mb/s ⇑ 0mb/s drop 12/min |
+LISTEN 0      511                *:5000            *:*    users:(("node /root/anch",pid=53079,fd=23))
+[TAILING] Tailing last 50 lines for [anchatbot] process (change the value with --lines option)
+/root/.pm2/logs/anchatbot-error.log last 50 lines:
+/root/.pm2/logs/anchatbot-out.log last 50 lines:
+0|anchatbo | {"level":30,"time":1783279475412,"pid":33334,"hostname":"fastcreate-018519","req":{"id":1,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":6,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783279934711,"pid":33334,"hostname":"fastcreate-018519","req":{"id":2,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":3,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783292897294,"pid":33334,"hostname":"fastcreate-018519","req":{"id":3,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783292897611,"pid":33334,"hostname":"fastcreate-018519","req":{"id":4,"method":"PROPFIND","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783293991108,"pid":33334,"hostname":"fastcreate-018519","req":{"id":5,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783294006122,"pid":33334,"hostname":"fastcreate-018519","req":{"id":6,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783294016479,"pid":33334,"hostname":"fastcreate-018519","req":{"id":7,"method":"GET","url":"/security.txt"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301566913,"pid":33334,"hostname":"fastcreate-018519","req":{"id":8,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301591717,"pid":33334,"hostname":"fastcreate-018519","req":{"id":9,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301879287,"pid":33334,"hostname":"fastcreate-018519","req":{"id":10,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301904165,"pid":33334,"hostname":"fastcreate-018519","req":{"id":11,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783305194121,"pid":33334,"hostname":"fastcreate-018519","req":{"id":12,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783305339668,"pid":33334,"hostname":"fastcreate-018519","req":{"id":13,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783309927664,"pid":33334,"hostname":"fastcreate-018519","req":{"id":14,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783310028170,"pid":33334,"hostname":"fastcreate-018519","req":{"id":15,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314085793,"pid":33334,"hostname":"fastcreate-018519","req":{"id":16,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314085818,"pid":33334,"hostname":"fastcreate-018519","req":{"id":17,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314085858,"pid":33334,"hostname":"fastcreate-018519","req":{"id":18,"method":"POST","url":"/mcp"},"res":{"statusCode":404},"responseTime":15,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314095845,"pid":33334,"hostname":"fastcreate-018519","req":{"id":19,"method":"GET","url":"/sse"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783323014274,"pid":33334,"hostname":"fastcreate-018519","req":{"id":20,"method":"GET","url":"/v2/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435208,"pid":33334,"hostname":"fastcreate-018519","req":{"id":21,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435354,"pid":33334,"hostname":"fastcreate-018519","req":{"id":22,"method":"GET","url":"/v1/models"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435431,"pid":33334,"hostname":"fastcreate-018519","req":{"id":23,"method":"GET","url":"/mcp"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435507,"pid":33334,"hostname":"fastcreate-018519","req":{"id":24,"method":"GET","url":"/.well-known/mcp.json"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435584,"pid":33334,"hostname":"fastcreate-018519","req":{"id":25,"method":"GET","url":"/.well-known/agent.json"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435660,"pid":33334,"hostname":"fastcreate-018519","req":{"id":26,"method":"GET","url":"/invocations"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783343612556,"pid":33334,"hostname":"fastcreate-018519","req":{"id":27,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783343679295,"pid":33334,"hostname":"fastcreate-018519","req":{"id":28,"method":"GET","url":"/wiki"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783343719602,"pid":33334,"hostname":"fastcreate-018519","req":{"id":29,"method":"GET","url":"/pdown"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783363504526,"pid":33334,"hostname":"fastcreate-018519","req":{"id":30,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":4,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783363579934,"pid":33334,"hostname":"fastcreate-018519","req":{"id":31,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783363612312,"pid":33334,"hostname":"fastcreate-018519","req":{"id":32,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783365029312,"pid":33334,"hostname":"fastcreate-018519","req":{"id":33,"method":"OPTIONS","url":"/"},"res":{"statusCode":204},"responseTime":3,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783365029599,"pid":33334,"hostname":"fastcreate-018519","req":{"id":34,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783367490777,"pid":33334,"hostname":"fastcreate-018519","req":{"id":35,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783368632624,"pid":52440,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783368632754,"pid":52440,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783368632846,"pid":52440,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783368695574,"pid":52440,"hostname":"fastcreate-018519","paymentId":145,"userId":277236314,"amountUsd":5,"coinsCount":500,"orderNumber":"inv_145_DCAEdEP4","callbackUrl":"https://tisabuy.com/webhook/plisio","derivedBaseUrl":"https://tisabuy.com","msg":"plisio: creating invoice"}
+0|anchatbo | {"level":30,"time":1783368696075,"pid":52440,"hostname":"fastcreate-018519","paymentId":145,"orderNumber":"inv_145_DCAEdEP4","txnId":"6a4c0bf719a6efe7bf0678ae","msg":"plisio: invoice created successfully"}
+0|anchatbo | {"level":30,"time":1783370227875,"pid":52879,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783370227876,"pid":52879,"hostname":"fastcreate-018519","baseUrl":"https://tisabuy.com","baseUrlSource":"BASE_URL env var","plisioWebhook":"https://tisabuy.com/webhook/plisio","tetrapayWebhook":"https://tisabuy.com/webhook/tetrapay","msg":"Effective public URL — verify callback URLs in admin panel match these"}
+0|anchatbo | {"level":30,"time":1783370228013,"pid":52879,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783370228102,"pid":52879,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783370498389,"pid":53079,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783370498390,"pid":53079,"hostname":"fastcreate-018519","baseUrl":"https://tisabuy.com","baseUrlSource":"BASE_URL env var","plisioWebhook":"https://tisabuy.com/webhook/plisio","tetrapayWebhook":"https://tisabuy.com/webhook/tetrapay","msg":"Effective public URL — verify callback URLs in admin panel match these"}
+0|anchatbo | {"level":30,"time":1783370498525,"pid":53079,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783370498615,"pid":53079,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783370540747,"pid":53079,"hostname":"fastcreate-018519","paymentId":146,"userId":277236314,"amountUsd":5,"coinsCount":500,"orderNumber":"inv_146_ZZr88m5B","callbackUrl":"https://tisabuy.com/webhook/plisio","derivedBaseUrl":"https://tisabuy.com","msg":"plisio: creating invoice"}
+0|anchatbo | {"level":30,"time":1783370541260,"pid":53079,"hostname":"fastcreate-018519","paymentId":146,"orderNumber":"inv_146_ZZr88m5B","txnId":"6a4c132d6a920bf37a0b7e0f","msg":"plisio: invoice created successfully"}
+
+root@fastcreate-018519:~/anchatpro# cat /etc/nginx/sites-enabled/tisabuy.com
+# یا:
+cat /etc/nginx/sites-enabled/default
+# یا:
+ls /etc/nginx/sites-enabled/
+cat: /etc/nginx/sites-enabled/tisabuy.com: No such file or directory
+cat: /etc/nginx/sites-enabled/default: No such file or directory
+ls: cannot access '/etc/nginx/sites-enabled/': No such file or directory
+root@fastcreate-018519:~/anchatpro# 

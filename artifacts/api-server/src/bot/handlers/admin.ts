@@ -800,29 +800,29 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
     let vpsWarning = "";
     if (cbUrlIsLocalhost) {
-      vpsWarning = `\n⛔ *هشدار VPS:* Callback URL روی localhost تنظیم شده — Plisio نمی‌تواند به این آدرس دسترسی داشته باشد\\.\nمتغیر \`BASE\\_URL=https://yourdomain\\.com\` را در \`\\.env\` تنظیم کنید و سرور را ری‌استارت کنید\\.\n`;
+      vpsWarning = `\n⛔ *هشدار VPS:* Callback URL روی localhost تنظیم شده — Plisio نمیتواند به این آدرس دسترسی داشته باشد.\nمتغیر BASE_URL را در .env تنظیم کنید و سرور را ری‌استارت کنید.\n`;
     } else if (cbUrlIsHttp) {
-      vpsWarning = `\n⚠️ *هشدار:* Callback URL از HTTP استفاده می‌کند\\. Plisio به HTTPS نیاز دارد — از \`https://\` استفاده کنید\\.\n`;
+      vpsWarning = `\n⚠️ *هشدار:* Callback URL از HTTP استفاده میکند. Plisio به HTTPS نیاز دارد.\n`;
     } else if (cbUrlMissing) {
-      vpsWarning = `\n⚠️ *Callback URL تنظیم نشده* — بدون آن Plisio نمی‌تواند نتیجه پرداخت را اعلام کند\\.\n`;
+      vpsWarning = `\n⚠️ *Callback URL تنظیم نشده* — بدون آن Plisio نمیتواند نتیجه پرداخت را اعلام کند.\n`;
     }
 
     await ctx.reply(
       `💫 *Plisio — درگاه کریپتو جهانی*\n\n` +
       `وضعیت: ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
       `🔑 کلید API: \`${apiKey ? "✅ ثبت شده" : "❌ ثبت نشده"}\`\n` +
-      `🔗 Callback URL: \`${cbUrl ? cbUrl.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&") : "❌ ثبت نشده"}\`\n` +
+      `🔗 Callback URL: \`${cbUrl ?? "❌ ثبت نشده"}\`\n` +
       `💱 ارزهای مجاز: \`${currencies ?? "ETH,LTC,BNB,USDT_TRX,TRX"}\`\n` +
       `👥 گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\`` +
       vpsWarning + `\n\n` +
-      `📋 *راهنمای اتصال Plisio \\(VPS\\):*\n` +
-      `1️⃣ در فایل \`\\.env\` تنظیم کنید:\n` +
-      `\`BASE\\_URL=https://yourdomain\\.com\`\n` +
+      `📋 *راهنمای اتصال Plisio (VPS):*\n` +
+      `1️⃣ در فایل .env تنظیم کنید:\n` +
+      `\`BASE_URL=https://yourdomain.com\`\n` +
       `2️⃣ سرور را ری‌استارت کنید\n` +
       `3️⃣ دکمه "تشخیص خودکار" را بزنید تا URL صحیح ذخیره شود\n` +
       `4️⃣ در پنل Plisio → API → فیلد *Status URL*:\n` +
-      `\`${webhookUrl.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&")}?json=true\`\n` +
-      `5️⃣ *کلید مخفی* \\(Secret Key\\) را از دکمه زیر وارد کنید`,
+      `\`${webhookUrl}?json=true\`\n` +
+      `5️⃣ *کلید مخفی* (Secret Key) را از دکمه زیر وارد کنید`,
       {
         parse_mode: "Markdown",
         reply_markup: {

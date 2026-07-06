@@ -6,6 +6,12 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust the first reverse proxy (nginx / Cloudflare / etc.).
+// Without this, req.ip is always 127.0.0.1 behind nginx, and — more critically —
+// Express may reject X-Forwarded-Proto: https headers, breaking HTTPS detection.
+// This setting is safe even when running without a proxy.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

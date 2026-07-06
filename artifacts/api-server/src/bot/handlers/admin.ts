@@ -793,24 +793,36 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     const webhookUrl = getPlisioCallbackUrl();
     const successUrl = getPlisioSuccessUrlExample();
     const failUrl = getPlisioFailUrlExample();
+    // VPS-specific warnings
+    const cbUrlIsLocalhost = cbUrl && (cbUrl.includes("localhost") || cbUrl.includes("127.0.0.1"));
+    const cbUrlIsHttp      = cbUrl && cbUrl.startsWith("http://") && !cbUrl.startsWith("http://localhost");
+    const cbUrlMissing     = !cbUrl;
+
+    let vpsWarning = "";
+    if (cbUrlIsLocalhost) {
+      vpsWarning = `\n⛔ *هشدار VPS:* Callback URL روی localhost تنظیم شده — Plisio نمی‌تواند به این آدرس دسترسی داشته باشد\\.\nمتغیر \`BASE\\_URL=https://yourdomain\\.com\` را در \`\\.env\` تنظیم کنید و سرور را ری‌استارت کنید\\.\n`;
+    } else if (cbUrlIsHttp) {
+      vpsWarning = `\n⚠️ *هشدار:* Callback URL از HTTP استفاده می‌کند\\. Plisio به HTTPS نیاز دارد — از \`https://\` استفاده کنید\\.\n`;
+    } else if (cbUrlMissing) {
+      vpsWarning = `\n⚠️ *Callback URL تنظیم نشده* — بدون آن Plisio نمی‌تواند نتیجه پرداخت را اعلام کند\\.\n`;
+    }
+
     await ctx.reply(
       `💫 *Plisio — درگاه کریپتو جهانی*\n\n` +
       `وضعیت: ${enabled ? "✅ فعال" : "❌ غیرفعال"}\n` +
       `🔑 کلید API: \`${apiKey ? "✅ ثبت شده" : "❌ ثبت نشده"}\`\n` +
-      `🔗 Callback URL: \`${cbUrl ?? "❌ ثبت نشده"}\`\n` +
+      `🔗 Callback URL: \`${cbUrl ? cbUrl.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&") : "❌ ثبت نشده"}\`\n` +
       `💱 ارزهای مجاز: \`${currencies ?? "ETH,LTC,BNB,USDT_TRX,TRX"}\`\n` +
-      `👥 گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\`\n\n` +
-      `📋 *راهنمای اتصال Plisio:*\n` +
-      `1️⃣ به پنل Plisio → Account → API بروید\n` +
-      `2️⃣ *کلید مخفی* (Secret Key) را کپی کنید\n` +
-      `3️⃣ در فیلد *Status URL* این آدرس را ثبت کنید:\n` +
-      `\`${webhookUrl}?json=true\`\n` +
-      `4️⃣ *کلید API* رو از دکمه زیر وارد کنید\n\n` +
-      `🔗 *لینک‌های موفقیت/شکست (Success/Fail):*\n` +
-      `این دو لینک نیازی به تنظیم دستی در پنل Plisio ندارند — Plisio برای این‌ها فیلدی در پنل ندارد. ربات به‌صورت خودکار برای هر تراکنش این آدرس‌ها رو همراه درخواست ساخت فاکتور ارسال می‌کنه:\n` +
-      `✅ Success:\n\`${successUrl}\`\n` +
-      `❌ Fail:\n\`${failUrl}\`\n` +
-      `(به‌جای \`<order_number>\` شماره سفارش واقعی هر تراکنش قرار می‌گیره)`,
+      `👥 گروه بررسی: \`${reviewGroup ?? "تنظیم نشده"}\`` +
+      vpsWarning + `\n\n` +
+      `📋 *راهنمای اتصال Plisio \\(VPS\\):*\n` +
+      `1️⃣ در فایل \`\\.env\` تنظیم کنید:\n` +
+      `\`BASE\\_URL=https://yourdomain\\.com\`\n` +
+      `2️⃣ سرور را ری‌استارت کنید\n` +
+      `3️⃣ دکمه "تشخیص خودکار" را بزنید تا URL صحیح ذخیره شود\n` +
+      `4️⃣ در پنل Plisio → API → فیلد *Status URL*:\n` +
+      `\`${webhookUrl.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&")}?json=true\`\n` +
+      `5️⃣ *کلید مخفی* \\(Secret Key\\) را از دکمه زیر وارد کنید`,
       {
         parse_mode: "Markdown",
         reply_markup: {

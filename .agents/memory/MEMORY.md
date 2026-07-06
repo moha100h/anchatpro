@@ -18,3 +18,5 @@
 - [Plisio integration](plisio-integration.md) — global crypto gateway; webhook at /webhook/plisio?json=true; HMAC-SHA1 verify; USD amount; per-package plisioPrice override; always return HTTP 200 to Plisio or it retries forever.
 - [Plisio webhook verify bug](plisio-verify-bug.md) — JSON callbacks sign with HMAC-SHA1(JSON.stringify(payload)), NOT PHP-serialize/sorted-keys; wrong algorithm silently fails verification and coins never credit.
 - [Plisio webhook patterns](plisio-webhook-patterns.md) — handlePlisioCallback must return userId+paymentStatus on ALL paths (including failures) so route can notify user on expire/cancel/fail; plisio:auto_url must guard against localhost URLs on VPS.
+- [Plisio webhook body-parser conflict](plisio-webhook-body-parser.md) — must set `(req as any)._body = true` in raw-body middleware or express.json() overwrites/corrupts req.body on exhausted stream.
+- [Plisio callback URL base derivation](plisio-callback-url-base.md) — derive returnBaseUrl from callbackUrl (strip /webhook/plisio), not getBaseUrl(), to avoid localhost success/fail redirects on VPS.

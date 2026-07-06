@@ -462,16 +462,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       // No matching order, or it belongs to a different user — reveal nothing.
       if (!tx || tx.userId !== tgId) {
-        await ctx.reply(
-          lang === "fa"
-            ? `⚠️ <b>اطلاعات پرداخت یافت نشد</b>\n\n` +
-              `اگر پرداختی انجام داده‌اید و سکه دریافت نکرده‌اید،\n` +
-              `لطفاً با پشتیبانی تماس بگیرید و شماره سفارش Plisio خود را اعلام کنید.`
-            : `⚠️ <b>Payment record not found</b>\n\n` +
-              `If you made a payment and didn't receive coins,\n` +
-              `please contact support with your Plisio order number.`,
-          { parse_mode: "HTML", reply_markup: mainMenuKeyboard(lang) }
-        );
+        await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
         return;
       }
 
@@ -498,83 +489,14 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       if (tx.status === "pending") {
         // Browser redirected before our webhook finished processing.
-        // Try to verify directly via Plisio API — handles cases where:
-        //   • Webhook URL changed (Replit dev domain rotated)
-        //   • Webhook arrived but HMAC failed on a previous server build
-        //   • Blockchain confirmation was slow and webhook hasn't arrived yet
-        if (tx.txnId) {
-          try {
-            const { checkPlisioTxnStatus, recoverCompletedPlisioTx } = await import("../services/plisio.service.js");
-            const apiResult = await checkPlisioTxnStatus(tx.txnId);
-
-            if (apiResult?.status === "completed") {
-              const recovery = await recoverCompletedPlisioTx(tx);
-              const balance  = await getBalance(tgId);
-              const coins    = recovery.coins;
-              await ctx.reply(
-                lang === "fa"
-                  ? `✅ <b>پرداخت تأیید شد!</b>\n\n` +
-                    (coins ? `🪙 سکه خریداری‌شده: <b>${coins} سکه</b>\n` : "") +
-                    `💰 موجودی فعلی: <b>${balance} سکه</b>`
-                  : `✅ <b>Payment confirmed!</b>\n\n` +
-                    (coins ? `🪙 Coins purchased: <b>${coins} coins</b>\n` : "") +
-                    `💰 Current balance: <b>${balance} coins</b>`,
-                { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
-              );
-              return;
-            }
-
-            if (apiResult?.status === "expired") {
-              await db
-                .update(plisioTransactionsTable)
-                .set({ status: "expired" })
-                .where(eqDb(plisioTransactionsTable.id, tx.id));
-              await ctx.reply(
-                lang === "fa"
-                  ? `⏰ <b>مهلت پرداخت منقضی شد</b>\n\n` +
-                    `لینک پرداخت Plisio پس از ۳۰ دقیقه منقضی می‌شود.\n` +
-                    `برای خرید مجدد سکه از دکمه 🛒 خرید سکه استفاده کنید.`
-                  : `⏰ <b>Payment link expired</b>\n\n` +
-                    `Plisio payment links expire after 30 minutes.\n` +
-                    `Use the 🛒 Buy Coins button to try again.`,
-                { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
-              );
-              return;
-            }
-
-            if (apiResult?.status === "failed" || apiResult?.status === "cancelled") {
-              await db
-                .update(plisioTransactionsTable)
-                .set({ status: apiResult.status })
-                .where(eqDb(plisioTransactionsTable.id, tx.id));
-              await ctx.reply(
-                lang === "fa"
-                  ? `❌ <b>پرداخت ناموفق بود</b>\n\n` +
-                    `تراکنش لغو یا رد شد.\n` +
-                    `اگر مبلغی از کیف پول کسر شده، با پشتیبانی تماس بگیرید.`
-                  : `❌ <b>Payment failed</b>\n\n` +
-                    `Your transaction was cancelled or rejected.\n` +
-                    `If funds were deducted, please contact support.`,
-                { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
-              );
-              return;
-            }
-          } catch {
-            // API check failed — fall through to "still pending" message
-          }
-        }
-
-        // Still pending (or API unavailable)
         await ctx.reply(
           lang === "fa"
             ? `⏳ <b>در حال تأیید پرداخت...</b>\n\n` +
               `پرداخت شما در حال بررسی است. معمولاً چند ثانیه تا چند دقیقه طول می‌کشد.\n` +
-              `به محض تأیید، سکه‌ها به‌صورت خودکار به حساب شما اضافه می‌شود.\n\n` +
-              `اگر بعد از چند دقیقه سکه دریافت نکردید، با پشتیبانی تماس بگیرید.`
+              `به محض تأیید، سکه‌ها به‌صورت خودکار به حساب شما اضافه می‌شود.`
             : `⏳ <b>Confirming your payment...</b>\n\n` +
               `Your payment is being verified. This usually takes a few seconds to a few minutes.\n` +
-              `Coins will be credited automatically once confirmed.\n\n` +
-              `If you don't receive coins after a few minutes, please contact support.`,
+              `Coins will be credited automatically once confirmed.`,
           { parse_mode: "HTML", reply_markup: coinsSubMenuKeyboard(lang) }
         );
         return;

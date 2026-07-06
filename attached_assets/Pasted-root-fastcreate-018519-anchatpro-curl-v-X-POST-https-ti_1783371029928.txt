@@ -1,0 +1,224 @@
+root@fastcreate-018519:~/anchatpro# curl -v -X POST "https://tisabuy.com/webhook/plisio?json=true" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"test","order_number":"test123"}'
+Note: Unnecessary use of -X or --request, POST is already inferred.
+* Host tisabuy.com:443 was resolved.
+* IPv6: 2606:4700:3037::6815:1484, 2606:4700:3034::ac43:c0ea
+* IPv4: 172.67.192.234, 104.21.20.132
+*   Trying 172.67.192.234:443...
+* Connected to tisabuy.com (172.67.192.234) port 443
+* ALPN: curl offers h2,http/1.1
+* TLSv1.3 (OUT), TLS handshake, Client hello (1):
+*  CAfile: /etc/ssl/certs/ca-certificates.crt
+*  CApath: /etc/ssl/certs
+* TLSv1.3 (IN), TLS handshake, Server hello (2):
+* TLSv1.3 (IN), TLS handshake, Encrypted Extensions (8):
+* TLSv1.3 (IN), TLS handshake, Certificate (11):
+* TLSv1.3 (IN), TLS handshake, CERT verify (15):
+* TLSv1.3 (IN), TLS handshake, Finished (20):
+* TLSv1.3 (OUT), TLS change cipher, Change cipher spec (1):
+* TLSv1.3 (OUT), TLS handshake, Finished (20):
+* SSL connection using TLSv1.3 / TLS_AES_256_GCM_SHA384 / X25519 / id-ecPublicKey
+* ALPN: server accepted h2
+* Server certificate:
+*  subject: CN=tisabuy.com
+*  start date: Jun  6 21:36:20 2026 GMT
+*  expire date: Sep  4 22:34:47 2026 GMT
+*  subjectAltName: host "tisabuy.com" matched cert's "tisabuy.com"
+*  issuer: C=US; O=Google Trust Services; CN=WE1
+*  SSL certificate verify ok.
+*   Certificate level 0: Public key type EC/prime256v1 (256/128 Bits/secBits), signed using ecdsa-with-SHA256
+*   Certificate level 1: Public key type EC/prime256v1 (256/128 Bits/secBits), signed using ecdsa-with-SHA384
+*   Certificate level 2: Public key type EC/secp384r1 (384/192 Bits/secBits), signed using ecdsa-with-SHA384
+* using HTTP/2
+* [HTTP/2] [1] OPENED stream for https://tisabuy.com/webhook/plisio?json=true
+* [HTTP/2] [1] [:method: POST]
+* [HTTP/2] [1] [:scheme: https]
+* [HTTP/2] [1] [:authority: tisabuy.com]
+* [HTTP/2] [1] [:path: /webhook/plisio?json=true]
+* [HTTP/2] [1] [user-agent: curl/8.5.0]
+* [HTTP/2] [1] [accept: */*]
+* [HTTP/2] [1] [content-type: application/json]
+* [HTTP/2] [1] [content-length: 42]
+> POST /webhook/plisio?json=true HTTP/2
+> Host: tisabuy.com
+> User-Agent: curl/8.5.0
+> Accept: */*
+> Content-Type: application/json
+> Content-Length: 42
+> 
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* TLSv1.3 (IN), TLS handshake, Newsession Ticket (4):
+* old SSL session ID is stale, removing
+< HTTP/2 521 
+< date: Mon, 06 Jul 2026 20:48:53 GMT
+< content-type: text/plain; charset=UTF-8
+< content-length: 16
+< cache-control: private, max-age=0, no-store, no-cache, must-revalidate, post-check=0, pre-check=0
+< expires: Thu, 01 Jan 1970 00:00:01 GMT
+< referrer-policy: same-origin
+< x-frame-options: SAMEORIGIN
+< server: cloudflare
+< cf-ray: a171790effd96555-LHR
+< alt-svc: h3=":443"; ma=86400
+< 
+error code: 521
+* Connection #0 to host tisabuy.com left intact
+root@fastcreate-018519:~/anchatpro# pm2 logs --lines 200 --nostream 2>&1 | tail -200
+[TAILING] Tailing last 200 lines for [all] processes (change the value with --lines option)
+/root/.pm2/pm2.log last 200 lines:
+PM2        | 2026-07-04T23:02:33: PM2 log: ===============================================================================
+PM2        | 2026-07-04T23:02:33: PM2 log: --- New PM2 Daemon started ----------------------------------------------------
+PM2        | 2026-07-04T23:02:33: PM2 log: Time                 : Sat Jul 04 2026 23:02:33 GMT+0000 (Coordinated Universal Time)
+PM2        | 2026-07-04T23:02:33: PM2 log: PM2 version          : 7.0.3
+PM2        | 2026-07-04T23:02:33: PM2 log: Node.js version      : 22.23.1
+PM2        | 2026-07-04T23:02:33: PM2 log: Current arch         : x64
+PM2        | 2026-07-04T23:02:33: PM2 log: PM2 home             : /root/.pm2
+PM2        | 2026-07-04T23:02:33: PM2 log: PM2 PID file         : /root/.pm2/pm2.pid
+PM2        | 2026-07-04T23:02:33: PM2 log: RPC socket file      : /root/.pm2/rpc.sock
+PM2        | 2026-07-04T23:02:33: PM2 log: BUS socket file      : /root/.pm2/pub.sock
+PM2        | 2026-07-04T23:02:33: PM2 log: Application log path : /root/.pm2/logs
+PM2        | 2026-07-04T23:02:33: PM2 log: Worker Interval      : 30000
+PM2        | 2026-07-04T23:02:33: PM2 log: Process dump file    : /root/.pm2/dump.pm2
+PM2        | 2026-07-04T23:02:33: PM2 log: Concurrent actions   : 2
+PM2        | 2026-07-04T23:02:33: PM2 log: SIGTERM timeout      : 1600
+PM2        | 2026-07-04T23:02:33: PM2 log: Runtime Binary       : /usr/bin/node
+PM2        | 2026-07-04T23:02:33: PM2 log: ===============================================================================
+PM2        | 2026-07-04T23:02:34: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-04T23:02:34: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-05T17:22:36: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-05T17:22:36: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-05T17:22:36: PM2 log: pid=10832 msg=process tree killed (1 pids)
+PM2        | 2026-07-05T17:22:36: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-05T17:22:36: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-05T17:37:48: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-05T17:37:48: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-05T17:37:48: PM2 log: pid=31550 msg=process tree killed (1 pids)
+PM2        | 2026-07-05T17:37:48: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-05T17:37:48: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-05T17:38:17: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-05T17:38:17: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-05T17:38:17: PM2 log: pid=32041 msg=process tree killed (1 pids)
+PM2        | 2026-07-05T17:38:17: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-05T17:38:17: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-05T17:51:57: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-05T17:51:57: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-05T17:51:57: PM2 log: pid=32213 msg=process tree killed (1 pids)
+PM2        | 2026-07-05T17:51:57: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-05T17:51:57: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-05T18:07:13: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-05T18:07:13: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-05T18:07:13: PM2 log: pid=32717 msg=process tree killed (1 pids)
+PM2        | 2026-07-05T18:07:13: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-05T18:07:13: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-06T20:10:31: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-06T20:10:31: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-06T20:10:31: PM2 log: pid=33334 msg=process tree killed (1 pids)
+PM2        | 2026-07-06T20:10:31: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-06T20:10:31: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-06T20:37:06: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-06T20:37:06: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-06T20:37:06: PM2 log: pid=52440 msg=process tree killed (1 pids)
+PM2        | 2026-07-06T20:37:06: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-06T20:37:06: PM2 log: App [anchatbot:0] online
+PM2        | 2026-07-06T20:41:37: PM2 log: Stopping app:anchatbot id:0
+PM2        | 2026-07-06T20:41:37: PM2 log: App [anchatbot:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-07-06T20:41:37: PM2 log: pid=52879 msg=process tree killed (1 pids)
+PM2        | 2026-07-06T20:41:37: PM2 log: App [anchatbot:0] starting in -fork mode-
+PM2        | 2026-07-06T20:41:37: PM2 log: App [anchatbot:0] online
+
+/root/.pm2/logs/anchatbot-error.log last 200 lines:
+/root/.pm2/logs/anchatbot-out.log last 200 lines:
+0|anchatbo | {"level":30,"time":1783206155494,"pid":10832,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783206155738,"pid":10832,"hostname":"fastcreate-018519","url":"https://tisabuy.com/webhook/tetrapay","msg":"TetraPay callback URL auto-configured"}
+0|anchatbo | {"level":30,"time":1783206155841,"pid":10832,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783206155962,"pid":10832,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783211640598,"pid":10832,"hostname":"fastcreate-018519","req":{"id":1,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":4,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783213864607,"pid":10832,"hostname":"fastcreate-018519","req":{"id":2,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783213879346,"pid":10832,"hostname":"fastcreate-018519","req":{"id":3,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783215188895,"pid":10832,"hostname":"fastcreate-018519","req":{"id":4,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783215216696,"pid":10832,"hostname":"fastcreate-018519","req":{"id":5,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783218776272,"pid":10832,"hostname":"fastcreate-018519","req":{"id":6,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783218895787,"pid":10832,"hostname":"fastcreate-018519","req":{"id":7,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783223653607,"pid":10832,"hostname":"fastcreate-018519","req":{"id":8,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783223653633,"pid":10832,"hostname":"fastcreate-018519","req":{"id":9,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783223653671,"pid":10832,"hostname":"fastcreate-018519","req":{"id":10,"method":"POST","url":"/mcp"},"res":{"statusCode":404},"responseTime":12,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783223653673,"pid":10832,"hostname":"fastcreate-018519","req":{"id":11,"method":"POST","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783223653699,"pid":10832,"hostname":"fastcreate-018519","req":{"id":12,"method":"GET","url":"/sse"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783233326587,"pid":10832,"hostname":"fastcreate-018519","req":{"id":13,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783233360892,"pid":10832,"hostname":"fastcreate-018519","req":{"id":14,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783241026558,"pid":10832,"hostname":"fastcreate-018519","req":{"id":15,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":7,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783241124743,"pid":10832,"hostname":"fastcreate-018519","req":{"id":16,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783243354412,"pid":10832,"hostname":"fastcreate-018519","req":{"id":17,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783243354810,"pid":10832,"hostname":"fastcreate-018519","req":{"id":18,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783255859025,"pid":10832,"hostname":"fastcreate-018519","req":{"id":19,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783257238368,"pid":10832,"hostname":"fastcreate-018519","req":{"id":20,"method":"GET","url":"/pdown"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783270023753,"pid":10832,"hostname":"fastcreate-018519","req":{"id":21,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":3,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783270027789,"pid":10832,"hostname":"fastcreate-018519","req":{"id":22,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783272157622,"pid":31550,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783272157764,"pid":31550,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783272157857,"pid":31550,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783273069954,"pid":32041,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783273070088,"pid":32041,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783273070177,"pid":32041,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783273098954,"pid":32213,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783273099090,"pid":32213,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783273099182,"pid":32213,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783273918156,"pid":32717,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783273918278,"pid":32717,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783273918356,"pid":32717,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783274834747,"pid":33334,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783274834890,"pid":33334,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783274834979,"pid":33334,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783279475412,"pid":33334,"hostname":"fastcreate-018519","req":{"id":1,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":6,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783279934711,"pid":33334,"hostname":"fastcreate-018519","req":{"id":2,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":3,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783292897294,"pid":33334,"hostname":"fastcreate-018519","req":{"id":3,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783292897611,"pid":33334,"hostname":"fastcreate-018519","req":{"id":4,"method":"PROPFIND","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783293991108,"pid":33334,"hostname":"fastcreate-018519","req":{"id":5,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783294006122,"pid":33334,"hostname":"fastcreate-018519","req":{"id":6,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783294016479,"pid":33334,"hostname":"fastcreate-018519","req":{"id":7,"method":"GET","url":"/security.txt"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301566913,"pid":33334,"hostname":"fastcreate-018519","req":{"id":8,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301591717,"pid":33334,"hostname":"fastcreate-018519","req":{"id":9,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301879287,"pid":33334,"hostname":"fastcreate-018519","req":{"id":10,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783301904165,"pid":33334,"hostname":"fastcreate-018519","req":{"id":11,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783305194121,"pid":33334,"hostname":"fastcreate-018519","req":{"id":12,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783305339668,"pid":33334,"hostname":"fastcreate-018519","req":{"id":13,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783309927664,"pid":33334,"hostname":"fastcreate-018519","req":{"id":14,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783310028170,"pid":33334,"hostname":"fastcreate-018519","req":{"id":15,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314085793,"pid":33334,"hostname":"fastcreate-018519","req":{"id":16,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314085818,"pid":33334,"hostname":"fastcreate-018519","req":{"id":17,"method":"GET","url":"/favicon.ico"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314085858,"pid":33334,"hostname":"fastcreate-018519","req":{"id":18,"method":"POST","url":"/mcp"},"res":{"statusCode":404},"responseTime":15,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783314095845,"pid":33334,"hostname":"fastcreate-018519","req":{"id":19,"method":"GET","url":"/sse"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783323014274,"pid":33334,"hostname":"fastcreate-018519","req":{"id":20,"method":"GET","url":"/v2/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435208,"pid":33334,"hostname":"fastcreate-018519","req":{"id":21,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435354,"pid":33334,"hostname":"fastcreate-018519","req":{"id":22,"method":"GET","url":"/v1/models"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435431,"pid":33334,"hostname":"fastcreate-018519","req":{"id":23,"method":"GET","url":"/mcp"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435507,"pid":33334,"hostname":"fastcreate-018519","req":{"id":24,"method":"GET","url":"/.well-known/mcp.json"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435584,"pid":33334,"hostname":"fastcreate-018519","req":{"id":25,"method":"GET","url":"/.well-known/agent.json"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783338435660,"pid":33334,"hostname":"fastcreate-018519","req":{"id":26,"method":"GET","url":"/invocations"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783343612556,"pid":33334,"hostname":"fastcreate-018519","req":{"id":27,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783343679295,"pid":33334,"hostname":"fastcreate-018519","req":{"id":28,"method":"GET","url":"/wiki"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783343719602,"pid":33334,"hostname":"fastcreate-018519","req":{"id":29,"method":"GET","url":"/pdown"},"res":{"statusCode":404},"responseTime":0,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783363504526,"pid":33334,"hostname":"fastcreate-018519","req":{"id":30,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":4,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783363579934,"pid":33334,"hostname":"fastcreate-018519","req":{"id":31,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783363612312,"pid":33334,"hostname":"fastcreate-018519","req":{"id":32,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":2,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783365029312,"pid":33334,"hostname":"fastcreate-018519","req":{"id":33,"method":"OPTIONS","url":"/"},"res":{"statusCode":204},"responseTime":3,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783365029599,"pid":33334,"hostname":"fastcreate-018519","req":{"id":34,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783367490777,"pid":33334,"hostname":"fastcreate-018519","req":{"id":35,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|anchatbo | {"level":30,"time":1783368632624,"pid":52440,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783368632754,"pid":52440,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783368632846,"pid":52440,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783368695574,"pid":52440,"hostname":"fastcreate-018519","paymentId":145,"userId":277236314,"amountUsd":5,"coinsCount":500,"orderNumber":"inv_145_DCAEdEP4","callbackUrl":"https://tisabuy.com/webhook/plisio","derivedBaseUrl":"https://tisabuy.com","msg":"plisio: creating invoice"}
+0|anchatbo | {"level":30,"time":1783368696075,"pid":52440,"hostname":"fastcreate-018519","paymentId":145,"orderNumber":"inv_145_DCAEdEP4","txnId":"6a4c0bf719a6efe7bf0678ae","msg":"plisio: invoice created successfully"}
+0|anchatbo | {"level":30,"time":1783370227875,"pid":52879,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783370227876,"pid":52879,"hostname":"fastcreate-018519","baseUrl":"https://tisabuy.com","baseUrlSource":"BASE_URL env var","plisioWebhook":"https://tisabuy.com/webhook/plisio","tetrapayWebhook":"https://tisabuy.com/webhook/tetrapay","msg":"Effective public URL — verify callback URLs in admin panel match these"}
+0|anchatbo | {"level":30,"time":1783370228013,"pid":52879,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783370228102,"pid":52879,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783370498389,"pid":53079,"hostname":"fastcreate-018519","port":5000,"msg":"Server listening"}
+0|anchatbo | {"level":30,"time":1783370498390,"pid":53079,"hostname":"fastcreate-018519","baseUrl":"https://tisabuy.com","baseUrlSource":"BASE_URL env var","plisioWebhook":"https://tisabuy.com/webhook/plisio","tetrapayWebhook":"https://tisabuy.com/webhook/tetrapay","msg":"Effective public URL — verify callback URLs in admin panel match these"}
+0|anchatbo | {"level":30,"time":1783370498525,"pid":53079,"hostname":"fastcreate-018519","adminIds":[277236314],"msg":"Bot initialized successfully"}
+0|anchatbo | {"level":30,"time":1783370498615,"pid":53079,"hostname":"fastcreate-018519","username":"anoymchat_bot","msg":"Bot started"}
+0|anchatbo | {"level":30,"time":1783370540747,"pid":53079,"hostname":"fastcreate-018519","paymentId":146,"userId":277236314,"amountUsd":5,"coinsCount":500,"orderNumber":"inv_146_ZZr88m5B","callbackUrl":"https://tisabuy.com/webhook/plisio","derivedBaseUrl":"https://tisabuy.com","msg":"plisio: creating invoice"}
+0|anchatbo | {"level":30,"time":1783370541260,"pid":53079,"hostname":"fastcreate-018519","paymentId":146,"orderNumber":"inv_146_ZZr88m5B","txnId":"6a4c132d6a920bf37a0b7e0f","msg":"plisio: invoice created successfully"}
+
+root@fastcreate-018519:~/anchatpro# 

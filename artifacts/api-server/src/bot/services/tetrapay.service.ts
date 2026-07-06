@@ -157,7 +157,8 @@ export async function verifyTetraPayment(authority: string): Promise<TetraPayVer
         status: "failed",
         errorMessage: String(data["message"] ?? "Verification failed"),
       }).where(eq(tetraPayTransactionsTable.id, tx.id));
-      return { success: false, error: String(data["message"] ?? "Verification failed") };
+      // Return userId so the webhook route can notify the user of the failure.
+      return { success: false, userId: tx.userId, error: String(data["message"] ?? "Verification failed") };
     }
 
     // Mark as verified + paid
@@ -190,7 +191,8 @@ export async function verifyTetraPayment(authority: string): Promise<TetraPayVer
       status: "failed",
       errorMessage: errMsg,
     }).where(eq(tetraPayTransactionsTable.id, tx.id));
-    return { success: false, error: errMsg };
+    // Return userId so the webhook route can notify the user even on network errors.
+    return { success: false, userId: tx.userId, error: errMsg };
   }
 }
 

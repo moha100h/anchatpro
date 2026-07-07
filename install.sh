@@ -429,15 +429,24 @@ pm2 delete anchatbot >/dev/null 2>&1 || true
 pm2 start "$ECOSYSTEM_FILE"
 pm2 save >/dev/null 2>&1 || true
 
-# Auto-start on reboot: pm2 startup prints the command to run
-PM2_STARTUP=$(pm2 startup 2>&1 | grep -E "^\s*(sudo env|sudo\s+env|env PATH)" | head -1 | xargs || true)
+# Auto-start on reboot — capture full output first, then extract the sudo command
+PM2_STARTUP_OUTPUT=$(pm2 startup systemd 2>&1 || true)
+# The command to run always starts with "sudo env PATH=" (may have leading whitespace)
+PM2_STARTUP=$(echo "$PM2_STARTUP_OUTPUT" | grep -E "sudo\s+env\s+PATH" | head -1 | sed 's/^[[:space:]]*//')
 if [ -n "$PM2_STARTUP" ]; then
-    eval "$PM2_STARTUP" >/dev/null 2>&1 && ok "PM2 auto-start on reboot configured" \
-        || warn "Could not configure auto-start — run 'pm2 startup' manually"
+    eval "$PM2_STARTUP" >/dev/null 2>&1 \
+        && ok "PM2 auto-start on reboot configured" \
+        || warn "Could not configure auto-start automatically — run manually: pm2 startup systemd"
 else
-    # Alternative: try to detect the startup command differently
-    pm2 startup 2>&1 | tail -3
-    warn "Run the 'sudo env PATH=...' command shown above to enable auto-start on reboot."
+    # Already configured (no sudo command in output) or unsupported init system
+    if echo "$PM2_STARTUP_OUTPUT" | grep -qi "already\|enabled\|created\|systemctl enable"; then
+        ok "PM2 auto-start on reboot already configured"
+    else
+        warn "Could not configure PM2 auto-start automatically."
+        warn "Run these two commands manually to enable auto-start on reboot:"
+        warn "  pm2 startup systemd"
+        warn "  Then run the 'sudo env PATH=...' command it shows"
+    fi
 fi
 pm2 save >/dev/null 2>&1 || true
 

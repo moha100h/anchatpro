@@ -35,6 +35,7 @@ import {
   getBackupConfig,
   parseBackupBuffer,
   restoreFromBackup,
+  TABLE_LABELS,
 } from "../services/backup.service.js";
 import {
   setSetting,
@@ -1879,7 +1880,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
 
       const restoredLines = Object.entries(result.restored)
         .filter(([, n]) => n > 0)
-        .map(([k, n]) => `• ${k}: *${n.toLocaleString()}*`)
+        .map(([k, n]) => `• ${TABLE_LABELS[k] ?? k}: *${n.toLocaleString()}*`)
         .join("\n");
 
       await bot.api.editMessageText(

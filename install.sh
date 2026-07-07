@@ -450,8 +450,83 @@ else
 fi
 pm2 save >/dev/null 2>&1 || true
 
-# ─── Step 13: Health check ────────────────────────────────────────────────────
-echo -e "\n${BOLD}Step 10 — Health check${NC}"
+# ─── Step 13: Nginx reverse proxy ────────────────────────────────────────────
+echo -e "\n${BOLD}Step 10 — Nginx reverse proxy${NC}"
+
+# Extract bare domain from BASE_URL (e.g. https://tisabuy.com → tisabuy.com)
+DOMAIN=""
+if [[ -n "$BASE_URL" ]]; then
+    DOMAIN=$(echo "$BASE_URL" | sed 's|https\?://||' | cut -d'/' -f1 | cut -d':' -f1)
+fi
+
+# Install nginx if not present (supports apt / dnf / yum)
+if ! command -v nginx >/dev/null 2>&1; then
+    info "Installing Nginx..."
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get install -y nginx >/dev/null 2>&1
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y nginx >/dev/null 2>&1
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y nginx >/dev/null 2>&1
+    else
+        warn "Package manager not found — install Nginx manually then run: systemctl enable --now nginx"
+    fi
+fi
+
+if command -v nginx >/dev/null 2>&1; then
+    NGINX_CONF="/etc/nginx/sites-available/anchatbot"
+    NGINX_LINK="/etc/nginx/sites-enabled/anchatbot"
+
+    # Determine server_name block: use real domain if we have one, else catch-all
+    if [[ -n "$DOMAIN" ]]; then
+        SERVER_NAME="$DOMAIN www.$DOMAIN"
+    else
+        SERVER_NAME="_"
+    fi
+
+    # Write config (idempotent — overwrites previous install run)
+    cat > "$NGINX_CONF" << NGINXCONF
+server {
+    listen 80;
+    server_name ${SERVER_NAME};
+
+    location / {
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              \$host;
+        proxy_set_header   X-Real-IP         \$remote_addr;
+        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 60s;
+    }
+}
+NGINXCONF
+
+    # Enable site and remove default if still present
+    ln -sf "$NGINX_CONF" "$NGINX_LINK"
+    rm -f /etc/nginx/sites-enabled/default
+
+    # Test config and reload / start nginx
+    if nginx -t >/dev/null 2>&1; then
+        if systemctl is-active --quiet nginx; then
+            systemctl reload nginx >/dev/null 2>&1
+        else
+            systemctl enable nginx >/dev/null 2>&1
+            systemctl start  nginx >/dev/null 2>&1
+        fi
+        ok "Nginx configured — proxying :80 → :5000 (server_name: ${SERVER_NAME})"
+    else
+        warn "Nginx config test failed — check /etc/nginx/sites-available/anchatbot"
+        nginx -t
+    fi
+else
+    warn "Nginx not installed — درخواست‌های Cloudflare به سرور نخواهد رسید."
+    warn "بعد از نصب دستی Nginx این دستور را اجرا کنید:"
+    warn "  bash ${INSTALL_DIR}/install.sh  (مجدداً)"
+fi
+
+# ─── Step 14: Health check ────────────────────────────────────────────────────
+echo -e "\n${BOLD}Step 11 — Health check${NC}"
 sleep 6
 
 # Parse PM2 status from JSON (reliable, no box-drawing character grep)

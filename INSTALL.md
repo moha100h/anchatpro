@@ -55,7 +55,8 @@ Step 7  — Build پروژه (esbuild)
 Step 8  — اعمال Schema دیتابیس (drizzle-kit)
 Step 9  — Migration های SQL (column های اضافی، reset sequence ها)
 Step 10 — راه‌اندازی PM2 با ecosystem.config.cjs
-Step 11 — بررسی سلامت (Health Check)
+Step 11 — نصب و پیکربندی Nginx (reverse proxy)
+Step 12 — بررسی سلامت (Health Check)
 ```
 
 ---

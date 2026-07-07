@@ -147,6 +147,13 @@ router.post("/", async (req: PlisioRequest, res) => {
       await bot.api
         .sendMessage(result.userId, msg, { parse_mode: "HTML" })
         .catch((e) => logger.warn({ err: e }, "plisio: failed to send failure notification"));
+
+      // Mismatch / partial payments need manual admin review → archive in group.
+      if (result.paymentStatus === "mismatch") {
+        await notifyPlisioReviewGroupMismatch(result, userRecord).catch((e) =>
+          logger.warn({ err: e }, "plisio: failed to send mismatch archive message")
+        );
+      }
     }
   } catch (err) {
     logger.error({ err }, "plisio webhook: unhandled error");
@@ -170,16 +177,62 @@ async function notifyPlisioReviewGroup(
   const fullName = [userRecord?.firstName, userRecord?.lastName].filter(Boolean).join(" ") || "—";
   const username = userRecord?.username ? `@${userRecord.username}` : "—";
 
+  // The paid crypto (e.g. "0.0021 ETH"), shown only when Plisio reported it.
+  const cryptoLine =
+    result.cryptoAmount && result.cryptoCurrency
+      ? `\n🪫 پرداختی کریپتو: <b>${result.cryptoAmount} ${result.cryptoCurrency}</b>`
+      : "";
+
   const text =
     `💫 <b>پرداخت موفق — Plisio</b>\n\n` +
     `👤 کاربر: ${fullName} (${username})\n` +
     `🆔 آیدی عددی: <code>${result.userId}</code>\n\n` +
     `🪙 سکه شارژ شده: <b>${result.coins}</b>\n` +
-    `💵 مبلغ: <b>${result.amountUsd ?? "-"}</b> ${result.cryptoCurrency ?? "USD"}\n` +
+    `💵 مبلغ: <b>${result.amountUsd ?? "-"}</b> USD` + cryptoLine + `\n` +
     `📄 شماره سفارش: <code>${result.orderNumber ?? "-"}</code>\n` +
     `🔖 شناسه تراکنش: <code>${result.txnId ?? "-"}</code>\n\n` +
     `🕒 ${new Date().toLocaleString("fa-IR")}\n` +
     `✅ وضعیت: تکمیل و بایگانی شد`;
+
+  await bot.api.sendMessage(groupId, text, { parse_mode: "HTML" });
+}
+
+// ─── Review-group archive for mismatch / partial payments ────────────────────
+
+async function notifyPlisioReviewGroupMismatch(
+  result: Awaited<ReturnType<typeof handlePlisioCallback>>,
+  userRecord: User | null
+): Promise<void> {
+  const bot = getBotInstance();
+  if (!bot) return;
+
+  const rawGroupId = (await getSetting("plisio_review_group")) ?? (await getSetting("payment_review_group"));
+  if (!rawGroupId) return;
+  const groupId = parseInt(rawGroupId, 10);
+  if (!Number.isFinite(groupId)) return;
+
+  const fullName = [userRecord?.firstName, userRecord?.lastName].filter(Boolean).join(" ") || "—";
+  const username = userRecord?.username ? `@${userRecord.username}` : "—";
+
+  const paidLine =
+    result.cryptoAmount && result.cryptoCurrency
+      ? `\n🪫 پرداخت‌شده: <b>${result.cryptoAmount} ${result.cryptoCurrency}</b>`
+      : "";
+  const pendingLine =
+    result.pendingAmount && result.cryptoCurrency
+      ? `\n⏳ باقی‌مانده: <b>${result.pendingAmount} ${result.cryptoCurrency}</b>`
+      : "";
+
+  const text =
+    `⚠️ <b>پرداخت ناقص/متناقض — Plisio</b>\n\n` +
+    `👤 کاربر: ${fullName} (${username})\n` +
+    `🆔 آیدی عددی: <code>${result.userId}</code>\n\n` +
+    `🪙 سکه سفارش‌شده: <b>${result.coinsExpected ?? "-"}</b>\n` +
+    `💵 مبلغ فاکتور: <b>${result.amountUsd ?? "-"}</b> USD` + paidLine + pendingLine + `\n` +
+    `📄 شماره سفارش: <code>${result.orderNumber ?? "-"}</code>\n` +
+    `🔖 شناسه تراکنش: <code>${result.txnId ?? "-"}</code>\n\n` +
+    `🕒 ${new Date().toLocaleString("fa-IR")}\n` +
+    `❗️ وضعیت: نیازمند بررسی دستی (سکه شارژ نشد)`;
 
   await bot.api.sendMessage(groupId, text, { parse_mode: "HTML" });
 }

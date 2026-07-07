@@ -198,11 +198,17 @@ export interface PlisioVerifyResult {
   /** Actual Plisio status string, available even on failure */
   paymentStatus?: string;
   error?: string;
-  /** Extra context for the review-group notification on success */
+  /** Extra context for the review-group notification on success/mismatch */
   orderNumber?: string;
   txnId?: string;
   amountUsd?: string;
   cryptoCurrency?: string;
+  /** Actual crypto amount reported by Plisio (invoice amount) */
+  cryptoAmount?: string;
+  /** For mismatch/partial payments: amount still pending (crypto) */
+  pendingAmount?: string;
+  /** Number of coins in the underlying package (for mismatch context) */
+  coinsExpected?: number;
 }
 
 export async function handlePlisioCallback(
@@ -242,8 +248,12 @@ export async function handlePlisioCallback(
   const status      = String(payload["status"]       ?? "");
   const orderNumber = String(payload["order_number"] ?? "");
   const txnId       = String(payload["txn_id"]       ?? "");
+  // Actual crypto fields reported by Plisio (present on most callbacks).
+  const cryptoCurrency = payload["currency"]       != null ? String(payload["currency"])       : undefined;
+  const cryptoAmount   = payload["amount"]         != null ? String(payload["amount"])         : undefined;
+  const pendingAmount  = payload["pending_amount"] != null ? String(payload["pending_amount"]) : undefined;
 
-  logger.info({ orderNumber, status, txnId }, "plisio webhook: signature OK — processing");
+  logger.info({ orderNumber, status, txnId, cryptoCurrency }, "plisio webhook: signature OK — processing");
 
   const [tx] = await db
     .select()
@@ -283,21 +293,39 @@ export async function handlePlisioCallback(
       await db.update(plisioTransactionsTable)
         .set({
           status: mapped,
-          // null clears the column; undefined skips it (drizzle semantics).
-          // Keep existing txnId if the new payload doesn't have one yet.
-          txnId: txnId || null,
+          // Keep existing txnId if the new payload doesn't carry one yet.
+          txnId: txnId || tx.txnId || null,
         })
         .where(eq(plisioTransactionsTable.id, tx.id));
     }
 
     logger.info({ orderNumber, status, mapped, userId: tx.userId }, "plisio webhook: non-completed status recorded");
 
-    // Always return userId so the webhook route can notify the user on terminal statuses.
+    // Look up the coins the user was trying to buy (for mismatch context).
+    let coinsExpected: number | undefined;
+    if (mapped === "mismatch") {
+      const [pmt] = await db
+        .select({ coins: paymentsTable.coins })
+        .from(paymentsTable)
+        .where(eq(paymentsTable.id, tx.paymentId))
+        .limit(1);
+      coinsExpected = pmt?.coins;
+    }
+
+    // Always return userId + context so the webhook route can notify the user
+    // (and the review group, for mismatch/partial payments) on terminal statuses.
     return {
       success: false,
       userId: tx.userId,
       paymentStatus: mapped,
       error: `Payment status: ${status}`,
+      orderNumber: tx.orderNumber,
+      txnId: txnId || tx.txnId || undefined,
+      amountUsd: tx.amountUsd,
+      cryptoCurrency,
+      cryptoAmount,
+      pendingAmount,
+      coinsExpected,
     };
   }
 
@@ -321,6 +349,8 @@ export async function handlePlisioCallback(
       status:           "completed",
       callbackVerified: true,
       txnId:            txnId || null,
+      // Persist the actual crypto currency Plisio reported (e.g. "ETH", "TRX").
+      currency:         cryptoCurrency ?? tx.currency ?? null,
       verifiedAt:       new Date(),
     })
     .where(
@@ -360,7 +390,8 @@ export async function handlePlisioCallback(
       orderNumber:    tx.orderNumber,
       txnId:          txnId || tx.txnId || undefined,
       amountUsd:      tx.amountUsd,
-      cryptoCurrency: tx.currency ?? undefined,
+      cryptoCurrency: cryptoCurrency ?? tx.currency ?? undefined,
+      cryptoAmount,
     };
   }
 

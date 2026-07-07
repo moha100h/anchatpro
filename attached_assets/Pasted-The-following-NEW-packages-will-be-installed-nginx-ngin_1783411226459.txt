@@ -1,0 +1,58 @@
+The following NEW packages will be installed:
+  nginx nginx-common
+0 upgraded, 2 newly installed, 0 to remove and 338 not upgraded.
+Need to get 568 kB of archives.
+After this operation, 1,599 kB of additional disk space will be used.
+Get:1 http://de.archive.ubuntu.com/ubuntu noble-updates/main amd64 nginx-common all 1.24.0-2ubuntu7.13 [44.5 kB]
+Get:2 http://de.archive.ubuntu.com/ubuntu noble-updates/main amd64 nginx amd64 1.24.0-2ubuntu7.13 [524 kB]
+Fetched 568 kB in 0s (2,224 kB/s)
+Preconfiguring packages ...
+Selecting previously unselected package nginx-common.
+(Reading database ... 91224 files and directories currently installed.)
+Preparing to unpack .../nginx-common_1.24.0-2ubuntu7.13_all.deb ...
+Unpacking nginx-common (1.24.0-2ubuntu7.13) ...
+Selecting previously unselected package nginx.
+Preparing to unpack .../nginx_1.24.0-2ubuntu7.13_amd64.deb ...
+Unpacking nginx (1.24.0-2ubuntu7.13) ...
+Setting up nginx-common (1.24.0-2ubuntu7.13) ...
+
+Created symlink /etc/systemd/system/multi-user.target.wants/nginx.service → /usr/lib/systemd/system/nginx.service.
+Setting up nginx (1.24.0-2ubuntu7.13) ...
+ * Upgrading binary nginx                          [ OK ] 
+Processing triggers for man-db (2.12.0-4build2) ...
+Scanning processes...                                     
+Scanning linux images...                                  
+
+Running kernel seems to be up-to-date.
+
+No services need to be restarted.
+
+No containers need to be restarted.
+
+No user sessions are running outdated binaries.
+
+No VM guests are running outdated hypervisor (qemu)
+ binaries on this host.
+root@fastcreate-018519:~/anchatpro# cat > /etc/nginx/sites-available/anchatbot << 'EOF'
+server {
+    listen 80;
+    server_name tisabuy.com www.tisabuy.com;
+
+    location / {
+        proxy_pass         http://127.0.0.1:5000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr; 
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+}
+EOF
+root@fastcreate-018519:~/anchatpro# ln -sf /etc/nginx/sites-available/anchatbot /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+nginx -t && systemctl reload nginx
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+root@fastcreate-018519:~/anchatpro# curl -s http://localhost/webhook/plisio?json=true -X POST -H "Content-Type: application/json" -d '{"test":1}'
+root@fastcreate-018519:~

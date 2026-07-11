@@ -927,7 +927,7 @@ export const fa = {
   proLinkDisabled: "❌ این لینک توسط صاحبش غیرفعال شده است.",
   proLinkExpired: "⏰ این لینک منقضی شده یا معتبر نیست.",
   proMsgSentConfirm: "✅ پیام ناشناس شما ارسال شد!",
-  proMsgReceived: "💎 <b>پیام ناشناس پرو</b>",
+  proMsgReceived: "💎 <b>پیام ناشناس</b>",
   proRevealSenderInfo: (firstName: string, username: string | null, tgId: number) =>
     `🔍 <b>هویت فرستنده:</b>\n\n` +
     `👤 نام: ${firstName}\n` +

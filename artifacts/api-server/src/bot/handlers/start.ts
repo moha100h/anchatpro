@@ -251,6 +251,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         await ctx.reply(greeting, { parse_mode: "HTML", reply_markup: cancelProSendKeyboard(sLang) });
         return;
       }
+      await ctx.reply(t("fa").proLinkExpired);
+      return;
     }
 
     // ── 1e. Handle Pro In-App link (ai_ prefix) ───────────────────────────────

@@ -210,7 +210,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
     // ── 1d. Handle Pro Permanent link (ap_ prefix) ───────────────────────────
     if (arg.startsWith("ap_")) {
-      const slug = arg.slice(3);
+      const slug = arg.slice(3).toLowerCase();
       const { db, proAnonLinksTable } = await import("@workspace/db");
       const { or } = await import("drizzle-orm");
       const [proLink] = await db
@@ -255,7 +255,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
     // ── 1e. Handle Pro In-App link (ai_ prefix) ───────────────────────────────
     if (arg.startsWith("ai_")) {
-      const slug = arg.slice(3);
+      const slug = arg.slice(3).toLowerCase();
       const { db, proAnonLinksTable } = await import("@workspace/db");
       const { or } = await import("drizzle-orm");
       const [proLink] = await db

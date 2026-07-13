@@ -842,9 +842,9 @@ export function registerProAnonLinkHandlers(bot: Bot<BotContext>) {
     // ── Set alias ───────────────────────────────────────────────────────────
     if (step.startsWith("pro_set_alias:")) {
       const linkId = parseInt(step.replace("pro_set_alias:", ""), 10);
-      const aliasRaw = ctx.message.text.trim();
+      const aliasRaw = ctx.message.text.trim().toLowerCase();
 
-      if (!/^[a-zA-Z0-9_]{1,20}$/.test(aliasRaw)) {
+      if (!/^[a-z0-9_]{1,20}$/.test(aliasRaw)) {
         await ctx.reply(t(lang).proAliasInvalid);
         return;
       }

@@ -25,7 +25,7 @@ export const usersTable = pgTable("users", {
   isInGroup: boolean("is_in_group").default(false).notNull(),
   maxGroupsCreated: integer("max_groups_created").default(5).notNull(),
   maxGroupsJoined: integer("max_groups_joined").default(5).notNull(),
-  setupStep: varchar("setup_step", { length: 50 }),
+  setupStep: varchar("setup_step", { length: 255 }),
   anonymousToken: varchar("anonymous_token", { length: 64 }).unique(),
   anonLinkPaid: boolean("anon_link_paid").default(false).notNull(),
   anonLinkEnabled: boolean("anon_link_enabled").default(true).notNull(),

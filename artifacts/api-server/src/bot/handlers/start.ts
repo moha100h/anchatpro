@@ -745,11 +745,21 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       } else if (pendingStep?.startsWith("pending_pro:")) {
         // Format: pending_pro:OWNER_ID:LINK_ID:TIER
         const parts = pendingStep.slice(12).split(":");
-        const ownerId = parts[0];
-        const linkId = parts[1];
+        const ownerId = parseInt(parts[0], 10);
+        const linkId = parseInt(parts[1], 10);
         const tier = parts[2];
         ctx.session.step = `pro_send:${ownerId}:${linkId}:${tier}`;
-        await ctx.reply(lang === "fa" ? "📝 پیام خود را ارسال کنید:" : "📝 Send your message:", { reply_markup: { remove_keyboard: true } });
+        // Fetch link info to show proper greeting (same as existing-user path)
+        const { db, proAnonLinksTable } = await import("@workspace/db");
+        const { eq: eqPro } = await import("drizzle-orm");
+        const [proLink] = await db.select().from(proAnonLinksTable).where(eqPro(proAnonLinksTable.id, linkId)).limit(1);
+        const ownerUser = await getUserByTelegramId(ownerId);
+        const ownerName = proLink?.displayName ?? proLink?.alias ?? ownerUser?.firstName ?? (lang === "fa" ? "ناشناس" : "Anonymous");
+        const greeting = proLink?.welcomeMessage
+          ? t(lang).proLinkWelcomeGreeting(ownerName, proLink.welcomeMessage)
+          : t(lang).proLinkDefaultGreeting(ownerName);
+        const { cancelProSendKeyboard } = await import("../keyboards/main.js");
+        await ctx.reply(greeting, { parse_mode: "HTML", reply_markup: cancelProSendKeyboard(lang) });
       } else {
         await ctx.reply(t(lang).profileComplete, { reply_markup: mainMenuKeyboard(lang) });
       }

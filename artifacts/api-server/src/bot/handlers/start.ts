@@ -139,7 +139,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
           // New/incomplete user → save pending anon + start setup
           ctx.session.step = `pending_anon:${receiver.telegramId}`;
           await setUserLanguage(tgId, "fa");
-          await setUserSetupStep(tgId, "select_language");
+          await setUserSetupStep(tgId, `select_language:pending_anon:${receiver.telegramId}`);
           const customWelcome = await getSetting("welcome_message");
           if (customWelcome) await ctx.reply(customWelcome);
           await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
@@ -187,7 +187,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         if (!sender.gender || !sender.age) {
           ctx.session.step = `pending_anon:${timedLink.userId}`;
           await setUserLanguage(tgId, "fa");
-          await setUserSetupStep(tgId, "select_language");
+          await setUserSetupStep(tgId, `select_language:pending_anon:${timedLink.userId}`);
           const customWelcome = await getSetting("welcome_message");
           if (customWelcome) await ctx.reply(customWelcome);
           await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
@@ -234,7 +234,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         if (!sender.gender || !sender.age) {
           ctx.session.step = `pending_pro:${proLink.userId}:${proLink.id}:permanent`;
           await setUserLanguage(tgId, "fa");
-          await setUserSetupStep(tgId, "select_language");
+          await setUserSetupStep(tgId, `select_language:pending_pro:${proLink.userId}:${proLink.id}:permanent`);
           const customWelcome = await getSetting("welcome_message");
           if (customWelcome) await ctx.reply(customWelcome);
           await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
@@ -282,7 +282,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
         if (!sender.gender || !sender.age) {
           ctx.session.step = `pending_pro:${proLink.userId}:${proLink.id}:inapp`;
           await setUserLanguage(tgId, "fa");
-          await setUserSetupStep(tgId, "select_language");
+          await setUserSetupStep(tgId, `select_language:pending_pro:${proLink.userId}:${proLink.id}:inapp`);
           const customWelcome = await getSetting("welcome_message");
           if (customWelcome) await ctx.reply(customWelcome);
           await ctx.reply(BILINGUAL_WELCOME, { reply_markup: languageKeyboard() });
@@ -634,11 +634,13 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
 
     // Only handle during initial language-selection step; defer to settings.ts otherwise
-    if (user?.setupStep !== "select_language") return next();
+    const _su0 = user?.setupStep ?? "";
+    if (!_su0.startsWith("select_language")) return next();
+    const _psuffix0 = _su0.slice("select_language".length); // "" or ":pending_pro:..." or ":pending_anon:..."
 
     const lang = ctx.message!.text === "🇮🇷 فارسی" ? "fa" : "en";
     await setUserLanguage(tgId, lang);
-    await setUserSetupStep(tgId, "select_gender");
+    await setUserSetupStep(tgId, "select_gender" + _psuffix0);
     await ctx.reply(t(lang).selectGender, { reply_markup: genderKeyboard(lang) });
   });
 
@@ -651,7 +653,9 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
 
       // Only handle during initial gender-selection step; defer to settings.ts otherwise
-      if (user?.setupStep !== "select_gender") return next();
+      const _su1 = user?.setupStep ?? "";
+      if (!_su1.startsWith("select_gender")) return next();
+      const _psuffix1 = _su1.slice("select_gender".length);
 
       const text = ctx.message!.text ?? "";
       const gender =
@@ -661,7 +665,7 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       const lang = (user?.language as "fa" | "en") ?? "fa";
       await updateUser(tgId, { gender });
-      await setUserSetupStep(tgId, "select_age");
+      await setUserSetupStep(tgId, "select_age" + _psuffix1);
       await ctx.reply(t(lang).selectAge, { reply_markup: { remove_keyboard: true } });
     }
   );
@@ -672,7 +676,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
     const user = ctx.dbUser ?? await getUserByTelegramId(tgId);
 
     // ── Age step ──────────────────────────────────────────────────────────────
-    if (user?.setupStep === "select_age") {
+    if (user?.setupStep?.startsWith("select_age")) {
+      const _psuffix2 = (user.setupStep ?? "").slice("select_age".length);
       const lang = (user?.language as "fa" | "en") ?? "fa";
       const age = parseInt(ctx.message.text.trim(), 10);
 
@@ -683,13 +688,17 @@ export function registerStartHandler(bot: Bot<BotContext>) {
 
       await updateUser(tgId, { age });
       // Move to city step instead of finishing setup
-      await setUserSetupStep(tgId, "select_city");
+      await setUserSetupStep(tgId, "select_city" + _psuffix2);
       await ctx.reply(t(lang).selectCity, { reply_markup: { remove_keyboard: true } });
       return;
     }
 
     // ── City step ─────────────────────────────────────────────────────────────
-    if (user?.setupStep === "select_city") {
+    if (user?.setupStep?.startsWith("select_city")) {
+      // Extract DB-stored pending link info (persists across bot restarts)
+      const _dbPending = (user.setupStep ?? "").startsWith("select_city:")
+        ? (user.setupStep ?? "").slice("select_city:".length)
+        : "";
       const lang = (user?.language as "fa" | "en") ?? "fa";
       const input = ctx.message.text.trim();
 
@@ -726,7 +735,8 @@ export function registerStartHandler(bot: Bot<BotContext>) {
       }
 
       // Check for pending anon link (user clicked anon link before completing setup)
-      const pendingStep = ctx.session.step;
+      // Prefer DB-stored pending info (survives bot restarts) over in-memory session
+      const pendingStep = _dbPending || ctx.session.step;
       ctx.session.step = undefined;
       if (pendingStep?.startsWith("pending_anon:")) {
         const receiverId = pendingStep.slice(13);

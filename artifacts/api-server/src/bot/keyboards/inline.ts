@@ -111,8 +111,9 @@ export function proInAppConfirmKeyboard(hours: number, token: string, lang: Lang
     .text(fa ? "❌ انصراف" : "❌ Cancel", "pro_inapp_cancel");
 }
 
-export function adminUserActionsKeyboard(userId: number, lang: Lang, isBanned: boolean, isRestricted = false) {
+export function adminUserActionsKeyboard(userId: number, lang: Lang, isBanned: boolean, isRestricted = false, username?: string | null) {
   const kb = new InlineKeyboard()
+    .url("👤 مشاهده پروفایل", username ? `https://t.me/${username}` : `tg://user?id=${userId}`).row()
     .text("➕ سکه", `admin_addcoins:${userId}`)
     .text("➖ سکه", `admin_removecoins:${userId}`).row()
     .text(isBanned ? "✅ رفع مسدود" : "🔨 مسدود", `admin_${isBanned ? "unban" : "ban"}:${userId}`).row();

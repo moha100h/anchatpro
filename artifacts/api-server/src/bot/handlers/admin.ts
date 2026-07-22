@@ -2008,7 +2008,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
     if (!user) { await ctx.answerCallbackQuery("کاربر یافت نشد"); return; }
     await ctx.reply(t("fa").adminUserInfo(user), {
       parse_mode: "Markdown",
-      reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned", user.status === "restricted"),
+      reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned", user.status === "restricted", user.username),
     });
     await ctx.answerCallbackQuery();
   });
@@ -2042,7 +2042,7 @@ export function registerAdminHandlers(bot: Bot<BotContext>): void {
       if (!user) { await ctx.reply(t("fa").adminNotFound); return; }
       await ctx.reply(t("fa").adminUserInfo(user), {
         parse_mode: "Markdown",
-        reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned", user.status === "restricted"),
+        reply_markup: adminUserActionsKeyboard(user.telegramId, "fa", user.status === "banned", user.status === "restricted", user.username),
       });
       return;
     }

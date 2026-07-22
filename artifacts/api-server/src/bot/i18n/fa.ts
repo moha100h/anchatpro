@@ -493,29 +493,30 @@ export const fa = {
     `📋 گزارش‌های جدید: ${stats.pendingReports}`,
   adminNotFound: "❌ کاربر یافت نشد.",
   adminUserInfo: (u: any) => {
-    const genderLabel = u.gender === "male" ? "👦 پسر" : u.gender === "female" ? "👧 دختر" : u.gender ? u.gender : "—";
+    const genderLabel = u.gender === "male" ? "👦 پسر" : u.gender === "female" ? "👧 دختر" : u.gender ?? "—";
     const statusLabel = u.status === "banned" ? "🔨 بن‌شده" : u.status === "restricted" ? "⚠️ محدود" : "✅ فعال";
-    const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString("fa-IR") + " — " + new Date(u.lastSeen).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" }) : "—";
-    const joined  = u.createdAt ? new Date(u.createdAt).toLocaleDateString("fa-IR") : "—";
+    const lastSeen = u.lastSeen ? new Date(u.lastSeen).toLocaleDateString("fa-IR") + " - " + new Date(u.lastSeen).toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" }) : "-";
+    const joined  = u.createdAt ? new Date(u.createdAt).toLocaleDateString("fa-IR") : "-";
     const langLabel = u.language === "en" ? "🇬🇧 انگلیسی" : "🇮🇷 فارسی";
     const chatStatus = u.isInChat ? "🟢 در چت" : u.isInQueue ? "🟡 در صف" : u.isInGroup ? "🔵 در گروه" : "⚪ آفلاین";
-    const anonStatus = u.anonLinkPaid ? (u.anonLinkEnabled ? "✅ فعال (پرو)" : "❌ غیرفعال") : "—";
+    const anonStatus = u.anonLinkPaid ? (u.anonLinkEnabled ? "✅ فعال (پرو)" : "❌ غیرفعال") : "-";
     const restrictedUntil = u.restrictedUntil ? new Date(u.restrictedUntil).toLocaleDateString("fa-IR") : null;
+    const fullName = [u.firstName, u.lastName].filter(Boolean).join(" ") || "-";
     return (
-      `👤 *پروفایل کاربر*\n` +
-      `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `🆔 آیدی: \`${u.telegramId}\`\n` +
+      `👤 <b>پروفایل کاربر</b>\n` +
+      `<code>─────────────────────</code>\n` +
+      `🆔 آیدی: <code>${u.telegramId}</code>\n` +
       (u.username ? `🔗 یوزرنیم: @${u.username}\n` : "") +
-      `📛 نام: ${u.firstName ?? "—"}${u.lastName ? " " + u.lastName : ""}\n` +
-      `${genderLabel}  |  🎂 سن: ${u.age ?? "—"}  |  🏙️ شهر: ${u.city ?? "—"}\n` +
+      `📛 نام: ${fullName}\n` +
+      `${genderLabel}  |  🎂 سن: ${u.age ?? "-"}  |  🏙️ شهر: ${u.city ?? "-"}\n` +
       `🌐 زبان: ${langLabel}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━\n` +
-      `💰 سکه: *${u.coins}*\n` +
-      `📊 وضعیت: ${statusLabel}` + (restrictedUntil ? ` (تا ${restrictedUntil})` : "") + `\n` +
+      `<code>─────────────────────</code>\n` +
+      `💰 سکه: <b>${u.coins}</b>\n` +
+      `📊 وضعیت: ${statusLabel}${restrictedUntil ? ` (تا ${restrictedUntil})` : ""}\n` +
       `⚠️ اخطار: ${u.warningCount ?? 0}  |  🚨 گزارش: ${u.reportCount ?? 0}\n` +
       `💬 وضعیت چت: ${chatStatus}\n` +
       `🔗 لینک ناشناس: ${anonStatus}\n` +
-      `━━━━━━━━━━━━━━━━━━━━━\n` +
+      `<code>─────────────────────</code>\n` +
       `📅 عضویت: ${joined}\n` +
       `🕐 آخرین بازدید: ${lastSeen}`
     );
